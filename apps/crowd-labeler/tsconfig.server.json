@@ -1,0 +1,5 @@
+{
+  "extends": "./tsconfig.json",
+  "include": ["server", "db", "drizzle.config.ts"],
+  "compilerOptions": { "tsBuildInfoFile": ".tmp/server.tsbuildinfo" }
+}

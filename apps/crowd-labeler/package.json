@@ -1,0 +1,29 @@
+{
+  "name": "@mapgen/crowd-labeler",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "tsc -b && tsc -p tsconfig.server.json && node scripts/build-hosted.mjs",
+    "test": "node --experimental-strip-types scripts/test-survey.mjs && node --experimental-strip-types scripts/test-i18n.mjs",
+    "preview": "vite preview --host 127.0.0.1",
+    "generate:data": "node scripts/build-seed-data.mjs",
+    "db:generate": "drizzle-kit generate",
+    "test:server": "node --experimental-strip-types scripts/test-server.mjs"
+  },
+  "dependencies": {
+    "@vitejs/plugin-react": "^4.3.4",
+    "lucide-react": "^0.468.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.7"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "drizzle-kit": "^0.31.11",
+    "drizzle-orm": "^0.45.3"
+  }
+}

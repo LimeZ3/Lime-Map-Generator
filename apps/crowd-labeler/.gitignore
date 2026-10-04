@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.env*
+*.log
+*.tsbuildinfo
+.sites-runtime/
+.tmp/
+*.tar.gz
+public/previews/
+public/maps/
+public/data/

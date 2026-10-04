@@ -1,0 +1,70 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyd
+*.pyo
+.Python
+.venv/
+.venv-*/
+venv/
+env/
+.env
+.env.*
+
+# Build and packaging
+build/
+dist/
+node_modules/
+dev-server*.log
+dev-server.pid
+*.egg-info/
+*.tsbuildinfo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tmp/
+.coverage
+htmlcov/
+
+# Editors and OS
+.idea/
+.vscode/
+*.swp
+Thumbs.db
+Desktop.ini
+
+# Raw and generated project data
+data/raw/
+data/interim/
+data/processed/
+data/exports/
+data/models/
+data/outputs/
+data/tensors/
+data/manifests/**/*.json
+data/manifests/**/*.jsonl
+data/audit/
+data/labels/*.csv
+data/splits/
+
+# Private collection exports and local study drafts
+data/responses/
+data/backups/
+docs/portfolio/
+apps/crowd-labeler/src/data/preview-report.json
+
+# ML artifacts
+artifacts/
+runs/
+checkpoints/
+wandb/
+mlruns/
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+
+# Local map dumps outside data/
+maps/
+MapData/
+SupComMaps/

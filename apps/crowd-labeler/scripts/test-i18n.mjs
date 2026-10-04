@@ -1,0 +1,17 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import ts from 'typescript';
+import {ru,translate} from '../src/lib/i18n.ts';
+import {questions,modes,familiarityOptions} from '../src/lib/survey.ts';
+for(const q of questions) for(const value of [q.title,q.help,q.group,...q.labels]) assert.ok(ru[value],`Missing RU: ${value}`);
+for(const value of [...modes,...familiarityOptions]) assert.ok(ru[value],`Missing RU option: ${value}`);
+const source=fs.readFileSync(new URL('../src/App.tsx',import.meta.url),'utf8');
+const ast=ts.createSourceFile('App.tsx',source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);
+function walk(n){if(ts.isCallExpression(n)&&n.expression.getText(ast)==='t'&&n.arguments.length===1&&ts.isStringLiteral(n.arguments[0]))assert.ok(ru[n.arguments[0].text],`Missing RU UI: ${n.arguments[0].text}`);ts.forEachChild(n,walk);}walk(ast);
+assert.equal(translate('en','Gameplay quality'),'Gameplay quality');
+assert.equal(translate('ru','Gameplay quality'),'Качество геймплея');
+assert.equal(translate('ru','12.5% water coverage'),'12.5% поверхности — вода');
+assert.equal(translate('ru','16.0 mex / slot'),'16.0 мекса на слот');
+assert.equal(translate('ru','Setons Clutch'),'Setons Clutch');
+assert.ok(source.includes('<option key={x} value={x}>{t(x)}</option>'),'Translated options must preserve canonical values');
+console.log('Passed: Russian UI and questionnaire coverage, English fallback, dynamic hints, stable option values.');

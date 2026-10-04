@@ -1,0 +1,763 @@
+{
+  "schema": "mapgen_dataset_quality_v1",
+  "dataset_name": "dataset_v1_adaptive_10km",
+  "created_utc": "2026-07-12T15:08:49.171589+00:00",
+  "inputs": {
+    "tensor_manifest": "data\\tensors\\v1_adaptive_10km\\tensor_manifest.csv",
+    "tensor_manifest_sha256": "3efd209bfaaaf63e8278adc95551dda6d7aafbf9ea73b7cee67c0a07567b688d",
+    "splits_csv": "data\\splits\\v1_current\\splits.csv",
+    "splits_csv_sha256": "828a62581540ed050dc6564ae18f0e706c8d53fd42938f18cc86537e862634ba",
+    "audit_maps_csv": "data\\audit\\v1_current\\dataset_audit_maps.csv",
+    "audit_maps_csv_sha256": "2acad300dc9c9d5fbffea320de955ed6954bb022090e4d41d4d13743c32b79cf"
+  },
+  "counts": {
+    "map_count": 293,
+    "missing_split_count": 0,
+    "missing_tensor_file_count": 0
+  },
+  "by_split": {
+    "train": 222,
+    "val": 44,
+    "test": 27
+  },
+  "by_size_class": {
+    "10km": 293
+  },
+  "by_audit_status": {
+    "ready": 293
+  },
+  "by_player_slots": {
+    "12": 99,
+    "10": 77,
+    "16": 51,
+    "14": 21,
+    "8": 20,
+    "4": 13,
+    "6": 11,
+    "2": 1
+  },
+  "by_predicted_team_setting": {
+    "6v6": 96,
+    "5v5": 77,
+    "8v8": 44,
+    "7v7": 20,
+    "4v4": 19,
+    "3v3": 11,
+    "2v2": 9,
+    "4v4v4v4": 5,
+    "1v1v1v1_or_2v2": 4,
+    "2v2v2v2v2v2v2v2": 2,
+    "2v2v2v2": 2,
+    "3v3v3v3": 2,
+    "2v2v2v2v2v2": 1,
+    "1v1": 1
+  },
+  "numeric": {
+    "player_slots": {
+      "count": 293,
+      "min": 2.0,
+      "p05": 6.0,
+      "p25": 10.0,
+      "median": 12.0,
+      "mean": 11.426621,
+      "p75": 12.0,
+      "p95": 16.0,
+      "max": 16.0
+    },
+    "spawn_count": {
+      "count": 293,
+      "min": 2.0,
+      "p05": 6.0,
+      "p25": 10.0,
+      "median": 12.0,
+      "mean": 11.426621,
+      "p75": 12.0,
+      "p95": 16.0,
+      "max": 16.0
+    },
+    "mex_count": {
+      "count": 293,
+      "min": 30.0,
+      "p05": 64.0,
+      "p25": 98.0,
+      "median": 118.0,
+      "mean": 118.904437,
+      "p75": 140.0,
+      "p95": 165.4,
+      "max": 256.0
+    },
+    "hydro_count": {
+      "count": 293,
+      "min": 0.0,
+      "p05": 8.0,
+      "p25": 12.0,
+      "median": 14.0,
+      "mean": 13.911263,
+      "p75": 16.0,
+      "p95": 22.0,
+      "max": 44.0
+    },
+    "water_percent": {
+      "count": 293,
+      "min": 0.0,
+      "p05": 0.77022,
+      "p25": 4.2496,
+      "median": 12.1861,
+      "mean": 21.409062,
+      "p75": 32.016,
+      "p95": 65.92832,
+      "max": 93.7182
+    },
+    "buildable_percent": {
+      "count": 293,
+      "min": 1.2501,
+      "p05": 19.41258,
+      "p25": 41.6782,
+      "median": 55.92,
+      "mean": 52.208648,
+      "p75": 64.7385,
+      "p95": 78.19318,
+      "max": 85.3134
+    },
+    "height_min": {
+      "count": 293,
+      "min": 0.0,
+      "p05": 0.0,
+      "p25": 4.320312,
+      "median": 10.492188,
+      "mean": 18.064606,
+      "p75": 24.152344,
+      "p95": 56.858203,
+      "max": 121.460938
+    },
+    "height_max": {
+      "count": 293,
+      "min": 16.0,
+      "p05": 25.788281,
+      "p25": 35.4375,
+      "median": 44.115234,
+      "mean": 50.626807,
+      "p75": 59.714844,
+      "p95": 92.626563,
+      "max": 160.0
+    }
+  },
+  "family_split_audit": {
+    "family_group_count": 292,
+    "leak_count": 0,
+    "leaks": []
+  },
+  "outliers": {
+    "water_percent": [
+      {
+        "map_dir": "adaptive_pyramid.v0004",
+        "map_id": "adaptive-pyramid-v0004-b2e2dc82ac",
+        "split": "train",
+        "water_percent": 0.0
+      },
+      {
+        "map_dir": "adaptive_skali.v0002",
+        "map_id": "adaptive-skali-v0002-6edfdddc6b",
+        "split": "test",
+        "water_percent": 0.0
+      },
+      {
+        "map_dir": "adaptive_wonder_less_open.v0011",
+        "map_id": "adaptive-wonder-less-open-v0011-2b6d8216f6",
+        "split": "train",
+        "water_percent": 0.0
+      },
+      {
+        "map_dir": "adaptive_golden_cage.v0001",
+        "map_id": "adaptive-golden-cage-v0001-b2c2602ff5",
+        "split": "val",
+        "water_percent": 0.0767
+      },
+      {
+        "map_dir": "adaptive_free_radar.v0002",
+        "map_id": "adaptive-free-radar-v0002-59862b960e",
+        "split": "val",
+        "water_percent": 0.0984
+      },
+      {
+        "map_dir": "adaptive_soteg.v0005",
+        "map_id": "adaptive-soteg-v0005-12f0df01e0",
+        "split": "train",
+        "water_percent": 0.2125
+      },
+      {
+        "map_dir": "adaptive_valley_of_the_kings.v0012",
+        "map_id": "adaptive-valley-of-the-kings-v0012-4a9bc53c04",
+        "split": "train",
+        "water_percent": 0.3113
+      },
+      {
+        "map_dir": "adaptive_ians_cross.v0002",
+        "map_id": "adaptive-ians-cross-v0002-9864b339da",
+        "split": "train",
+        "water_percent": 0.329
+      },
+      {
+        "map_dir": "adaptive_uninhabited_planet.v0004",
+        "map_id": "adaptive-uninhabited-planet-v0004-3c8e3be518",
+        "split": "train",
+        "water_percent": 0.3796
+      },
+      {
+        "map_dir": "adaptive_sandy_valley.v0002",
+        "map_id": "adaptive-sandy-valley-v0002-bacf3e6d73",
+        "split": "test",
+        "water_percent": 0.3925
+      },
+      {
+        "map_dir": "adaptive_alpha.v0004",
+        "map_id": "adaptive-alpha-v0004-c722ecd44f",
+        "split": "train",
+        "water_percent": 72.8542
+      },
+      {
+        "map_dir": "adaptive_grand_canyon.v0006",
+        "map_id": "adaptive-grand-canyon-v0006-5ca2e55de7",
+        "split": "val",
+        "water_percent": 73.3295
+      },
+      {
+        "map_dir": "adaptive_fatura.v0001",
+        "map_id": "adaptive-fatura-v0001-5599c286dc",
+        "split": "train",
+        "water_percent": 79.6608
+      },
+      {
+        "map_dir": "adaptive_ahssa-shi.v0005",
+        "map_id": "adaptive-ahssa-shi-v0005-931c0d6b7d",
+        "split": "train",
+        "water_percent": 80.7159
+      },
+      {
+        "map_dir": "adaptive_purinaka.v0001",
+        "map_id": "adaptive-purinaka-v0001-a0bf058cb6",
+        "split": "test",
+        "water_percent": 82.8876
+      },
+      {
+        "map_dir": "adaptive_long_john_silver.v0005",
+        "map_id": "adaptive-long-john-silver-v0005-202bad14e1",
+        "split": "train",
+        "water_percent": 82.9578
+      },
+      {
+        "map_dir": "adaptive_delfinixis.v0001",
+        "map_id": "adaptive-delfinixis-v0001-635d959d76",
+        "split": "train",
+        "water_percent": 84.3338
+      },
+      {
+        "map_dir": "adaptive_project_dust.v0003",
+        "map_id": "adaptive-project-dust-v0003-c435d281a2",
+        "split": "train",
+        "water_percent": 87.7708
+      },
+      {
+        "map_dir": "adaptive_numachi.v0003",
+        "map_id": "adaptive-numachi-v0003-392b473e93",
+        "split": "train",
+        "water_percent": 90.704
+      },
+      {
+        "map_dir": "adaptive_frozen_plateau.v0005",
+        "map_id": "adaptive-frozen-plateau-v0005-ae50e766c8",
+        "split": "train",
+        "water_percent": 93.7182
+      }
+    ],
+    "buildable_percent": [
+      {
+        "map_dir": "adaptive_pass_lev.v0004",
+        "map_id": "adaptive-pass-lev-v0004-2bb651482a",
+        "split": "train",
+        "buildable_percent": 1.2501
+      },
+      {
+        "map_dir": "adaptive_frozen_ways.v0002",
+        "map_id": "adaptive-frozen-ways-v0002-6890eaf6ea",
+        "split": "val",
+        "buildable_percent": 1.6221
+      },
+      {
+        "map_dir": "adaptive_frozen_plateau.v0005",
+        "map_id": "adaptive-frozen-plateau-v0005-ae50e766c8",
+        "split": "train",
+        "buildable_percent": 2.4271
+      },
+      {
+        "map_dir": "adaptive_numachi.v0003",
+        "map_id": "adaptive-numachi-v0003-392b473e93",
+        "split": "train",
+        "buildable_percent": 7.3963
+      },
+      {
+        "map_dir": "adaptiv_oabit.v0003",
+        "map_id": "adaptiv-oabit-v0003-dafef81727",
+        "split": "train",
+        "buildable_percent": 10.9867
+      },
+      {
+        "map_dir": "adaptive_project_dust.v0003",
+        "map_id": "adaptive-project-dust-v0003-c435d281a2",
+        "split": "train",
+        "buildable_percent": 11.179
+      },
+      {
+        "map_dir": "adaptive_long_john_silver.v0005",
+        "map_id": "adaptive-long-john-silver-v0005-202bad14e1",
+        "split": "train",
+        "buildable_percent": 11.3167
+      },
+      {
+        "map_dir": "adaptive_tourmaline.v0004",
+        "map_id": "adaptive-tourmaline-v0004-f17ec6c357",
+        "split": "train",
+        "buildable_percent": 13.7127
+      },
+      {
+        "map_dir": "adaptive_delfinixis.v0001",
+        "map_id": "adaptive-delfinixis-v0001-635d959d76",
+        "split": "train",
+        "buildable_percent": 15.406
+      },
+      {
+        "map_dir": "adaptive_purinaka.v0001",
+        "map_id": "adaptive-purinaka-v0001-a0bf058cb6",
+        "split": "test",
+        "buildable_percent": 16.0378
+      },
+      {
+        "map_dir": "adaptive_hansen_gorge.v0004",
+        "map_id": "adaptive-hansen-gorge-v0004-3d61c0e0f9",
+        "split": "train",
+        "buildable_percent": 79.6993
+      },
+      {
+        "map_dir": "adaptive_garland.v0002",
+        "map_id": "adaptive-garland-v0002-6e2081d2ad",
+        "split": "train",
+        "buildable_percent": 79.8302
+      },
+      {
+        "map_dir": "adaptive_mercury.v0002",
+        "map_id": "adaptive-mercury-v0002-bcfcd6c3e1",
+        "split": "test",
+        "buildable_percent": 79.9198
+      },
+      {
+        "map_dir": "adaptive_wonder_open.v0002",
+        "map_id": "adaptive-wonder-open-v0002-43c64492e3",
+        "split": "train",
+        "buildable_percent": 80.0648
+      },
+      {
+        "map_dir": "adaptive_crystal_open.v0002",
+        "map_id": "adaptive-crystal-open-v0002-3433f8e156",
+        "split": "train",
+        "buildable_percent": 80.1125
+      },
+      {
+        "map_dir": "adaptive_uninhabited_planet.v0004",
+        "map_id": "adaptive-uninhabited-planet-v0004-3c8e3be518",
+        "split": "train",
+        "buildable_percent": 80.3207
+      },
+      {
+        "map_dir": "adaptive_gladiators.v0005",
+        "map_id": "adaptive-gladiators-v0005-aa7415605d",
+        "split": "train",
+        "buildable_percent": 81.8832
+      },
+      {
+        "map_dir": "adaptive_namkama.v0001",
+        "map_id": "adaptive-namkama-v0001-8978e72d12",
+        "split": "test",
+        "buildable_percent": 82.3456
+      },
+      {
+        "map_dir": "adaptive_planet_of_volcanoes.v0002",
+        "map_id": "adaptive-planet-of-volcanoes-v0002-b89ed0cedc",
+        "split": "train",
+        "buildable_percent": 83.7029
+      },
+      {
+        "map_dir": "adaptive_plains_of_si.v0006",
+        "map_id": "adaptive-plains-of-si-v0006-d07d38ab9c",
+        "split": "train",
+        "buildable_percent": 85.3134
+      }
+    ],
+    "mex_count": [
+      {
+        "map_dir": "adaptive_bankrupt_marsh.v0001",
+        "map_id": "adaptive-bankrupt-marsh-v0001-5b50dc62f4",
+        "split": "train",
+        "mex_count": 30.0
+      },
+      {
+        "map_dir": "adaptive_long_john_silver.v0005",
+        "map_id": "adaptive-long-john-silver-v0005-202bad14e1",
+        "split": "train",
+        "mex_count": 42.0
+      },
+      {
+        "map_dir": "adaptive_planet_of_volcanoes.v0002",
+        "map_id": "adaptive-planet-of-volcanoes-v0002-b89ed0cedc",
+        "split": "train",
+        "mex_count": 44.0
+      },
+      {
+        "map_dir": "adaptive_askja_small.v0011",
+        "map_id": "adaptive-askja-small-v0011-047b33c789",
+        "split": "train",
+        "mex_count": 45.0
+      },
+      {
+        "map_dir": "adaptive_acid_lakes.v0005",
+        "map_id": "adaptive-acid-lakes-v0005-d7bc1c4b20",
+        "split": "val",
+        "mex_count": 50.0
+      },
+      {
+        "map_dir": "adaptive_alpine_valley.v0003",
+        "map_id": "adaptive-alpine-valley-v0003-1b6d965258",
+        "split": "train",
+        "mex_count": 52.0
+      },
+      {
+        "map_dir": "adaptive_archsimkats_valley.v0003",
+        "map_id": "adaptive-archsimkats-valley-v0003-4a3e031501",
+        "split": "train",
+        "mex_count": 54.0
+      },
+      {
+        "map_dir": "adaptive_gornyak.v0004",
+        "map_id": "adaptive-gornyak-v0004-93148ddcce",
+        "split": "train",
+        "mex_count": 56.0
+      },
+      {
+        "map_dir": "adaptive_crystal_cavern.v0001",
+        "map_id": "adaptive-crystal-cavern-v0001-b96361cdc4",
+        "split": "test",
+        "mex_count": 58.0
+      },
+      {
+        "map_dir": "adaptive_aria_-expanding-.v0150",
+        "map_id": "adaptive-aria-expanding-v0150-66c3d32a43",
+        "split": "train",
+        "mex_count": 59.0
+      },
+      {
+        "map_dir": "adaptive_purple_tail.v0002",
+        "map_id": "adaptive-purple-tail-v0002-78990a1701",
+        "split": "train",
+        "mex_count": 178.0
+      },
+      {
+        "map_dir": "adaptive_potem.v0013",
+        "map_id": "adaptive-potem-v0013-dc71aacc09",
+        "split": "train",
+        "mex_count": 180.0
+      },
+      {
+        "map_dir": "adaptive_purinaka.v0001",
+        "map_id": "adaptive-purinaka-v0001-a0bf058cb6",
+        "split": "test",
+        "mex_count": 180.0
+      },
+      {
+        "map_dir": "adaptive_disguise.v0005",
+        "map_id": "adaptive-disguise-v0005-8afe269b61",
+        "split": "train",
+        "mex_count": 182.0
+      },
+      {
+        "map_dir": "adaptive_dust_survival.v0005",
+        "map_id": "adaptive-dust-survival-v0005-8294237397",
+        "split": "train",
+        "mex_count": 195.0
+      },
+      {
+        "map_dir": "adaptive_gruchido.v0002",
+        "map_id": "adaptive-gruchido-v0002-20eef34348",
+        "split": "train",
+        "mex_count": 195.0
+      },
+      {
+        "map_dir": "adaptive_ilha_deserta.v0004",
+        "map_id": "adaptive-ilha-deserta-v0004-282de9befd",
+        "split": "train",
+        "mex_count": 198.0
+      },
+      {
+        "map_dir": "adaptive_valley_of_the_kings.v0012",
+        "map_id": "adaptive-valley-of-the-kings-v0012-4a9bc53c04",
+        "split": "train",
+        "mex_count": 200.0
+      },
+      {
+        "map_dir": "adaptive_project_dust.v0003",
+        "map_id": "adaptive-project-dust-v0003-c435d281a2",
+        "split": "train",
+        "mex_count": 205.0
+      },
+      {
+        "map_dir": "adaptive_omorfia_trance.v0006",
+        "map_id": "adaptive-omorfia-trance-v0006-23eebd1bfc",
+        "split": "train",
+        "mex_count": 256.0
+      }
+    ],
+    "hydro_count": [
+      {
+        "map_dir": "adaptive_aldrasil.v0010",
+        "map_id": "adaptive-aldrasil-v0010-970fcedb2b",
+        "split": "train",
+        "hydro_count": 0.0
+      },
+      {
+        "map_dir": "adaptive_alpine_valley.v0003",
+        "map_id": "adaptive-alpine-valley-v0003-1b6d965258",
+        "split": "train",
+        "hydro_count": 0.0
+      },
+      {
+        "map_dir": "adaptive_corners.v0001",
+        "map_id": "adaptive-corners-v0001-b326c920cb",
+        "split": "train",
+        "hydro_count": 0.0
+      },
+      {
+        "map_dir": "adaptive_omorfia_trance.v0006",
+        "map_id": "adaptive-omorfia-trance-v0006-23eebd1bfc",
+        "split": "train",
+        "hydro_count": 0.0
+      },
+      {
+        "map_dir": "adaptive_rainy_day.v0004",
+        "map_id": "adaptive-rainy-day-v0004-efb5d612ff",
+        "split": "train",
+        "hydro_count": 2.0
+      },
+      {
+        "map_dir": "adaptive_askja_small.v0011",
+        "map_id": "adaptive-askja-small-v0011-047b33c789",
+        "split": "train",
+        "hydro_count": 4.0
+      },
+      {
+        "map_dir": "adaptive_el_paso.v0004",
+        "map_id": "adaptive-el-paso-v0004-5901bb4f5c",
+        "split": "train",
+        "hydro_count": 4.0
+      },
+      {
+        "map_dir": "adaptive_gornyak.v0004",
+        "map_id": "adaptive-gornyak-v0004-93148ddcce",
+        "split": "train",
+        "hydro_count": 4.0
+      },
+      {
+        "map_dir": "adaptive_siberia.v0001",
+        "map_id": "adaptive-siberia-v0001-216f5ab366",
+        "split": "train",
+        "hydro_count": 4.0
+      },
+      {
+        "map_dir": "adaptive_archsimkats_valley.v0003",
+        "map_id": "adaptive-archsimkats-valley-v0003-4a3e031501",
+        "split": "train",
+        "hydro_count": 6.0
+      },
+      {
+        "map_dir": "adaptive_diversity.v0002",
+        "map_id": "adaptive-diversity-v0002-d4415cf9ef",
+        "split": "train",
+        "hydro_count": 24.0
+      },
+      {
+        "map_dir": "adaptive_nacaga.v0013",
+        "map_id": "adaptive-nacaga-v0013-32ccee5f20",
+        "split": "train",
+        "hydro_count": 24.0
+      },
+      {
+        "map_dir": "adaptive_project_dust.v0003",
+        "map_id": "adaptive-project-dust-v0003-c435d281a2",
+        "split": "train",
+        "hydro_count": 24.0
+      },
+      {
+        "map_dir": "adaptive_aloren.v0002",
+        "map_id": "adaptive-aloren-v0002-422a167ce8",
+        "split": "train",
+        "hydro_count": 26.0
+      },
+      {
+        "map_dir": "adaptive_karelia.v0010",
+        "map_id": "adaptive-karelia-v0010-fc1f68fe43",
+        "split": "test",
+        "hydro_count": 26.0
+      },
+      {
+        "map_dir": "adaptive_pass_lev.v0004",
+        "map_id": "adaptive-pass-lev-v0004-2bb651482a",
+        "split": "train",
+        "hydro_count": 26.0
+      },
+      {
+        "map_dir": "adaptive_puala.v0001",
+        "map_id": "adaptive-puala-v0001-86bb24baf2",
+        "split": "train",
+        "hydro_count": 26.0
+      },
+      {
+        "map_dir": "adaptive_strongwyn.v0003",
+        "map_id": "adaptive-strongwyn-v0003-78553a8568",
+        "split": "train",
+        "hydro_count": 26.0
+      },
+      {
+        "map_dir": "rush_him_less_adaptive.v0001",
+        "map_id": "rush-him-less-adaptive-v0001-bfe5987a92",
+        "split": "train",
+        "hydro_count": 28.0
+      },
+      {
+        "map_dir": "adaptive_ilha_deserta.v0004",
+        "map_id": "adaptive-ilha-deserta-v0004-282de9befd",
+        "split": "train",
+        "hydro_count": 44.0
+      }
+    ],
+    "player_slots": [
+      {
+        "map_dir": "adaptive_rainy_day.v0004",
+        "map_id": "adaptive-rainy-day-v0004-efb5d612ff",
+        "split": "train",
+        "player_slots": 2.0
+      },
+      {
+        "map_dir": "adaptive_acid_lakes.v0005",
+        "map_id": "adaptive-acid-lakes-v0005-d7bc1c4b20",
+        "split": "val",
+        "player_slots": 4.0
+      },
+      {
+        "map_dir": "adaptive_alpine_valley.v0003",
+        "map_id": "adaptive-alpine-valley-v0003-1b6d965258",
+        "split": "train",
+        "player_slots": 4.0
+      },
+      {
+        "map_dir": "adaptive_archsimkats_valley.v0003",
+        "map_id": "adaptive-archsimkats-valley-v0003-4a3e031501",
+        "split": "train",
+        "player_slots": 4.0
+      },
+      {
+        "map_dir": "adaptive_aria_-expanding-.v0150",
+        "map_id": "adaptive-aria-expanding-v0150-66c3d32a43",
+        "split": "train",
+        "player_slots": 4.0
+      },
+      {
+        "map_dir": "adaptive_askja_small.v0011",
+        "map_id": "adaptive-askja-small-v0011-047b33c789",
+        "split": "train",
+        "player_slots": 4.0
+      },
+      {
+        "map_dir": "adaptive_bankrupt_marsh.v0001",
+        "map_id": "adaptive-bankrupt-marsh-v0001-5b50dc62f4",
+        "split": "train",
+        "player_slots": 4.0
+      },
+      {
+        "map_dir": "adaptive_canyon_valley.v0005",
+        "map_id": "adaptive-canyon-valley-v0005-883b282de6",
+        "split": "val",
+        "player_slots": 4.0
+      },
+      {
+        "map_dir": "adaptive_desert_rocks.v0013",
+        "map_id": "adaptive-desert-rocks-v0013-e2bebe82dc",
+        "split": "train",
+        "player_slots": 4.0
+      },
+      {
+        "map_dir": "adaptive_el_paso.v0004",
+        "map_id": "adaptive-el-paso-v0004-5901bb4f5c",
+        "split": "train",
+        "player_slots": 4.0
+      },
+      {
+        "map_dir": "adaptive_tabula_rasa.v0007",
+        "map_id": "adaptive-tabula-rasa-v0007-86128f03a8",
+        "split": "train",
+        "player_slots": 16.0
+      },
+      {
+        "map_dir": "adaptive_tournament_decision.v0002",
+        "map_id": "adaptive-tournament-decision-v0002-85aa6dd46d",
+        "split": "train",
+        "player_slots": 16.0
+      },
+      {
+        "map_dir": "adaptive_twilight_hill.v0004",
+        "map_id": "adaptive-twilight-hill-v0004-b20fb805d0",
+        "split": "train",
+        "player_slots": 16.0
+      },
+      {
+        "map_dir": "adaptive_twin_rivers.v0002",
+        "map_id": "adaptive-twin-rivers-v0002-cdfd256ee2",
+        "split": "val",
+        "player_slots": 16.0
+      },
+      {
+        "map_dir": "adaptive_valley_of_the_kings.v0012",
+        "map_id": "adaptive-valley-of-the-kings-v0012-4a9bc53c04",
+        "split": "train",
+        "player_slots": 16.0
+      },
+      {
+        "map_dir": "adaptive_wartorn_glens.v0001",
+        "map_id": "adaptive-wartorn-glens-v0001-d5ec836ec4",
+        "split": "train",
+        "player_slots": 16.0
+      },
+      {
+        "map_dir": "adaptive_wonder.v0001",
+        "map_id": "adaptive-wonder-v0001-9d695ccc1f",
+        "split": "train",
+        "player_slots": 16.0
+      },
+      {
+        "map_dir": "adaptive_wonder_less_open.v0011",
+        "map_id": "adaptive-wonder-less-open-v0011-2b6d8216f6",
+        "split": "train",
+        "player_slots": 16.0
+      },
+      {
+        "map_dir": "adaptive_wonder_open.v0002",
+        "map_id": "adaptive-wonder-open-v0002-43c64492e3",
+        "split": "train",
+        "player_slots": 16.0
+      },
+      {
+        "map_dir": "proxima_m16_adaptive.v0003",
+        "map_id": "proxima-m16-adaptive-v0003-74961c1536",
+        "split": "train",
+        "player_slots": 16.0
+      }
+    ]
+  },
+  "missing_tensor_files": []
+}
