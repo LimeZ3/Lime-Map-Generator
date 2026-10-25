@@ -1,0 +1,118 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>finalize_terrain_symmetry.py | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="../docs/model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1>finalize_terrain_symmetry.py</h1><p class="meta">Saved public evidence snapshot: tools/finalize_terrain_symmetry.py</p><pre>&quot;&quot;&quot;Validate sealed symmetry results and publish a cohort-pinned atlas sidecar.
+
+No source data, release membership, checkpoints or training loaders are changed.
+&quot;&quot;&quot;
+import argparse
+from collections import Counter
+import io
+import json
+from pathlib import Path
+import numpy as np
+from supmapai.extract.terrain_symmetry import encode
+from supmapai.strategy.pipeline_contract import digest, dump, file_hash
+from supmapai.tools.dataset_review import load_cohort
+from supmapai.tools.relabel_terrain_dataset import atomic_bytes
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--run', type=Path, required=True)
+    args = parser.parse_args()
+    run = args.run.resolve()
+    read = lambda p: json.loads(p.read_text(encoding='utf-8'))
+    contract = read(run / 'contract.json')
+    status = read(run / 'status.json')
+    assert status['state'] == 'complete' and status['failed'] == 0 and status['pending'] == 0
+    _, identity, rows = load_cohort(Path(contract['source']))
+    assert identity == contract['source_release_sha256']
+    rows = [r for r in rows if r['key'] in set(contract['keys'])]
+    assert len(rows) == len(contract['keys']) == status['total']
+    for source, expected in contract['code'].items():
+        assert file_hash(run / 'code_snapshot' / source) == expected
+    vectors = []
+    valid = []
+    compact = {}
+    ceiling = []
+    pair_not_supported = []
+    point_mismatch = []
+    for row in rows:
+        folder = run / 'maps' / row['key']
+        seal = read(folder / 'complete.json')
+        assert seal['contract'] == digest(contract)
+        for name, expected in seal['outputs'].items():
+            assert file_hash(folder / name) == expected, (row['key'], name)
+        r = read(folder / 'result.json')
+        source = Path(row['native_source'])
+        assert file_hash(source) == row['native_source_sha256'] == r['native_source_sha256']
+        assert file_hash(source.with_suffix('.json')) == r['source_metadata_sha256']
+        metadata = read(source.with_suffix('.json'))
+        markers = Path(metadata['job_path']) / 'extraction' / row['key'] / 'markers.json'
+        assert file_hash(markers) == r['markers_sha256']
+        assert r['family'] == row['family'] and r['split'] == row['split']
+        with np.load(folder / 'symmetry.npz', allow_pickle=False) as saved:
+            vector = saved['condition'].copy()
+            np.testing.assert_array_equal(vector, encode(r, contract['settings']['max_order']))
+            assert vector.shape == (28,) and np.isfinite(vector).all()
+            assert bool(saved['condition_valid']) == r['model_condition_valid']
+            matrices = np.asarray([t['matrix'] for t in r['transforms']], np.float32).reshape(-1, 3, 3)
+            np.testing.assert_array_equal(saved['transform_matrices'], matrices)
+        for t in r['transforms']:
+            matrix = np.asarray(t['matrix'])
+            np.testing.assert_allclose(matrix[:2, :2].T @ matrix[:2, :2], np.eye(2), atol=1e-8)
+            np.testing.assert_allclose(matrix @ [*r['center'], 1], [*r['center'], 1], atol=1e-6)
+            if t['kind'] == 'reflection':
+                np.testing.assert_allclose(matrix @ matrix, np.eye(3), atol=1e-6)
+        vectors.append(vector)
+        valid.append(r['model_condition_valid'])
+        if r.get('rotation_order') == contract['settings']['max_order']:
+            ceiling.append(row['key'])
+        if any(t['spawns'].get('matched_fraction', 1) &lt; 1 or t['mexes'].get('matched_fraction', 1) &lt; 1 for t in r['transforms']):
+            point_mismatch.append(row['key'])
+        pair = row['spawns']
+        supports = None
+        if len(pair) == 2 and r['transforms']:
+            a, b = pair
+            distances = [np.linalg.norm((np.asarray(t['matrix']) @ [a['x'], a['z'], 1])[:2] - [b['x'], b['z']]) for t in r['transforms']]
+            supports = bool(min(distances) &lt;= contract['settings']['point_tolerance'])
+            if not supports:
+                pair_not_supported.append(row['key'])
+        compact[row['key']] = dict(classification=r['classification'], order=r.get('rotation_order'),
+            center=r['center'], axes=[t['angle_degrees'] for t in r['transforms'] if t['kind'] == 'reflection'],
+            condition_valid=r['model_condition_valid'], condition=vector.tolist(), domain_preserved=r.get('domain_preserved'),
+            errors=[dict(kind=t['kind'], angle=t['angle_degrees'], error=t['score']['error'],
+                overlap=t['score']['coverage'], spawns=t['spawns'].get('matched_fraction'), mexes=t['mexes'].get('matched_fraction')) for t in r['transforms']],
+            existing_pair_supported=supports, order_ceiling_hit=row['key'] in ceiling,
+            correspondence_count=len(r.get('spawn_correspondences', [])))
+    stream = io.BytesIO()
+    np.savez_compressed(stream, keys=np.asarray([r['key'] for r in rows]), condition=np.stack(vectors),
+        condition_valid=np.asarray(valid), source_release_sha256=np.asarray(identity))
+    atomic_bytes(run / 'conditions.npz', stream.getvalue())
+    counts = dict(Counter(r['classification'] for r in compact.values()))
+    report = dict(schema='terrain_symmetry_integrity_v1', state='passed', maps=len(rows),
+        source_release_sha256=identity, contract_sha256=digest(contract), classes=counts,
+        experimental_geometry_gate_passed=sum(valid), provisional=len(valid)-sum(valid),
+        existing_pair_not_supported_by_detected_transforms=pair_not_supported,
+        transforms_with_source_spawn_or_default_mex_mismatch=point_mismatch, order_ceiling_hit=ceiling,
+        aggregate_sha256=file_hash(run / 'conditions.npz'), condition_shape=[len(rows), 28],
+        checks=['All output seals and implementation snapshots', 'Native arrays, metadata and marker hashes',
+            'Source cohort identity, family and split preservation', 'Vector encoding and availability gates',
+            'Rigid transforms and common fixed center', 'NPZ finite values and no pickle'],
+        scope='Integrity and synthetic-method tests, not scientific ground-truth certification; selected model input remains unchanged',
+        scientific_review_pending=True, training_started=False,
+        cohort_bias='The original full256 audit cohort inherited a half-map compatibility filter; 548 earlier candidates were excluded. Review coverage in EXTRACT-06b; do not infer vault-wide symmetry prevalence.')
+    dump(run / 'integrity.json', report)
+    sidecar = dict(schema='atlas_symmetry_sidecar_v1', cohort=identity, run=str(run.relative_to(ROOT)).replace('\\', '/'),
+        status='experimental; not consumed by selected checkpoints', counts=counts, maps=compact,
+        representation='28 floats: family4 + order16 + normalized center2 + periodic axis phase2 + availability4')
+    output = ROOT / 'docs/model-atlas/generated/terrain-symmetry-data.js'
+    atomic_bytes(output, ('window.MAPGEN_TERRAIN_SYMMETRY = ' + json.dumps(sidecar, separators=(',', ':')).replace('&lt;', '\\u003c') + ';\n').encode())
+    dump(ROOT / 'docs/model-atlas/symmetry-receipt.json', {**report, 'run':sidecar['run'], 'seconds':status['seconds']})
+    print(json.dumps({k:report[k] for k in ['state','maps','classes','experimental_geometry_gate_passed','provisional','condition_shape']}, indent=2))
+    print('Pair unsupported:', len(pair_not_supported), 'point mismatch:', len(point_mismatch), 'order ceiling:', ceiling)
+
+
+if __name__ == '__main__':
+    main()
+</pre><script src="../docs/model-atlas/public-links.js" data-public-links></script></body></html>
