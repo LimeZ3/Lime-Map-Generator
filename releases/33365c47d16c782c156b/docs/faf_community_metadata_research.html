@@ -1,0 +1,174 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>faf_community_metadata_research.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="faf-play-counts-ratings-and-review-extraction">FAF play counts, ratings, and review extraction</h1>
+<p>Research date: 2026-10-06. Outcome: feasible through FAF&#39;s authenticated JSON:API. No UI scraping or direct database access is needed. No authenticated dataset was downloaded during this research.</p>
+<h2 id="evidence-and-reproducibility">Evidence and reproducibility</h2>
+<p>Inspected public source revisions:</p>
+<ul>
+<li><a href="https://github.com/FAForeverRustClient/FAForeverRustClient/tree/7d63f2469dc6aced02bb41f4c87e44958ddd186e">Rust client</a></li>
+<li><a href="https://github.com/FAForever/faf-java-api/tree/caed91e0e6f969ea49177c76a3fad93b0b755397">FAF API</a></li>
+<li><a href="https://github.com/FAForever/db/tree/921e29aa5b31738dd57332dcdc2bd66ea36348fa">FAF database</a></li>
+</ul>
+<p>A live unauthenticated GET to <code>https://api.faforever.com/data/map?page%5Bsize%5D=1&amp;include=latestVersion,reviewsSummary</code> returned HTTP 401 and <code>WWW-Authenticate: Bearer</code> at 18:58 UTC. This verifies the login requirement, not the authenticated response schema or coverage. Source code may differ from the deployed revision.</p>
+<h2 id="available-data">Available data</h2>
+<table>
+<thead>
+<tr>
+<th>Data</th>
+<th>API resource/field</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Map identity</td>
+<td><code>map.id</code>, <code>displayName</code></td>
+<td>Parent map, spanning versions</td>
+</tr>
+<tr>
+<td>Version identity</td>
+<td><code>mapVersion.id</code>, <code>map</code>, <code>folderName</code>, <code>version</code></td>
+<td>Exact downloadable version; primary join target for our local maps</td>
+</tr>
+<tr>
+<td>Play count</td>
+<td><code>map.gamesPlayed</code></td>
+<td>Parent counter accumulated from version counter changes</td>
+</tr>
+<tr>
+<td>Version play count</td>
+<td><code>mapVersion.gamesPlayed</code></td>
+<td>Counter for this version</td>
+</tr>
+<tr>
+<td>Rating</td>
+<td><code>reviewsSummary.averageScore</code></td>
+<td>Sum of star scores divided by review count; null for no reviews</td>
+</tr>
+<tr>
+<td>Rating sample size</td>
+<td><code>reviewsSummary.reviews</code></td>
+<td>Number of reviews, not necessarily unique people across versions</td>
+</tr>
+<tr>
+<td>Rating sum</td>
+<td><code>reviewsSummary.score</code></td>
+<td>Sum, not the average</td>
+</tr>
+<tr>
+<td>Rating ranking statistic</td>
+<td><code>reviewsSummary.lowerBound</code></td>
+<td>Wilson-based ranking value; not another 1–5 rating</td>
+</tr>
+<tr>
+<td>Commentary</td>
+<td><code>mapVersionReview.text</code></td>
+<td>Plain-text review body</td>
+</tr>
+<tr>
+<td>Individual rating</td>
+<td><code>mapVersionReview.score</code></td>
+<td>Integer 1–5</td>
+</tr>
+<tr>
+<td>Review provenance</td>
+<td>Review ID, <code>mapVersion</code>, <code>player</code>, <code>createTime</code>, <code>updateTime</code></td>
+<td>Version, reviewer relationship and timestamps</td>
+</tr>
+<tr>
+<td>Other useful metadata</td>
+<td><code>recommended</code>, <code>ranked</code>, <code>hidden</code>, dimensions, max players, description, license relationship</td>
+<td>Preserve independently from community ratings</td>
+</tr>
+</tbody></table>
+<p>Sources: Rust <a href="https://github.com/FAForeverRustClient/FAForeverRustClient/blob/7d63f2469dc6aced02bb41f4c87e44958ddd186e/crates/faf-app/src/infra/maps.rs">map reader</a>, <a href="https://github.com/FAForeverRustClient/FAForeverRustClient/blob/7d63f2469dc6aced02bb41f4c87e44958ddd186e/crates/faf-app/src/infra/reviews.rs">review reader</a>, API <a href="https://github.com/FAForever/faf-java-api/tree/caed91e0e6f969ea49177c76a3fad93b0b755397/src/main/java/com/faforever/api/data/domain">domain models</a>.</p>
+<p>The reviewed commentary implementation is a collection of reviews with score and text. It does not establish a separate threaded comment/reply system.</p>
+<h2 id="what-play-count-actually-measures">What play count actually measures</h2>
+<p><a href="https://github.com/FAForever/db/blob/921e29aa5b31738dd57332dcdc2bd66ea36348fa/migrations/V116__map_play_count_trigger.sql">Migration V116</a> increments a version&#39;s count after insertion into <code>game_stats</code>. It has no completion, duration or rating-validity condition. A second trigger propagates the delta to the parent map. The migration backfills from distinct game IDs.</p>
+<p>Consequently, describe this as recorded game usage, not completed matches, unique players, ranked matches, or a quality score. The same migration replaces old statistics views: <code>plays</code> becomes <code>games_played</code>, while <code>downloads</code> and <code>draws</code> become constant zero. Do not interpret those legacy zero fields as measured downloads/draws.</p>
+<h2 id="concrete-extraction-route">Concrete extraction route</h2>
+<p>Base: <code>https://api.faforever.com</code>; send <code>Authorization: Bearer &lt;access token&gt;</code>. The following are readable query designs, with query parameters URL-encoded by the HTTP library in implementation.</p>
+<ol>
+<li><p>Inventory maps and summaries:</p>
+<p><code>GET /data/map?include=latestVersion,latestVersion.reviewsSummary,reviewsSummary&amp;page[size]=100&amp;page[number]=1&amp;sort=id</code></p>
+</li>
+<li><p>Inventory all versions, rather than only latest versions:</p>
+<p><code>GET /data/mapVersion?include=map,reviewsSummary&amp;page[size]=100&amp;page[number]=1&amp;sort=id</code></p>
+<p>For a targeted request, use a filter such as <code>map.id=in=(123,456)</code>. The Rust client&#39;s summary collection uses this filter shape. Exact-folder lookup against <code>mapVersion.folderName</code> is also a candidate for the initial pilot.</p>
+</li>
+<li><p>Fetch review text across versions. Client-proven route:</p>
+<p><code>GET /data/map/{mapId}/versions?include=reviews,reviews.player&amp;page[size]=100&amp;page[number]=1</code></p>
+<p>For bulk collection, the API model exposes root resource <code>mapVersionReview</code>, making this a promising alternative:</p>
+<p><code>GET /data/mapVersionReview?include=mapVersion&amp;page[size]=100&amp;page[number]=1&amp;sort=id</code></p>
+<p>Validate that bulk route, relationship completeness and pagination with authenticated samples before relying on it. Reviewer profiles need not be included for our first dataset. If nested included reviews are truncated, walk the version&#39;s reviews relationship separately and reconcile counts.</p>
+</li>
+<li><p>Follow pagination to completion, save raw responses and deduplicate by <code>(type, id)</code>. Resolve relationships through JSON:API linkage, not matching numeric IDs alone. Use totals/next links where returned, and explicitly record incomplete requests rather than treating partial output as complete.</p>
+</li>
+</ol>
+<p>Start with pages of 100. Follow-up inspection resolved the apparent 100 versus 10,000 discrepancy: <code>ElidePageSizeUtil</code> limits ordinary users to the configured default page size (source default 100); only accounts with <code>ROLE_SCRAPER</code> receive the configured maximum (source default 10,000). Deployed configuration remains unverified. Do not assume a requested large page was honored. Avoid copying the client&#39;s hard page ceilings into an allegedly complete export.</p>
+<p>Use modest sequential request pacing, retry 429/temporary failures with backoff and respect Retry-After. These are proposed collector settings, not a verified FAF rate-limit policy. Cache pages and checkpoint progress. Refresh mutable counters and periodically reconcile edited/deleted reviews; an ID-only incremental crawl misses edits and deletions.</p>
+<h2 id="authentication-options">Authentication options</h2>
+<p>The Rust client implements Authorization Code + PKCE using FAF&#39;s Hydra service, a loopback callback, an in-memory access token and OS-keyring refresh storage. See <a href="https://github.com/FAForeverRustClient/FAForeverRustClient/blob/7d63f2469dc6aced02bb41f4c87e44958ddd186e/crates/faf-app/src/infra/oauth.rs">oauth.rs</a>.</p>
+<ul>
+<li><strong>Preferred long-term:</strong> a standalone Python collector in MapGen with its own legitimate OAuth client registration/configuration. Verify FAF&#39;s registration process, allowed redirects and minimum read scopes before implementing login. Do not blindly copy the game client&#39;s upload/lobby scopes.</li>
+<li><strong>Practical client-assisted route:</strong> add a local JSON export command to a development build of the Rust client. Reuse its authenticated API service and export only data. This avoids needing a separate OAuth integration for the first extraction, but requires building and maintaining a client modification.</li>
+<li><strong>Optional bulk alternative:</strong> ask FAF maintainers for a research export if API collection proves costly. This is not required by the source architecture and was not requested during research.</li>
+</ul>
+<p>No existing credentials or keyring entries were inspected. The unresolved prerequisite for a live pilot is an authorized authenticated session or an agreed export path.</p>
+<h2 id="joining-to-mapgen">Joining to MapGen</h2>
+<p>Our <code>data/interim/faf_modsmaps_canonical_metadata.csv</code> already stores <code>map_dir</code>, <code>selected_map_dir</code>, scenario name and map version. Join against <strong>all API versions</strong> using the exact versioned folder name first. Store FAF map ID and version ID alongside our existing local identity.</p>
+<p>Do not join solely by display name or strip <code>.vNNNN</code> and silently assign the latest version. Case-normalized matching can be a fallback only with collision checks. Local renames, bundled variants and unpublished maps must remain unmatched or ambiguous until inspected. Produce exact/normalized/ambiguous/unmatched counts before enriching the catalog.</p>
+<p>Suggested outputs:</p>
+<ul>
+<li><code>data/raw/faf_api/&lt;snapshot&gt;/</code>: raw responses and request/snapshot manifest, excluding credentials.</li>
+<li><code>data/interim/faf_maps.jsonl</code>: parent attributes and API summary.</li>
+<li><code>data/interim/faf_map_versions.jsonl</code>: exact version metadata, counts and summary.</li>
+<li><code>data/interim/faf_map_reviews.jsonl</code>: deduplicated review text, score and version provenance.</li>
+<li><code>data/interim/faf_local_map_matches.csv</code>: local map identity to FAF IDs, match method and status.</li>
+</ul>
+<p>Keep map-level and version-level counts and scores in separate columns. Parent statistics must not be summed repeatedly over our local versions. Preserve missing values as null. Recompute review averages from distinct review IDs and compare with the API summaries; preserve discrepancies rather than silently replacing them.</p>
+<p>The Rust client itself has corrective logic to sum reviews over versions when a parent summary is missing/stale: <a href="https://github.com/FAForeverRustClient/FAForeverRustClient/blob/7d63f2469dc6aced02bb41f4c87e44958ddd186e/crates/faf-app/src/infra/review_totals.rs">review_totals.rs</a>. Its display-oriented &#39;keep whichever count is larger&#39; rule should not become our research truth rule: counts can also decrease after deletion. Store both sources and the capture time.</p>
+<h2 id="how-to-use-it-in-this-project">How to use it in this project</h2>
+<p>This is valuable existing community evidence, but complements our structured survey rather than replacing it. Popularity measures exposure and repeated use; star ratings measure reviewer preference; comments can suggest balance, terrain or resource issues. They do not directly supply our separate gameplay-dimension labels.</p>
+<p>Recommended first implementation milestone: authenticate, sample several known maps including an older local version, verify all three data types, then run a matching/coverage audit over the local inventory. Report how many maps have a match, play counts, any ratings and nonempty comments before deciding on training weights.</p>
+<p>Use ratings with their sample sizes and consider shrinkage for sparse reviews. Keep popularity separate from quality, consider map age and matchmaker exposure, and preserve existing family-aware train/test splits. Review text analysis should produce provisional labels with provenance and manual validation. Keep raw review exports out of the public catalog by default; publish derived statistics deliberately rather than automatically republishing reviewer profiles/text.</p>
+<h2 id="remaining-live-checks">Remaining live checks</h2>
+<ul>
+<li>OAuth registration/redirect policy and minimum scopes for a standalone collector.</li>
+<li>Authenticated payloads and availability of the root review collection.</li>
+<li>Actual pagination limits, nested review completeness and rate limits.</li>
+<li>Local inventory match rate and review/text coverage.</li>
+<li>Agreement between raw reviews and summaries, and deployed counter semantics versus source.</li>
+</ul>
+<p>Research changed no application behavior and performed no full crawl.</p>
+<h2 id="follow-up-qualifying-games-and-responsible-collection">Follow-up: qualifying games and responsible collection</h2>
+<p>User-defined baseline: at least two players and at least five minutes. For the stated goal of excluding solo tests, interpret players as distinct human participants, excluding AI and spectators. Validate participant representation against known games before the pilot is accepted. Keep the raw participant/AI counts for auditing. Two humans and five minutes is an operational usage definition, not proof of a competitive or completed match; do not silently add ranked-only, opposing-team, mod or victory-condition requirements.</p>
+<p>The Rust client&#39;s <a href="https://github.com/FAForeverRustClient/FAForeverRustClient/blob/7d63f2469dc6aced02bb41f4c87e44958ddd186e/crates/faf-domain/src/protocol/replay_query.rs">replay query implementation</a> establishes:</p>
+<ul>
+<li>Duration uses <code>replayTicks</code>, at 10 simulation ticks per second: five minutes is <code>replayTicks &gt;= 3000</code>. This is simulation time, not wall-clock <code>endTime - startTime</code>.</li>
+<li>Actual player count is a local post-filter. <code>mapVersion.maxPlayers</code> is capacity, not actual participation; it cannot exclude a solo session on a multiplayer map.</li>
+<li>Mod and victory condition have server-side filters. Player-rating filtering uses a historical mean approximation, not an exact game-average displayed rating. Preserve rating changes if exact rating analysis becomes necessary; omit that expensive relationship from the baseline usage crawl.</li>
+<li>Unbounded filtered history queries can be expensive. The client normally adds a date floor. A research collector must use explicit windows and record its coverage, rather than quietly inheriting a recent-history default and labeling it all-time.</li>
+</ul>
+<p>Candidate metadata-only request (requires authenticated validation):</p>
+<pre><code class="language-text">GET /data/game
+  filter=(replayTicks=ge=3000;startTime=ge=&quot;WINDOW_START&quot;;startTime=lt=&quot;WINDOW_END&quot;)
+  include=mapVersion,playerStats,featuredMod
+  sort=id
+  page[size]=100
+  page[number]=1
+</code></pre>
+<p>Use sparse fieldsets after validation to retain game ID, map-version linkage, start/end timestamps, replayTicks, validity, featured mod, victory condition, and participant identity/AI status. Count distinct human participant IDs locally, deduplicate games by game ID, and aggregate by version then parent map. Verify included participant completeness. No replay binary downloads are needed for these fields. Do not require <code>replayAvailable=true</code> solely for metadata analysis: that would potentially exclude otherwise usable historical records.</p>
+<p>Save the result as <code>qualifying_games_2humans_5min</code> with window start/end, capture time, rules version, and collection completeness. Keep original <code>gamesPlayed</code> separately. Missing replay ticks are unknown duration, not zero; report that coverage separately if measured. A time-window count must not be compared as though it had the same denominator as a lifetime counter. Later-arriving replay metadata requires a trailing-window reconciliation on refresh.</p>
+<h3 id="service-usage-findings-and-proposed-controls">Service usage findings and proposed controls</h3>
+<p>Searches of FAF sources and public guidance did not establish a published requests-per-second allowance or a guarantee against account restrictions. GitHub API rate limits are unrelated to <code>api.faforever.com</code> and must not be reused as FAF limits.</p>
+<p>The API has a deliberate larger-page permission: <a href="https://github.com/FAForever/faf-java-api/blob/caed91e0e6f969ea49177c76a3fad93b0b755397/src/main/java/com/faforever/api/data/util/ElidePageSizeUtil.java">ElidePageSizeUtil.java</a>. This supports asking maintainers about approved research access, a <code>SCRAPER</code> role if appropriate, or a prepared metadata export; it does not authorize elevated access automatically.</p>
+<p>Proposed pilot limits, pending maintainer guidance: one request at a time, at least five seconds between completed requests, at most 20 requests per explicit pilot run, 100 records per page, and an explicit short date window. These are our conservative engineering defaults, not FAF policy or proof of acceptable load. Slow queries also consume server resources even at a low request rate.</p>
+<p>Collector requirements:</p>
+<ul>
+<li>Dry-run request plan and hard request budget; no automatic full-history crawl.</li>
+<li>Explicit date windows, checkpointing and durable caching; aggregate locally once instead of repeatedly querying counts for thousands of maps.</li>
+<li>Respect Retry-After; pause the run on 429, access-denied responses, repeated server errors or severe latency. Bound transient retries within the request budget.</li>
+<li>Identify the collector honestly, use legitimate OAuth access, and do not rotate accounts/IPs or bypass restrictions.</li>
+<li>Avoid repeated expensive totals queries and unnecessary player profiles, rating journals or replay downloads.</li>
+<li>Before a large historical backfill, obtain guidance from FAF API maintainers on window size, rate, timing and preferred export/access method. This is a recommendation based on the user&#39;s stated caution, not a discovered mandatory approval rule. No message has been sent to anyone.</li>
+</ul>
+<p>Suggested maintainer inquiry (draft only): “I am working on MapGen, an open-source student research project on Supreme Commander map structure. I would like to collect map ratings/review metadata and game metadata to count games with at least two human participants and 3000 replay ticks. I do not need replay files or private account information. Is there a preferred export or API access method, and what request rate, page size and historical window would you recommend? Does this use case warrant the SCRAPER role? I can cache all responses and run a bounded, resumable collection.”</p>
+<script src="model-atlas/public-links.js" data-public-links></script></body></html>

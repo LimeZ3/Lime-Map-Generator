@@ -1,0 +1,91 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>joint_sources_12h.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="twelve-hour-joint-source-continuation-25-october-2026">Twelve-hour joint source continuation — 25 October 2026</h1>
+<p><strong>Ended early by user request at update 22,947, around 11:50 Amsterdam.</strong> Final
+held-out loss was 0.0228252. The original last/best checkpoints and history are
+preserved. The replacement <a href="joint_source_diagnostics.md">two-hour diagnostic batch</a>
+is separate; the twelve-hour job will not restart itself. Times below describe
+the original authorized cap, not twelve hours actually consumed.</p>
+<p>The user authorized <strong>12 hours starting now</strong> after the hour review. The local
+supervisor started at <strong>05:06 Amsterdam / 04:06 UTC</strong> and is bounded to finish
+around <strong>17:06 Amsterdam / 16:06 UTC</strong>, with time reserved for final checkpointing
+and sample rendering. It is running on the reserved RTX 5080.</p>
+<h2 id="what-the-pilot-established">What the pilot established</h2>
+<p>The full pilot completed 2,074 updates in 2,502 seconds: 49,776 sampled map
+presentations, equivalent to 63.7 cohort passes. All 13 channel validation losses
+improved. Mean fixed-timestep held-out loss fell from 1.01603 to 0.02745; it was
+still improving at the end (0.03071 at update 1,514). Median measured pilot GPU
+utilization was 98%, with mean 94.25% across 156 telemetry samples including
+loading, validation and sampling.</p>
+<p>Fresh-noise outputs now have more localized resource peaks and coherent surface
+color, while height and RGB remain blurry. Absolute quantities, starting layouts,
+reclaim amounts and independent rating calibration are not established. For one
+matched seed, requesting mex rating 1 versus 5 increased the integrated mex field
+from 442.7 to 703.5 (+58.9%). This is a conditional response, not proof that those
+values are correct or that all 12 ratings are independently controllable.</p>
+<p>Small positive background errors are important: the final source-count fields
+integrate to hundreds despite only a few strong start peaks. Integrals are not
+decoded entity counts. The water field has a shallow background bias (median
+depth about 0.12 world units); the reported wet fraction changes strongly between
+0.05 and 0.25 depth thresholds. This sensitivity is documented rather than repaired.
+Source heatmaps preserve absolute quantities; generated quantity calibration still
+fails. No playable game export or player test was performed.</p>
+<p>The <a href="../data/models/joint_sources_pilot_v1/review/index.html">pilot review</a> contains
+fixed-scale, same-seed comparisons, per-channel curves and numeric methods. Its
+arrays and checkpoints are preserved unchanged.</p>
+<h2 id="controlled-continuation">Controlled continuation</h2>
+<p>Run root: <code>data/models/joint_sources_12h_v1</code>.</p>
+<p>Training output: <code>data/models/joint_sources_12h_v1/training</code>.</p>
+<p>The parent is the final pilot <code>last.pt</code>, update <strong>2,074</strong>, SHA-256
+<code>3ef78a2b12c7b71d7ba8592df30ec7e669070903613376e656a69b1064b416ed</code>.
+Its verified copy is resumed with model, EMA, AdamW optimizer, random states and
+history. Initial resumed validation reproduced the parent&#39;s value exactly.</p>
+<p>Architecture, source representation, complete-case cohort/family split, loss,
+augmentation, precision and learning rate are unchanged. This isolates a longer
+compute budget rather than switching to another staged approach. The source
+contract remains the <a href="joint_sources_pilot.md">13-channel pilot contract</a>:</p>
+<ul>
+<li>73,323,149-parameter U-Net, base 128, attention at 32/16 cells.</li>
+<li>851 maps: 782 train / 69 validation families; no test data used.</li>
+<li>Height, physical depth, two starts, mex/hydro, natural energy/mass, initial
+wreck mass, civilian count density and surface RGB at 256 squared.</li>
+<li>Generation receives noise, timestep and 12 ratings; zero source spatial
+conditions, analytical layers or validity masks.</li>
+<li>Microbatch six, four accumulated microsteps, effective batch 24; bfloat16
+compute with float32 parameters/optimizer; learning rate 0.0002.</li>
+<li>Checkpoints at least every two minutes, held-out validation every 15 minutes,
+raw fresh-noise galleries every 30 minutes and at completion.</li>
+<li>Same matched seeds/profiles/sampling settings as the pilot. Numeric sampling
+bounds and unbounded final estimates remain separately saved. No geometry or
+placement repair, symmetry projection, count caps, budgets or asset composition.</li>
+</ul>
+<p>At the pilot&#39;s observed throughput, twelve additional hours should allow roughly
+35,000 additional updates, subject to evaluation overhead. This is an estimate,
+not a fixed update promise. New telemetry samples showed 98% GPU utilization and
+approximately 15 GB total device memory use after the resume.</p>
+<h2 id="supervision-and-review">Supervision and review</h2>
+<p><code>tools/run_joint_sources_long.py</code> enforces the twelve-hour wall-clock budget,
+checks the inherited source/dataset hashes and checkpoint copy, and records its
+launch command and parent lineage. It requests cooperative checkpointing before
+the deadline. Failures, nonfinite training values and ten-minute progress stalls
+stop the run and preserve completed checkpoints. Windows idle sleep is inhibited
+only while the supervisor is active; the display can sleep. It does not restart
+silently, reset the budget, or modify the persistent power plan.</p>
+<p>Current files:</p>
+<ul>
+<li><code>index.html</code>: local review page; reload to view newly saved galleries.</li>
+<li><code>pipeline.json</code>, <code>gpu_history.json</code>: supervisor state and measured GPU use.</li>
+<li><code>contract.json</code>, <code>launch.json</code>: authorized budget, lineage and exact command.</li>
+<li><code>training/training_receipt.json</code>: actual source/target/loader/condition contract.</li>
+<li><code>training/progress.json</code>, <code>training/history.json</code>: cumulative and session progress.</li>
+<li><code>training/last.pt</code>, <code>training/best.pt</code>: latest resume state and best held-out snapshot.</li>
+<li><code>training/latest_layers.png</code>, <code>training/samples/</code>: raw layer galleries and arrays.</li>
+<li><code>training/code_snapshot/</code>: exact unchanged training sources.</li>
+</ul>
+<p>To request a cooperative pause:</p>
+<pre><code class="language-powershell">New-Item -ItemType File -Path data/models/joint_sources_12h_v1/pause.request
+</code></pre>
+<p>The continuation is experimental and does not replace the selected staged
+generator. Its outcome must be judged with raw generation, quantities, rating
+response, diversity/nearest-source inspection and eventual playability, alongside
+held-out denoising. Lower denoising loss alone does not answer whether compute
+solves the complete map-generation task.</p>
+<script src="model-atlas/public-links.js" data-public-links></script></body></html>

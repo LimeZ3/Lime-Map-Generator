@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>MapGen project atlas</title>
+  <link rel="stylesheet" href="atlas.css">
+  <link rel="stylesheet" href="training.css">
+  <script defer src="vendor/lucide.min.js"></script>
+  <script defer src="generated/atlas-data.js"></script>
+  <script defer src="training.js"></script>
+  <script defer src="library-data.js"></script>
+  <script defer src="generated/comparisons-data.js"></script>
+  <script defer src="project.js"></script>
+  <script defer src="display.js"></script>
+  <script defer src="layers.js"></script>
+  <script defer src="generated/project-status-data.js"></script>
+  <script defer src="status.js"></script>
+  <script defer src="atlas.js"></script>
+</head>
+<body>
+  <header class="topbar"><a href="#layers" class="brand"><i data-lucide="network" aria-hidden="true"></i><strong>MapGen</strong><span>Project atlas</span></a><span class="snapshot">DRAFT · 25 October 2026</span></header>
+  <div class="shell">
+    <aside><nav id="navigation" aria-label="Project sections"></nav><div class="mobile-picker"><label for="stage-picker">Project section</label><select id="stage-picker"></select></div><p class="scope">Draft project reference<br>Models: 10km · 1v1 cohort<br>Setons FAF: default source map</p><section class="display-controls" aria-label="Atlas preview display"><h2>Preview display</h2><div class="display-sliders"><div><label for="background-brightness">Background brightness</label><output id="background-brightness-value" for="background-brightness">10%</output><input id="background-brightness" type="range" min="0" max="100" step="1" value="10" aria-describedby="display-control-note"></div><div><label for="mask-opacity">Mask opacity</label><output id="mask-opacity-value" for="mask-opacity">100%</output><input id="mask-opacity" type="range" min="0" max="100" step="1" value="100" aria-describedby="display-control-note"></div></div><p id="display-control-note">Across all atlas sections.<br>Vault context stays separate from data.</p></section></aside>
+    <main id="main" aria-live="polite"></main>
+  </div>
+  <noscript>This offline reference needs JavaScript to show its model contracts. The same source is available in catalog.json.</noscript>
+<script src="public-links.js"></script></body>
+</html>

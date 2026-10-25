@@ -1,0 +1,78 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>questionnaire_renders.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="questionnaire-png-assets">Questionnaire PNG assets</h1>
+<p>MVP uses default map options and all recorded player slots. Adaptive-setting
+controls, alternate-setting collections and diffusion conditioning are deferred
+in <a href="future_work.md">future_work.md</a>. Numbered slots and supported declared
+resource links remain useful inspection views.</p>
+<p>The collection is generated locally under
+<code>data/processed/questionnaire_renders</code>. The October 8 catalog has 14,755
+available latest-version maps. Hidden maps are rendered with their visibility
+flag preserved; inclusion in public questionnaire pools remains separate.
+The 52 failed downloads, one skipped download and three missing references
+are not retried or silently replaced.</p>
+<p>Seven views: combined terrain/water, ground/amphibious pathing estimate,
+numbered resources, supported adaptive links, reclaim mass, reclaim energy,
+and props/units/wrecks. Native PNGs retain full resolution for zoom. Web PNGs
+fit within 1024 pixels without upscaling; thumbnails fit within 256 pixels.
+Reclaim density stays summed per 4x4 world-unit tile. Small map images remain
+at their native size. The local map-archive preview is included if present;
+its origin is distinct from the official vault preview URL.</p>
+<h2 id="integration-files">Integration files</h2>
+<ul>
+<li><code>manifest.json</code>: completed assets, relative paths, dimensions, checksums,
+map/version identity, visibility, default configuration and uncertainty.</li>
+<li><code>maps/&lt;map_id&gt;_&lt;version_id&gt;/asset.json</code>: per-map asset metadata/checkpoint.</li>
+<li><code>maps/&lt;map_id&gt;_&lt;version_id&gt;/provenance.json</code>: source hashes and validation.</li>
+<li><code>questionnaire_assets.json</code>: exact-version joins to questionnaire entry IDs.</li>
+<li><code>render_catalog.csv</code>: coverage of every catalog entry, including unavailable maps.</li>
+<li><code>failures.json</code>: failed render names, identities and reasons. Failures are not
+automatically retried on resume with the same pipeline/source fingerprint.</li>
+</ul>
+<p>The existing 6,177-entry Netlify questionnaire has 6,131 exact folder matches
+in the available latest-version library. Identity checks also require any
+explicit vault map/version IDs to agree. Missing or older questionnaire
+versions remain visibly unmatched. Do not join by display name or replace
+them with latest-version images under an older review identity.</p>
+<p>An asset host should expose the <code>maps</code> directory and manifests under a chosen
+base URL. Resolve relative paths against that URL. Use web images for the
+main view and native images for enlargement. Use <code>adaptive_link_view_available</code>
+before exposing the adaptive-link view; unsupported scripts do not have
+guessed links. Static resource views show all definitions, while supported
+adaptive views show default activation. Show reclaim as a known baseline
+when unknown entities exist, and preserve static-pathing qualification.
+Local asset generation does not deploy or change the questionnaire website.</p>
+<h2 id="run-and-monitoring">Run and monitoring</h2>
+<pre><code class="language-powershell">powershell -NoProfile -ExecutionPolicy Bypass -File scripts/Start-FAF-Renders.ps1
+</code></pre>
+<p>Double-click <code>scripts/Watch-FAF-Renders.cmd</code> for a live status display, or run:</p>
+<pre><code class="language-powershell">powershell -NoProfile -ExecutionPolicy Bypass -File scripts/faf-render-status.ps1
+</code></pre>
+<p>Two workers render concurrently. The parent records a heartbeat every five
+seconds and refreshes manifests every minute and at completion. Each map
+has a 240-second deadline; a timeout or crashed worker is recorded and the
+batch proceeds. Completed per-map checkpoints survive interruption and are
+included in the next resume. A fingerprint includes the renderer/extractor
+code and pinned source archive. Keep the computer awake for the run.</p>
+<p>Large tensors and entity inventories are not kept in this web-assets batch;
+the raw map library remains available for separate training extraction.</p>
+<p>Checkpoint replacement retries bounded temporary Windows file-lock failures.
+The prior valid JSON remains readable until replacement succeeds. Resume
+fingerprints now distinguish extraction/asset-format changes from operational
+checkpoint fixes, so this fix reuses the existing render collection and failure
+list. Compatibility with the prior fingerprint is restricted to the exact
+matching extraction and packaging implementations.
+Intermediate per-map files are removed after packaging. Native and web PNGs
+consume additional disk space. The run stops below 10 GiB free space.</p>
+<p>FAF source cache uses the previously selected commit
+<code>c7d9d129cc9085ddf84cc49aa3f13af91afd9509</code> with all 1,180 relevant blueprint
+and rule files, not a claim of equivalence to the currently installed game.
+The complete source updates natural-prop values previously taken from base
+game data; Seton&#39;s calculated wreck mass remains 11,631.33. Blueprint hooks
+and arbitrary map scripts are not executed. Unknown values stay flagged.</p>
+<p>Smoke packaging passed for Seton&#39;s, Dual Gap, Canis River, Adaptive Archsimkats
+Valley and Adaptive Diversity: 78 PNGs, about 17 MiB. Asset dimensions,
+resume validation and exact-version joins have targeted tests.</p>
+<p>Bundled backup SCMAPs are selected only by an unambiguous literal scenario
+map reference; Astro Crater Battles exercises this case. Its legacy water
+block is unresolved by the current decoder and remains flagged in metadata;
+do not interpret a zero placeholder water mask as verified dry terrain.</p>
+<script src="model-atlas/public-links.js" data-public-links></script></body></html>
