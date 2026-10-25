@@ -1,0 +1,77 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>dataset-atlas.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="dataset-audit-in-the-project-atlas">Dataset audit in the project atlas</h1>
+<p>The atlas <strong>Datasets → 1x1, 10km</strong> tab starts with the exact frozen collection of</p>
+<p>the local dataset reviewer: <code>terrain_full256_controls_v3</code>, 1,200 train and 110</p>
+<p>validation maps. No held-out test set is included. Its membership comes from</p>
+<p>the published, hash-verified release, never from a newly inferred map filter.</p>
+<p>The collection identity is the SHA-256 of that release manifest. The reviewer&#39;s</p>
+<p>catalog and decisions must match it before a snapshot can be built.</p>
+<p>This is the original audit population, including locally excluded maps. The</p>
+<p>current curated terrain membership is displayed separately and can be filtered.</p>
+<p>Local keep/exclude decisions and reason codes are a snapshot; private local</p>
+<p>notes and undo history are not published. Atlas flags and notes are separate,</p>
+<p>shared owner-edited judgements. Neither mechanism silently rewrites a dataset.</p>
+<h2 id="views-and-evidence">Views and evidence</h2>
+<p>The gallery can compare one selected source layer, derived tensor or training</p>
+<p>channel across maps. The coverage table, search, split/curation/membership</p>
+<p>filters and sorting work across the entire collection, with 24 maps per page.</p>
+<p>Open a map to toggle source, derived, training, ratings and question panels.</p>
+<p>Previews are rendered from saved pinned arrays and entity records, not predicted</p>
+<p>data or new extraction. Native and Full256 target archive checksums are verified.</p>
+<p>Each tensor retains its array field, source artifact, original shape, dtype,</p>
+<p>finite check and numeric range. The display derivatives are 256px lossless WebP</p>
+<p>sheets; they are not raw tensor downloads or training data. Height contrast is</p>
+<p>map-relative, depth uses a 0–30-world-unit color scale, reclaim uses a log scale</p>
+<p>and per-map positive-cell contrast. Natural reclaim bins sum 2×2 world units.</p>
+<p>Sparse point/mask layers remain transparent over independently dimmable context.</p>
+<p>Saved native physical channels are source-analysis representations. Their presence</p>
+<p>in this audit does not imply every selected generator consumes them. Supervised</p>
+<p>target channels are explicitly named; Controls &amp; data use remains the authority</p>
+<p>for actual model inputs, targets, masks and composer settings.</p>
+<p>The full-bright preview uses the FAF vault URL associated with the exact version.</p>
+<p>If unavailable, it falls back explicitly to the embedded author preview used by</p>
+<p>the local audit app. Neither is a fresh engine render or evidence of alignment.</p>
+<p>Saved source preview fallbacks and tensor previews are bundled in the snapshot.</p>
+<p>Air masks preserve both actual selected slot names; no opposing mask is guessed</p>
+<p>by rotation. Native resource-area IDs are identified as resource grouping, not</p>
+<p>walking components. Only recognized saved route polylines can become battle-path</p>
+<p>previews; scalar front metrics never become invented paths. Hover/navy movement</p>
+<p>masks are not hover/navy battle-path predictions.</p>
+<p>Ratings separate saved algorithmic 1–5 strategy labels (with confidence and</p>
+<p>availability masks), measured terrain/economy values and FAF vault community</p>
+<p>scores/review counts. None of those is competitive-quality certification.</p>
+<p>Missing data, valid zero-valued layers, unsupported previews and exclusion from</p>
+<p>a role-specific release are distinct. Check the processed-release membership</p>
+<p>panel before treating an unavailable wreck-positive or other role target as a</p>
+<p>failed extraction. Adaptive script uncertainty and provisional resource zoning</p>
+<p>remain visible questions. Known work stays in <code>map-extraction-todos.md</code>.</p>
+<h2 id="reproduce-and-maintain">Reproduce and maintain</h2>
+<pre><code class="language-powershell">
+$env:PYTHONPATH = &#39;src&#39;
+
+.venv/Scripts/python.exe -m supmapai.tools.build_atlas_datasets --workers 4
+
+.venv/Scripts/python.exe tools/finalize_atlas_dataset_index.py
+</code></pre>
+<p>This reads existing artifacts, validates identities and renders audit previews.</p>
+<p>It does not train, download, re-extract, mutate curation decisions, change splits</p>
+<p>or approve maps. Run it after relevant recorded extraction/processing changes,</p>
+<p>then validate and follow <code>atlas-publication.md</code> to publish the GitHub snapshot.</p>
+<p>The builder is <code>src/supmapai/tools/build_atlas_datasets.py</code>, the UI is</p>
+<p><code>docs/model-atlas/datasets.js</code>, and generated content lives in</p>
+<p><code>docs/model-atlas/generated/datasets/1x1-10km</code>. Stable per-map atlas review keys</p>
+<p>are <code>dataset:1x1-10km:&lt;map_key&gt;</code>. Dataset registration is recorded in</p>
+<p><code>docs/model-atlas/datasets.json</code>.</p>
+<p>Future large-map, naval, team-game, survival and co-op collections should get</p>
+<p>their own ID, explicit membership/scenario contract, split policy and source</p>
+<p>receipts. Do not append them to this frozen 1v1 collection or reuse its review</p>
+<p>keys when membership semantics change.</p>
+<h2 id="experimental-terrain-symmetry-sidecar">Experimental terrain symmetry sidecar</h2>
+<p>The derived-data panel now includes terrain-first symmetry from the pinned</p>
+<p>1,310-map audit cohort. It shows family/order, axes, center, fit/domain errors,</p>
+<p>separate source-start/default-mex agreement, selected-pair checks and the saved</p>
+<p>28-value condition. The panel refuses a mismatched cohort identity. Results are</p>
+<p>experimental analysis; existing selected model inputs and membership are unchanged.</p>
+<p>See <code>terrain_symmetry_detection.md</code>. Regenerate/validate the small sidecar with</p>
+<p><code>tools/finalize_terrain_symmetry.py --run data/processed/terrain_symmetry_collection_v2</code></p>
+<p>using <code>PYTHONPATH=src</code>; this does not rerender the collection or train a model.</p>
+<script src="model-atlas/public-links.js" data-public-links></script></body></html>

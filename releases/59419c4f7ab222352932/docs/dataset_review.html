@@ -1,0 +1,71 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>dataset_review.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="local-dataset-review">Local Dataset Review</h1>
+<p>This is a local curation tool, separate from the public annotation survey.
+The initial cohort is exactly Full256 V3: <strong>1,200 train + 110 validation maps</strong>.
+No held-out test maps are included. No training, downloads, or hosted deployments
+are started by this tool.</p>
+<h2 id="open">Open</h2>
+<p>From Windows PowerShell in the project folder:</p>
+<pre><code class="language-powershell">.\scripts\Start-DatasetReviewer.ps1
+</code></pre>
+<p>Open <code>http://127.0.0.1:8766</code>. Keep that PowerShell window running; Ctrl+C stops
+the server. Use <code>-Port 8767</code> if another application already uses that port.
+The server binds only to loopback, requires same-origin review tokens for writes,
+and does not serve arbitrary local files.</p>
+<p>Equivalent Python command (NumPy and Pillow required, no GPU or SciPy):</p>
+<pre><code class="language-powershell">$env:PYTHONPATH = &#39;src&#39;
+.\.venv-codex\Scripts\python.exe -m supmapai.tools.dataset_review
+</code></pre>
+<h2 id="review">Review</h2>
+<ul>
+<li>Search by actual name, folder/version, family, or dataset key.</li>
+<li>Filter train/validation, unreviewed/kept/excluded/retained; sort by name, water,
+relief, or family. Gallery pages contain 24 maps.</li>
+<li>Each item compares the embedded original map preview with <strong>the actual decoded
+256 x 256 training target</strong>, not a newly generated map. A/B mark the selected
+1v1 spawn pair. Source previews are supplied by map authors and can be stale;
+they are not a fresh engine render.</li>
+<li>Open an item for larger images, exact spawn coordinates and terrain measurements.
+Height contrast is scaled per map (1st-99th percentiles); water shade represents
+decoded depth, with saturation at 30 world units. Width/depth/height values in the
+detailed measurements remain physical rather than color-derived.</li>
+<li>Keep marks an item reviewed. Exclude records an exclusion, optionally with a
+reason and note. All unreviewed maps remain retained by default.</li>
+<li>Apply To / Whole Family explicitly applies the decision to all members of the
+existing family <strong>in this cohort</strong>, after confirmation. Family labels are
+existing automated groupings, not proof of identical geometry. Versions outside
+this cohort are not changed. Reset removes a decision; Undo reverses the last
+operation, including family operations, across browser sessions.</li>
+<li>In the detail view: Left/Right move between maps; K keeps; X excludes; U undoes;
+Escape closes. Shortcuts do not run while editing text/select fields.</li>
+<li>Notes are committed with Keep/Exclude. Navigation alone does not save an edited
+note. The Saved indicator confirms a disk write; errors remain visible.</li>
+</ul>
+<h2 id="decisions-and-selections">Decisions and Selections</h2>
+<p>Default directory:
+<code>data/processed/dataset_reviews/terrain_full256_controls_v3/</code></p>
+<ul>
+<li><code>decisions.json</code>: persistent decisions, revision, undo history and source-cohort
+fingerprint. Atomic replace protects writes. A process lock prevents two servers
+from overwriting each other, and revision checks protect concurrent browser tabs.</li>
+<li><code>catalog.json</code>: cached names and provenance, bound to the published release.</li>
+<li><code>images/</code>: on-demand cached PNGs; at most two render jobs run concurrently.</li>
+<li><code>selections/&lt;timestamp&gt;_&lt;id&gt;/selection.json</code>: immutable, versioned export created
+by Export Selection. Includes reasons, source identity, retained/excluded keys,
+and split counts. Sibling <code>train_membership.json</code> and
+<code>validation_membership.json</code> carry absolute source archive paths and checksums.</li>
+</ul>
+<p>These generated files are already gitignored under <code>data/processed/</code>. Back up
+<code>decisions.json</code> and exported selections when moving workstations. Existing
+decisions survive a restart; a changed source release requires a new review
+directory rather than silently reassigning old decisions.</p>
+<p><strong>Nothing is physically removed.</strong> The app never edits raw maps, source tensors,
+existing splits or checkpoints. Exclusion applies to this reviewed cohort, not
+automatically to every dataset in the project. An export is a membership selection,
+not a ready-to-train dataset. The next dataset build must consume its retained
+keys, preserve family split assignments, refit normalization on retained train
+maps only, re-encode profiles, audit, and publish a new release. Existing model
+weights will still reflect excluded maps until retraining.</p>
+<p>For another compatible full256 cohort, pass <code>-Source</code> and a <strong>new</strong> <code>-ReviewDir</code>.
+The reader currently expects the full256/native-source metadata contract; it does
+not guess how to render arbitrary tensor formats.</p>
+<script src="model-atlas/public-links.js" data-public-links></script></body></html>

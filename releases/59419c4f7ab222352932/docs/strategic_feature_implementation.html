@@ -1,0 +1,232 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>strategic_feature_implementation.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="strategic-extraction-first-implementation">Strategic extraction: first implementation</h1>
+<p>Implemented 14 October 2026. This delivers the navigation/balance-source
+foundation and T1-frigate range-potential review. It does not implement the later
+air, drops, tech-stage economy, biome or distinct-corridor modules yet.</p>
+<h2 id="current-scope-three-uef-representatives">Current scope: three UEF representatives</h2>
+<p>The follow-up request reduces future naval computation to these estimates:</p>
+<table>
+<thead>
+<tr>
+<th>Profile</th>
+<th>Unit</th>
+<th>Selected weapon</th>
+<th align="right">Source range (map units)</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>UEF T1 frigate</td>
+<td><code>ues0103</code></td>
+<td><code>MainGun</code></td>
+<td align="right">0–28</td>
+</tr>
+<tr>
+<td>UEF T2 destroyer</td>
+<td><code>ues0201</code></td>
+<td><code>FrontTurret01</code></td>
+<td align="right">0–60</td>
+</tr>
+<tr>
+<td>UEF T2 cruiser missiles</td>
+<td><code>ues0202</code></td>
+<td><code>CruiseMissile</code></td>
+<td align="right">20–150</td>
+</tr>
+</tbody></table>
+<p>The destroyer&#39;s second main turret has the same range and is redundant for
+geometric reach. The cruiser proxy uses missiles only. Other faction and T3
+target evaluations are outside the current scope. The 606-source blueprint
+snapshot is reusable reference data, not 606 per-mex analyses.</p>
+<p>Launch candidates are computed once per UEF spawn. Each representative&#39;s target
+estimates are computed once per unique reachable basin set and shared between
+spawns with that same set. Distance fields are shared by movement layer. New
+exports use schema 2, <code>naval_reach</code> rows and separate profile overlay filenames;
+the report and audit also read the historical <code>frigates</code> format.</p>
+<p>The new default output is <code>data/processed/strategic_features_uef</code>, keeping
+historical results intact. This scope change did <strong>not</strong> run extraction or
+generate T2 counts. The navigation inspection below uses cached fields only.</p>
+<h2 id="initial-archived-results">Initial archived results</h2>
+<ul>
+<li>Frozen 33-map featured cohort; all exact versions already available locally.</li>
+<li>Unmodified, MIT-attributed community map, Lua and blueprint libraries at
+<code>6cdd8137f633aa62e3ea9a50e9a8f82e1b513793</code>; 32 source files verified against
+the downloaded snapshot, with hashes in the vendor manifest.</li>
+<li>Local C# adapter exports serialized terrain/water/types, FAF AI region grids,
+markers and pairwise spawn connectivity. Its distance command uses the
+upstream weighted eight-direction search.</li>
+<li>Independent raw corner/depth movement masks and region labels, retained
+separately from compressed/culled AI navigation.</li>
+<li>606 parsed FAF unit profiles, pinned to the existing
+<code>c7d9d129cc9085ddf84cc49aa3f13af91afd9509</code> blueprint snapshot. Every unit
+retains its source hash. These are source fields, not a complete engine-exported
+blueprint snapshot; hooks/defaults/full postprocessing remain unverified.</li>
+<li>T1 frigate ground-weapon range potential for all four factions, per active
+spawn, with candidate naval basins, factory/build-reach checks and per-mex
+firing-position/weapon witnesses. AA and torpedo-only weapons are excluded.</li>
+</ul>
+<p>The three-map pilot is in <code>data/processed/strategic_features</code>. Full preliminary
+featured outputs are in <code>data/processed/strategic_features_featured</code>. Each contains
+<code>index.html</code>, <code>navy_potential.csv</code>, <code>balance_profiles.json</code>, a manifest and failures.
+Per map: <code>strategic.json</code>, source navigation metadata, raw/AI <code>regions.npz</code>,
+distance fields, registered transparent overlays and a four-faction <code>comparison.png</code>.</p>
+<p>Pilot global resource-site reach, without enemy-ownership filtering:</p>
+<table>
+<thead>
+<tr>
+<th>Map</th>
+<th align="right">Total mex sites</th>
+<th align="right">UEF/Cybran/Seraphim potential</th>
+<th align="right">Aeon potential</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>The Drunken Beetles Dance</td>
+<td align="right">116</td>
+<td align="right">74</td>
+<td align="right">82</td>
+</tr>
+<tr>
+<td>Funeral Plains</td>
+<td align="right">76</td>
+<td align="right">0</td>
+<td align="right">0</td>
+</tr>
+<tr>
+<td>Virmire</td>
+<td align="right">104</td>
+<td align="right">42</td>
+<td align="right">60</td>
+</tr>
+</tbody></table>
+<p>These differences use explicit ground ranges of 28 and 33 from the pinned source.
+They do not constitute a navy-importance score or prove in-game hits.</p>
+<h2 id="meaning-and-limitations">Meaning and limitations</h2>
+<p>Amber resources are reachable by weapon radius from at least one candidate
+naval basin. Blue is candidate reachable water. White resources are outside
+that computed reach. Results retain <code>can_hit_in_game: null</code> and clearly distinguish
+range-only geometry from confirmed damage.</p>
+<p>Naval factory candidates require skirt-sized deep-water space and build reach
+from the engineer&#39;s connected terrain region. They do not verify exact skirt
+origins/offsets, roll-off, prop/unit collisions or engine placement. Engineer
+movement mapping and build-radius rules also need controlled in-game checks.
+Navigation represents terrain; it does not include all physical unit collisions.
+Terrain line of fire, projectile ballistics, footprint clearance and target
+collision geometry remain explicit validation work for the next refinement.</p>
+<p>The default reference activates all scenario spawn markers but assigns no guessed
+teams. Counts include all eligible resource sites, not enemy-owned mexes. An
+explicit setup file can select slots and teams, but does not manufacture actual
+resource ownership. Per-opponent ownership/exposure belongs in a later analysis.</p>
+<p>Default resources are resolved by our existing supported adaptive adapter or a
+strict standard-script helper whitelist. Unknown scripts remain static-marker
+potential; runtime-created/deleted resources are not silently treated as known.
+Final gameplay training labels must not consume these preliminary counts as
+confirmed attacks. JSON validity flags identify the permitted review uses.</p>
+<p>The full audit passed all 33 maps and 21,162 firing witnesses. Thirty maps have
+resolved default-resource sets (22 standard static scripts and eight supported
+adaptive scripts). Project Tabula, Mellow Shallows and Adaptive Pandemonium Pass
+retain <code>unresolved_static_marker_potential</code>; their script-dependent resource
+activation needs inspection. No extraction failed.</p>
+<h2 id="running">Running</h2>
+<p>Use the workspace-local Microsoft SDK under <code>.local-tools/dotnet</code> (10.0.402 was
+downloaded from Microsoft&#39;s release metadata and SHA512 checked). No global SDK
+installation is required. There are no third-party NuGet dependencies.</p>
+<pre><code class="language-powershell">$env:DOTNET_CLI_HOME=(Resolve-Path .local-tools).Path
+$env:DOTNET_CLI_TELEMETRY_OPTOUT=&#39;1&#39;
+$env:APPDATA=(Resolve-Path .local-tools/appdata).Path
+$env:TEMP=(Resolve-Path .local-tools/temp).Path
+$env:TMP=$env:TEMP
+.local-tools/dotnet/dotnet.exe restore tools/StrategicMapAdapter/StrategicMapAdapter.csproj --configfile tools/StrategicMapAdapter/NuGet.Config
+.local-tools/dotnet/dotnet.exe build tools/StrategicMapAdapter/StrategicMapAdapter.csproj -c Release --no-restore
+.local-tools/dotnet/dotnet.exe tools/StrategicMapAdapter/bin/Release/net10.0/StrategicMapAdapter.dll self-test
+$env:PYTHONPATH=&#39;src&#39;
+.venv-codex/Scripts/python.exe -m supmapai.tools.extract_strategic_features
+.venv-codex/Scripts/python.exe -m supmapai.tools.extract_strategic_features --all-featured --output data/processed/strategic_features_uef
+</code></pre>
+<p>Python dependencies are in the <code>strategic</code> optional extra: NumPy, Pillow and
+SciPy. The current environment uses NumPy 2.4.6 and SciPy 1.15.3. SDK and build
+outputs are ignored by Git; licensed vendored source is included.</p>
+<p>Optional explicit setup file:</p>
+<pre><code class="language-json">{&quot;maps&quot;:{&quot;9321_17243&quot;:{&quot;name&quot;:&quot;example 1v1 configuration&quot;,
+&quot;active_slots&quot;:[1,2],&quot;teams&quot;:[[1],[2]],&quot;verified&quot;:false,
+&quot;evidence&quot;:&quot;Replace with a reviewed setup; this is an example, not a recommended pairing&quot;}}}
+</code></pre>
+<p>Pass <code>--setups path/to/setups.json</code>. Slots must exist and team lists must partition
+the selected slots exactly once. Do not set <code>verified:true</code> until the setup has
+been reviewed. Adaptive option exploration remains outside this stage.</p>
+<p>To serve previews locally:</p>
+<pre><code class="language-powershell">.venv-codex/Scripts/python.exe -m http.server 5177 --bind 127.0.0.1 --directory data/processed
+</code></pre>
+<p>Open <code>http://127.0.0.1:5177/strategic_features/index.html</code> for the pilot or
+<code>http://127.0.0.1:5177/strategic_features_featured/index.html</code> for all featured maps.
+Existing questionnaire PNGs, reviews and hosted deployment are untouched.</p>
+<h2 id="validation">Validation</h2>
+<p>Upstream adapter self-tests cover the strict 0.75 cliff boundary and amphibious
+depth 25. Python regression tests cover raw boundary behavior, blocking terrain
+sampling, cropped boundaries, factory space, isolated/unreachable basins,
+ground-vs-AA weapon eligibility, minimum range, static-script confidence and
+explicit setup validation. The existing extraction suite passes alongside them.
+The initial complete suite passed 86 tests. The follow-up targeted navigation
+suite includes representative weapon selection and cached route recovery. Run
+the independent artifact audit against the archived output, or explicitly pass
+the new output after generating it:</p>
+<pre><code class="language-powershell">$env:PYTHONPATH=&#39;src&#39;
+.venv-codex/Scripts/python.exe -m supmapai.tools.audit_strategic_features
+</code></pre>
+<p>It checks exact featured coverage, source hashes, AI-grid consistency with raw
+terrain rules, weapon eligibility and firing witnesses, counts, distance arrays
+and overlay dimensions/transparency. The resulting <code>audit.json</code> explicitly
+records that actual engine hits and team ownership remain unverified.</p>
+<p>Next refinement: validate placement and firing witnesses in-game on the pilot,
+then add terrain-screened/weapon-aware attack checks and approved team setups.
+Retain the current raw measurements for comparison rather than overwriting
+them with an unversioned gameplay score.</p>
+<h2 id="how-grids-and-paths-are-implemented">How grids and paths are implemented</h2>
+<ol>
+<li>Parse the stored vertex heights and height scale, water-enabled flag/elevation,
+terrain codes, resource/spawn markers and playable area using the vendored
+MIT community library.</li>
+<li><code>strategy/navigation.py:raw_layers</code> builds one cell per original terrain grid
+tile. Each cell compares its four corner-edge height differences to <strong>strictly
+less than 0.75</strong>. Average water depth uses the four clipped corner depths;
+disabled water means zero depth. Terrain codes 9 and 230 block movement,
+sampled at the far corner as in the pinned source. Playable bounds also apply.</li>
+<li>Keep four masks: land = flat and depth zero; naval = depth at least 1.5;
+amphibious = flat and depth at most 25; hover = flat or depth at least 1.
+Label side-connected regions independently per mask; 0 means blocked.</li>
+<li>Separately retain the source library&#39;s AI region grids. These include mixed
+block compression and culling of small resource-free regions. Land block
+thresholds are 1/2/4 at map widths below 1024/from 1024/from 2048; naval blocks
+are twice as coarse, subject to the source tree-size cap. The raw grids avoid
+throwing away small terrain-accessible islands merely for AI relevance.</li>
+<li>The C# adapter passes the <strong>raw</strong> labels to upstream
+<code>NavPaths.DistancesFrom</code>: weighted Dijkstra in eight directions. Straight
+steps cost 1; diagonal steps cost sqrt(2). A diagonal requires both adjoining
+side cells to be passable. Each spawn/layer field contains shortest travel
+distance or infinity when unreachable; positions are floored to cells.</li>
+<li><code>trace_distance_route</code> recovers one route by following legal predecessors
+from the destination through an existing distance field. It checks the
+float32 shortest-distance recurrence and returns cell centres (x+0.5,z+0.5).
+This is a cheap display operation, not another full-grid search. The vendored
+library also contains A* <code>FindRoute</code>, which the batch adapter currently does
+not invoke.</li>
+</ol>
+<p>The demonstration is Adaptive Archsimkats Valley, slots 1 to 2, with no team
+assumption. Land and amphibious shortest distances both measure 399.806 map
+units. The overlays differ around water even though this pair&#39;s route is the
+same. Output: <code>data/processed/navigation_inspection/index.html</code>, full-resolution
+land/amphibious PNGs, a 40×40-cell zoom and <code>routes.json</code> with waypoint coordinates.</p>
+<pre><code class="language-powershell">$env:PYTHONPATH=&#39;src&#39;
+.venv-codex/Scripts/python.exe -m supmapai.tools.inspect_navigation
+</code></pre>
+<p>These are terrain-only routes. Props, unit footprints, dynamic obstacles and
+engine steering are not included. Distinct corridor counts, widths and alternative
+approaches remain the next route-analysis milestone; one shortest grid path is
+not a count of strategic routes.</p>
+<p>Follow-up: a bounded obstacle-separated route sampler and interactive Archsimkats
+preview are now implemented. See <code>docs/obstacle_separated_routes.md</code>. It shows
+inner/outer land detours and amphibious/hover crossings, while keeping candidate
+families separate from final independent corridor counts.</p>
+<p>The next prototype implements midpoint corridor cuts and recursive intermediate
+shared-chokepoint nodes. See <code>docs/corridor_cut_implementation.md</code> and the preview
+in <code>data/processed/navigation_corridors</code>. The five land families match the
+user-selected prior routes 1, 2, 3, 10 and 11 by barrier signature.</p>
+<script src="model-atlas/public-links.js" data-public-links></script></body></html>

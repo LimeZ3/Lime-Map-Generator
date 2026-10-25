@@ -1,0 +1,26 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>questionnaire-persistent-skips.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="participant-skip-preferences">Participant skip preferences</h1>
+<p>Skipping a map defers it until eligible unskipped maps are exhausted. This applies
+before the popularity/coverage alternation, so a skipped popular map cannot
+return just because the next invitation is from the popular pool. Deferred maps
+return in skip order; skipping one again moves it to the end.</p>
+<p>Preferences are stored in browser localStorage, keyed by respondent ID. They
+survive review submission, category changes and reloads. QA preferences have a
+separate storage key. They do not sync across devices and clearing browser data
+removes them. Calibration anchors still require a partial review to continue.
+Manual map selection and Previous map remain available.</p>
+<p>The Suggested maps collection also places skipped maps after other maps.
+Explicit popularity categories retain their popularity order.</p>
+<p>Validation: survey and EN/RU checks, production build, and a browser QA skip from
+Zeuthea Valley to Adaptive Argon. Reload and category changes retained Adaptive
+Argon instead of re-suggesting the skipped map. Queue tests cover participant
+isolation, skipped popular vs fresh coverage, review submission, malformed
+storage, exhaustion and repeat-skip rotation.</p>
+<p>Initially, on 14 October 2026 Netlify rejected production deploys
+with HTTP 403. Its dashboard states that Lime_Map_Gen is running on operational
+credits, which keep the current site online but cannot fund production deploys.
+The final built assets remain in <code>apps/crowd-labeler-netlify/dist/client</code>.
+The user upgraded to Personal and authorized one final release. Published as
+<code>6acf9f736d23f8e38be66964</code>; live bundle and API health were verified. No new
+deployment was created by the earlier failed attempts. Future changes are
+batched according to <code>docs/netlify-release-log.md</code> and the root <code>AGENTS.md</code>.</p>
+<script src="model-atlas/public-links.js" data-public-links></script></body></html>

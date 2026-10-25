@@ -1,0 +1,181 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>map-extraction-todos.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="maps-extraction-work-queue-current-owner-decisions">Maps extraction work queue — current owner decisions</h1>
+<p>Updated 25 October 2026. The <a href="model-atlas/maps-data-gap-plan.md">prioritized model-data plan</a></p>
+<p>and <a href="model-atlas/extraction-work.json">structured queue</a> record accepted decisions,</p>
+<p>pending implementations, deferred discussions and exclusions. The original</p>
+<p><a href="model-atlas/review-notes/2026-10-25-maps.json">review-note snapshot</a> is historical;</p>
+<p>later owner decisions supersede the earlier five-map/easy-rendering interpretation.</p>
+<p>Implementation is recorded only with receipts below. No new training is started.</p>
+<p><strong>First:</strong> EXTRACT-07 symmetry, with EXTRACT-01 start pairing dependent on it.</p>
+<p><strong>Next foundations:</strong> EXTRACT-06 dataset release/size classes and EXTRACT-05 slope.</p>
+<p><strong>Research inventory:</strong> EXTRACT-14 settings/defaults, EXTRACT-11 variants/entities,</p>
+<p>and EXTRACT-12a effects. Other difficult definitions remain deferred. 1v1 only.</p>
+<h2 id="extract-01-symmetry-based-opposing-starts-archived-dualgap-mismatch">EXTRACT-01 Symmetry-based opposing starts / archived DualGap mismatch</h2>
+<p><strong>Pair-selection/repair pending.</strong> EXTRACT-07 now saves candidate transforms and</p>
+<p>source-slot correspondences; 68 recorded pairs are unmatched under the selected</p>
+<p>terrain transforms. These require review, not automatic relabeling. Match selected</p>
+<p>starts to actual source counterparts, then use those recorded 1v1 roles across</p>
+<p>analyses. Multiple symmetry mates require an explicit pairing rule. Never rename</p>
+<p>or reposition source ARMY records to manufacture correspondence.</p>
+<p>Exact historical example: DualGap Adaptive by Robustness, <code>8070_26498</code>,</p>
+<p><code>dualgap_adaptive.v0014</code> (2 July 2023).</p>
+<p>The user reports that the source render is correct but the factual air-mask</p>
+<p>render is wrong because the second player is positioned incorrectly. Inspection</p>
+<p>confirms a mismatch between saved analysis families:</p>
+<p>| Evidence | Slot 1 world x,z | Opposing slot and world x,z |</p>
+<p>|---|---|---|</p>
+<p>| Extracted markers | 112.5, 390.5 | ARMY_2: 911.4999, 390.5 |</p>
+<p>| Historical air scenario | 112.5, 390.5 | ARMY_12: 909.5, 639.5 |</p>
+<p>| Newer frontier scenario | 112.5, 390.5 | ARMY_2: approximately 911.5, 390.5 |</p>
+<p>Source evidence:</p>
+<ul>
+<li><p><a href="../data/processed/project_atlas_v1/8070_26498/markers.json">Extracted slots</a></p>
+</li>
+<li><p><a href="../data/processed/strategy_collection_1v1/8070_26498/opportunities.json">Historical air analysis</a></p>
+</li>
+<li><p><a href="../data/processed/strategy_collection_1v1/8070_26498/automatic_layers.npz">Historical per-side masks</a></p>
+</li>
+<li><p><a href="../data/processed/frontier_map_comparison/8070_26498/result.json">Newer frontier inputs and paths</a></p>
+</li>
+</ul>
+<p>The archived mismatch is verified; its new repair is pending the dataset-wide</p>
+<p>symmetry work in EXTRACT-07. The owner identifies the missing symmetry check as</p>
+<p>the underlying pipeline gap. DualGap is evidence for that generic correction,</p>
+<p>not a reason to hardcode ARMY_2 as the opponent for every map. Preserve the old</p>
+<p>receipt/masks and original slot names. New player A/B roles must reference their</p>
+<p>actual source starts and the accepted transform.</p>
+<h2 id="extract-02-specific-mapmovement-coverage-reruns">EXTRACT-02 Specific-map/movement coverage reruns</h2>
+<p><strong>Out of current scope.</strong> The earlier request to fill particular atlas-map</p>
+<p>panels, including Setons FAF and FAF Beetles, is no longer an active job. Their</p>
+<p>missing exact-version whole-economy/frontier or hover/navy evidence remains</p>
+<p>historical disclosure. Never substitute stock versions or other movement rules,</p>
+<p>but do not prioritize individual-map extraction to fill atlas comparisons.</p>
+<h2 id="extract-03-main-base-rear-forward-economy-zones">EXTRACT-03 Main-base / rear / forward economy zones</h2>
+<p><strong>Deferred — hard discussion after symmetry.</strong> Test how much symmetry enforcement</p>
+<p>corrects before changing classification rules. Existing v1.2.1 zoning for Canis</p>
+<p><code>4617_6826</code>, Tabula <code>9675_18616</code> and DualGap <code>8070_26498</code> is historical, not a new</p>
+<p>validated release. Remaining safety, ownership and zone semantics may require</p>
+<p>rules even after geometry is symmetric. Missing particular-map panels are not a</p>
+<p>current extraction task.</p>
+<h2 id="extract-04-contestability-and-resource-zone-definitions">EXTRACT-04 Contestability and resource-zone definitions</h2>
+<p><strong>Deferred with EXTRACT-03.</strong> Keep location/access/exposure/contestability meanings</p>
+<p>explicit, including separate mex and reclaim data. Symmetry is a prerequisite,</p>
+<p>not proof that rear resources are safe or forward resources contested. Discuss</p>
+<p>remaining definitions later rather than recalibrating scores now.</p>
+<h2 id="extract-05-supporting-slope-tensor">EXTRACT-05 Supporting slope tensor</h2>
+<p><strong>Decision accepted; implementation pending.</strong> Calculate slope and include it</p>
+<p>alongside terrain where relevant to models. Candidate field is physical</p>
+<p>steepness <code>1 x 256 x 256</code>, using physical cell spacing and validity neighborhoods.</p>
+<p>Downstream models can derive it from their upstream terrain. Terrain slope</p>
+<p>supervision can be calculated from predicted height; do not supply unavailable</p>
+<p>clean target slope as an inference condition. Same-resolution target semantics,</p>
+<p>loader/loss wiring and any loss weight still require validation. The selected</p>
+<p>terrain model&#39;s encoded-gradient loss is not the proposed physical-slope loss.</p>
+<p>Display-only additions are deferred; current checkpoints/outputs remain unchanged.</p>
+<h2 id="extract-06-dataset-release-non-square-sizes-and-validity">EXTRACT-06 Dataset release, non-square sizes and validity</h2>
+<p><strong>Accepted scope; implementation pending.</strong></p>
+<ul>
+<li><p><strong>06a:</strong> introduce the non-square/unequal-side class. Preserve native/playable</p>
+<p>width and height, aspect ratio, bounds and padding masks. Do not squash a</p>
+<p>rectangular map into a square or silently add it to the 10x10 km cohort.</p>
+</li>
+<li><p><strong>06b:</strong> broaden from padding to auditing/solidifying the current 10x10 km</p>
+<p>1v1 dataset. Require name, stable ID, version, manifest and per-field readiness:</p>
+<p>sources, defaults, units/shapes, validity, extraction/semantic status, model use,</p>
+<p>unresolved data and required rebuilding. Starting candidate is the existing</p>
+<p>1,117-map curated cohort (1,020 train / 97 validation), not a new frozen release.</p>
+<p>Working name/ID are proposed in the plan; version is assigned at audit freeze.</p>
+<p>New audit finding: the 1,310-map parent inherited an earlier half-map filter,</p>
+<p>excluding 548 candidates. Review symmetry coverage and exclusion provenance</p>
+<p>before claiming a general 10km dataset; do not restore maps automatically.</p>
+</li>
+</ul>
+<h2 id="extract-07-dataset-wide-symmetry-highest-priority">EXTRACT-07 Dataset-wide symmetry — highest priority</h2>
+<p><strong>Experimental implementation complete; scientific review and training integration pending.</strong></p>
+<p><a href="terrain_symmetry_detection.md">Method/evidence</a> ·</p>
+<p><a href="model-atlas/symmetry-representation.md">Representation</a> ·</p>
+<p><a href="model-atlas/symmetry-receipt.json">Receipt</a>.</p>
+<p>Owner confirmed editor symmetry is absent after export: explicit metadata search</p>
+<p>is skipped. Terrain-first native-height comparisons scanned/refined mirror axes</p>
+<p>and rotational orders, preserving multiple axes and sector structures. All 1,310</p>
+<p>audit maps completed in 72.9 seconds, no failures; 1,282 passed experimental</p>
+<p>whole-domain gates and 28 remain provisional. Ten tests and independent source/</p>
+<p>seal/vector/transform checks passed. A 28-value condition and full transform</p>
+<p>metadata are saved and shown per map in the atlas. Selected loaders/checkpoints</p>
+<p>are unchanged; no training started. A passing geometry gate is not final approval.</p>
+<p>Remaining: review tolerances/sampling and partial-domain/radial cases, establish</p>
+<p>1v1 policy for multiple mates, audit layer/configuration agreement, transform</p>
+<p>conditions under augmentation and wire a compatible future model release.</p>
+<p>118 maps have no accepted match within bounded search; that is not a proof of</p>
+<p>universal asymmetry. The cohort inherited a half-map selection filter; it is</p>
+<p>not a vault-wide symmetry census. No source slots or scenarios were rewritten.</p>
+<h2 id="extract-08-air-opportunity-scoring">EXTRACT-08 Air opportunity scoring</h2>
+<p><strong>Deferred — very hard scoring/decision work.</strong> Define good versus bad expansion,</p>
+<p>offensive-drop and raid locations from explicit economic and response assumptions.</p>
+<p>No new score or calibration is approved. Correct symmetry/scenarios first.</p>
+<h2 id="extract-09-access-hover-drop-only-semantics">EXTRACT-09 Access / hover / drop-only semantics</h2>
+<p><strong>Deferred — moved to difficult work requiring explicit rules.</strong> Revisit the</p>
+<p>relationship of access structure and spawn-reachable areas, hover accessibility</p>
+<p>and genuine valid drop-only destinations. Preserve existing fields as historical</p>
+<p>inputs; unwalkable or impassable does not automatically mean a landing is viable.</p>
+<h2 id="extract-10-team-game-configurations">EXTRACT-10 Team-game configurations</h2>
+<p><strong>Postponed. Current scope: 1v1 only.</strong> Retain future 2v2/3v3/4v4/6v6 slot/team</p>
+<p>selection without implementing it or claiming current analyses cover team games.</p>
+<h2 id="extract-11-settings-dependent-entities-and-configured-examples">EXTRACT-11 Settings-dependent entities and configured examples</h2>
+<p><strong>Planned, linked to EXTRACT-14.</strong> Resolve which props, wrecks, civilians and</p>
+<p>resource records activate or change quantity under defaults/options/active starts.</p>
+<p>Later, supported low/medium/rich configurations may become separate extracted</p>
+<p>examples and training conditions. They must have actual different tensors where</p>
+<p>settings change data, not new labels on the same arrays. Generated adaptive maps</p>
+<p>and version-enabled generated-map products are out of scope. Keep source author</p>
+<p>version, dataset version and configuration variant IDs distinct. All variants</p>
+<p>of a family remain in the same train/validation split.</p>
+<h2 id="extract-12-special-effects-in-map-appearance">EXTRACT-12 Special effects in map appearance</h2>
+<ul>
+<li><p><strong>12a — New tensor required; research and extraction pending.</strong> Locate effect</p>
+<p>IDs/asset-pool references, positions and available instance/default parameters</p>
+<p>such as scale, orientation and animation speed in map records/scripts. Do not</p>
+<p>assume all fields are serialized for every effect. Most maps may contain none;</p>
+<p>verified empty and unresolved extraction need different validity. Preserve</p>
+<p>instance identity and references separately from painted materials.</p>
+</li>
+<li><p><strong>12b — Defer representation discussion.</strong> Heatmaps are a candidate for later;</p>
+<p>ID channels, time/animation and parameter encoding are not yet fixed. No effect</p>
+<p>model or completed effects tensor is claimed.</p>
+</li>
+</ul>
+<h2 id="extract-13-full-battle-path-continuity">EXTRACT-13 Full battle-path continuity</h2>
+<p><strong>Deferred — hard discussion later.</strong> Connecting both bases through genuinely</p>
+<p>passable terrain, pairing frontier contacts and sharing route sections remain</p>
+<p>open. Do not solve it by drawing arbitrary links or calling witnesses lane counts.</p>
+<h2 id="extract-14-every-map-settings-and-default-inventory">EXTRACT-14 Every-map settings and default inventory</h2>
+<p><strong>Large planned research task; dataset-wide, not five atlas maps.</strong> Inventory each</p>
+<p>map&#39;s option IDs, types, choices/ranges, settings count, declared lobby defaults,</p>
+<p>script fallback/effective defaults, dependencies, affected fields and source</p>
+<p>logic. Mark unknown/dynamic behavior explicitly; author conventions differ.</p>
+<p>A player&#39;s last-used lobby values are not map defaults. Settings count is not the</p>
+<p>number of valid combinations. Preserve the default configuration first; later</p>
+<p>support selected meaningful resource-poor/rich variants as distinct examples and</p>
+<p>conditions. Do not enumerate all combinations or imply adaptive-map generation.</p>
+<h2 id="extract-15-optional-artificial-data-augmentation">EXTRACT-15 Optional artificial data augmentation</h2>
+<p><strong>Low priority; possible anti-memorization follow-up.</strong> Current terrain training</p>
+<p>already rotates/reflections tensors through the inherited batch loader. Verify</p>
+<p>alignment across all relevant model inputs, targets, masks, coordinates and</p>
+<p>symmetry/effect metadata; other models may differ. Pixel shifting remains a</p>
+<p>future option with safe padding/cropping and updated validity/labels, not toroidal</p>
+<p>wraparound. Augmented/configured views are not new independent map families and</p>
+<p>must not cross dataset splits. Do not claim augmentation guarantees no memorization.</p>
+<h2 id="status-and-evidence-rules">Status and evidence rules</h2>
+<ul>
+<li><p>Owner-accepted layer flags remain unchanged; acceptance does not validate every</p>
+<p>default/runtime setting or model loader. EXTRACT-09 now explicitly needs rules.</p>
+</li>
+<li><p>Distinguish decisions from code, scientific data from previews, and recorded</p>
+<p>readiness from process liveness. No task closes from a rendering change.</p>
+</li>
+<li><p>Side-specific fields name actual source slots and the chosen transform/config.</p>
+</li>
+<li><p>Keep current exact-version historical evidence, while prioritizing the dataset</p>
+<p>and source models rather than particular atlas-map rendering gaps.</p>
+</li>
+</ul>
+<script src="model-atlas/public-links.js" data-public-links></script></body></html>

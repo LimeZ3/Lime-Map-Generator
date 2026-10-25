@@ -1,0 +1,169 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>starting_rear_economy.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="starting-and-rear-economy-implemented-benchmark">Starting and rear economy: implemented benchmark</h1>
+<p>Implemented 22 October 2026 in pipeline <strong>1.1.0</strong>, as a separate <code>whole_economy</code>
+stage. Existing front geometry, front-only valuation and drop gates are preserved.
+The final 1–5 label adapter remains a separate release task.</p>
+<h2 id="view-the-results">View the results</h2>
+<ul>
+<li><a href="http://127.0.0.1:5177/starting_economy_comparison/">Local interactive comparison</a></li>
+<li><a href="../data/processed/starting_economy_comparison/runs/433bd06507b6a15b/comparison.png">Four-map PNG</a></li>
+<li><a href="../data/processed/starting_economy_comparison/runs/433bd06507b6a15b/report.md">Written results</a></li>
+<li><a href="../data/processed/starting_economy_comparison/runs/433bd06507b6a15b/metrics.csv">Location metrics CSV</a></li>
+<li><a href="../data/processed/starting_economy_comparison/runs/433bd06507b6a15b/validation.json">Independent audit</a></li>
+</ul>
+<p>The viewer provides map/player selectors, near-base/rear/forward areas, mexes,
+four-unit reclaim-density cells, engineer travel, worked targets, a 0–300s
+timeline, zoom, per-location contributions and per-side inventories. Pink hatching
+marks hover terrain without ordinary own-half engineer access. Reclaim density
+shows initial whole-map stock, not stock remaining at the timeline time.</p>
+<p>PNG previews were visually inspected. Viewer scripts pass JavaScript syntax
+checks, and report/data/PNG endpoints return HTTP 200. Browser inspection of the
+first run was initially blocked when binding a connection-error tab. On the
+three-map extension, the user&#39;s working preview was available: all three new map
+selections and their numbers were verified, including Tabula&#39;s reclaim layer.</p>
+<h2 id="canis-twin-rivers-and-tabula-extension">Canis, Twin Rivers and Tabula extension</h2>
+<p>The same frozen benchmark now includes Adaptive Canis River v2 (<code>4617_6826</code>),
+original Twin Rivers v1 (<code>129_156</code>) and Adaptive Tabula Rasa v7 (<code>9675_18616</code>).
+All three use slot 1 versus slot 2 and resolved two-slot defaults. No economic
+settings or route algorithms changed.</p>
+<p><a href="http://127.0.0.1:5177/starting_economy_comparison/runs/d1059a7ef29a4f60/index.html">Updated seven-map report</a>
+and <a href="../data/processed/starting_economy_comparison/runs/d1059a7ef29a4f60/requested_maps.png">three-map PNG</a>.</p>
+<table>
+<thead>
+<tr>
+<th>Map</th>
+<th align="right">300s net mass</th>
+<th align="right">Travel</th>
+<th>Near-base / rear / forward contribution</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Adaptive Canis River</td>
+<td align="right">3,266</td>
+<td align="right">156.1s</td>
+<td>2,828 / 395 / 42</td>
+</tr>
+<tr>
+<td>Twin Rivers</td>
+<td align="right">2,813</td>
+<td align="right">180.3s</td>
+<td>2,422 / 138 / 254</td>
+</tr>
+<tr>
+<td>Adaptive Tabula Rasa</td>
+<td align="right">3,056</td>
+<td align="right">128.5s</td>
+<td>3,056 / 0 / 0</td>
+</tr>
+</tbody></table>
+<p>Values are per-player averages. The four previous benchmarks were reused with
+identical compressed scientific outputs and numerical arrays; see
+<code>reuse_validation.json</code> in the new run. The independent seven-map audit passes
+636 events and 202 walks. Canis and Twin Rivers required only native terrain,
+resolved resources and entity extraction; their battle fronts were not rerun.
+The preview CLI now prepares these input-only stages for requested catalogue
+versions absent from its original seven-map source run.</p>
+<h2 id="fixed-rules">Fixed rules</h2>
+<ul>
+<li>Supported two-slot defaults and the selected meaningful mirrored opponent.</li>
+<li>Near-base: at most 96 legal hover-path units from the supplied engineer.</li>
+<li>Rear: outside that neighborhood, behind its spawn relative to the opponent.</li>
+<li>Forward/flank: remaining own-side targets. Location is not a safety guarantee.</li>
+<li>Separate access tags: ordinary own-half hover, requires crossing the frontier,
+transport required, shared neutral, unresolved or outside playable bounds.
+Hover-connected water mexes are included.</li>
+<li>One engineer, one 300s clock and one cash balance per side. The mex-sized capital
+advance is disclosed and excluded from gain. No free completed mexes or ACU
+income. Mex costs/production, engineer speed and build time use the pinned FAF
+source already used by the project.</li>
+<li>Greedy return per engineer-second, including walking, financing waits, building
+and <code>1 + mass/25</code> reclaim work. Completed mexes produce during subsequent work
+and movement. Partial final reclaim is supported.</li>
+<li>Mexes require visiting their marker cell. Reclaim uses the existing nearest
+feasible hover-cell projection within five map units. Within five legal walking
+units of that access point, no further move is charged; otherwise the engineer
+walks to the access node. This conservative grid convention avoids introducing
+a new build-range or collection-route optimizer.</li>
+<li>No energy, additional workers, upgrades, combat, scripted collisions or globally
+optimal planning. This is standardized mass potential, not an actual opening
+forecast or a calibrated 1–5 economic rating.</li>
+</ul>
+<p>Operations are attributed to their resource&#39;s location. Mex income stays attributed
+there after the engineer moves. All location contributions sum to the one ledger;
+the categories do not each get an independent engineer budget. Neutral,
+frontier-crossing and transport-dependent stock remains in inventory and existing
+opportunity analysis, but is excluded from the ordinary own-half opening.</p>
+<p>Terrain symmetry uses the conservative normalized mask. A plan is reflected only
+when matching physical resources, values and access nodes are verified; actual
+counterpart IDs replace the source IDs. Otherwise each side uses its actual
+inventory, with an explicit flag. The four examples have resource position or
+stock differences, so their opening plans are independently measured. This does
+not change the exactly mirrored battle-front geometry.</p>
+<h2 id="measured-examples">Measured examples</h2>
+<p>Quantities are <strong>per-player averages</strong> for the selected 1v1 setup. Initial reclaim
+is the full known own-side inventory, including uncollected remote stock.</p>
+<table>
+<thead>
+<tr>
+<th>Map</th>
+<th align="right">Mexes</th>
+<th align="right">Initial reclaim</th>
+<th align="right">Net mass by 300s</th>
+<th align="right">Engineer travel</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Astro Crater Battles</td>
+<td align="right">21</td>
+<td align="right">0</td>
+<td align="right">4,122</td>
+<td align="right">69.9s</td>
+</tr>
+<tr>
+<td>Seton&#39;s Clutch</td>
+<td align="right">54</td>
+<td align="right">24,578</td>
+<td align="right">3,515</td>
+<td align="right">172.4s</td>
+</tr>
+<tr>
+<td>DualGap Adaptive</td>
+<td align="right">26.5</td>
+<td align="right">31,925</td>
+<td align="right">3,379</td>
+<td align="right">144.5s</td>
+</tr>
+<tr>
+<td>The Drunken Beetles Dance</td>
+<td align="right">58</td>
+<td align="right">10,853</td>
+<td align="right">2,556</td>
+<td align="right">175.0s</td>
+</tr>
+</tbody></table>
+<p>Astro&#39;s compact resources yield more mass within this single-worker window than
+the other maps&#39; larger inventories. Those larger maps still have greater eventual
+resource supply. This separates initial abundance from early accessible return.
+Seton&#39;s is the original <code>scmp_009</code> version; exact versions and slots are recorded
+in the outputs. A fractional average does not mean constructing half a mex.</p>
+<h2 id="integration-and-verification">Integration and verification</h2>
+<ul>
+<li>Core: <code>supmapai.strategy.starting_economy</code>.</li>
+<li>Pipeline: sealed <code>whole_economy/economy.json.gz</code> and <code>layers.npz</code>, source/code/
+dependency signatures, root result/report/CSV summaries. The strategy viewer
+separates whole-side spatial return from front-only no-travel valuation.</li>
+<li>Preview: <code>python -m supmapai.tools.inspect_starting_economy</code>, using verified
+immutable 1.0.0 terrain/configuration/entities. No route refit or downloads.</li>
+<li>Audit: <code>python -m supmapai.tools.audit_starting_economy --run-dir &lt;preview-run&gt;</code>.
+Independently replays cash, income and work, checks legal no-corner-cut walking,
+reclaim reach, unique physical targets, unknowns and conserved contributions.</li>
+<li><strong>295 tests passed</strong>, including 13 new tests. Four-map audit: <strong>337 events and
+127 walks</strong>, eight sides.</li>
+<li>End-to-end 1.1.0 Astro smoke passed: 70 opening events plus existing front/drop
+checks. Resume left all 16 sealed scientific files unchanged.</li>
+</ul>
+<p>Integrated smoke:
+<code>data/processed/strategy_pipeline_opening_smoke/v1.1.0/f8e5ed9fadbf1dfe</code>.
+The old full-library 1.0.0 plan remains unstarted. A new 1.1.0 plan is necessary
+for full extraction because the code/stage contract changed. Other proposed
+production-label rules are not claimed to be implemented by this milestone.</p>
+<script src="model-atlas/public-links.js" data-public-links></script></body></html>

@@ -1,0 +1,180 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>learned_reclaim_props_v1.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="learned-reclaim-and-props-data-preparation">Learned Reclaim And Props: Data Preparation</h1>
+<p>The initial milestone prepared source tensors, masks, an entity catalog, and
+diagnostic previews only, with training withheld at the user&#39;s request. Training
+was subsequently authorized; the full-cohort pilot is documented below. The
+historical <code>rule_place_reclaim.py</code> is not used. No texture tools, model weights,
+raw maps, or existing datasets are changed.</p>
+<h2 id="representation">Representation</h2>
+<p>The intended learned stage receives nine spatial channels: the same seven
+terrain/base conditions used by the resource model, followed by the two exact
+resource heatmaps from the source map. Training inputs therefore contain terrain,
+planned bases, mexes, and hydros, not the reclaim targets themselves.</p>
+<p>Twelve target channels preserve count, mass, and energy separately for:</p>
+<ul>
+<li>Trees, including tree-group blueprints counted as source entities.</li>
+<li>Rocks and boulders under the existing extracted rock classification.</li>
+<li>Wrecks with the extracted reclaim values, not live civilian buildings.</li>
+<li>Other physical props, including non-reclaim decoration with known zero values.</li>
+</ul>
+<p>Inactive adaptive entities, live civilian units/buildings, and effects are
+excluded. Existing configuration-specific values are reused; game/map Lua is
+not executed. Out-of-canvas entities are counted in the audit, not folded back
+onto map edges. No land-only constraint or imposed symmetry is added to targets.</p>
+<p>Targets use 256x256 grids, two world units per cell, and one-cell Gaussian
+smoothing with reflecting boundaries. Counts and known values are conserved
+within float32 precision. Exact unsmoothed totals remain in the manifest.
+Unknown mass and energy each have their own spatial loss masks; their blur
+support is also masked. Unknown values never become known zeros. Global amount
+controls have matching availability masks (12 values, 12 masks, water state).</p>
+<p>Log-density scaling is fitted on training maps only, using a robust percentile
+of deterministic map-balanced positive-cell samples. Raw physical arrays remain
+available, including clipped outliers. Full-cohort preparation will refit this
+normalization on the full retained training split, not the pilot or validation.</p>
+<h2 id="completed-pilot">Completed Pilot</h2>
+<p>Output: <code>data/tensors/reclaim_props_pilot_v1</code>.
+Preview: <code>data/tensors/reclaim_props_pilot_v1/index.html</code>.</p>
+<p>The fixed random pilot contains 20 training maps and five validation maps,
+preserving the existing reviewed exclusions and family-separated split:</p>
+<table>
+<thead>
+<tr>
+<th>Category</th>
+<th align="right">In-Bounds Entities</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Trees</td>
+<td align="right">71,859</td>
+</tr>
+<tr>
+<td>Rocks</td>
+<td align="right">61,522</td>
+</tr>
+<tr>
+<td>Wrecks</td>
+<td align="right">624</td>
+</tr>
+<tr>
+<td>Other</td>
+<td align="right">8,906</td>
+</tr>
+<tr>
+<td>Total</td>
+<td align="right">142,911</td>
+</tr>
+</tbody></table>
+<p>The catalog contains 256 blueprint types. Forty-eight out-of-bounds entities
+were reported separately. All known mass totals match the frozen source economy;
+no unresolved mass or energy values occur in this particular pilot. Unknown-value
+mask behavior is covered by synthetic tests. Fifty-two reclaim-related tests pass.</p>
+<p>Each map includes physical tensors, normalized targets, loss masks, conditioning,
+global profiles, compact entity metadata, a source-data preview, and checksums.
+The release is explicitly <code>pilot_ready</code>, not a full training release. Preview
+overlay alpha is normalized per panel for visibility and is not a quantitative
+cross-map comparison; numeric totals and physical arrays are authoritative.</p>
+<pre><code class="language-powershell">$env:PYTHONPATH = &#39;src&#39;
+$env:OPENBLAS_NUM_THREADS = &#39;1&#39;
+$env:OMP_NUM_THREADS = &#39;1&#39;
+.venv-codex\Scripts\python.exe -m supmapai.tensors.reclaim_props `
+  --source data\tensors\resources_curated_256_v1 `
+  --out data\tensors\reclaim_props_pilot_v1 --max-train 20 --max-validation 5
+</code></pre>
+<p>The later full build uses a separate output directory and <code>--full-cohort</code>, as
+documented below. The original pilot itself did not train a model.</p>
+<h2 id="modeling-scope">Modeling Scope</h2>
+<p>After inspecting the typed targets, the full cohort was prepared and audited.
+The separate model uses masked losses and abundance controls. Sparse/dense values
+and count calibration must still be evaluated explicitly rather than assuming
+the resource pilot&#39;s foreground loss is appropriate. Training was held until the
+user&#39;s subsequent instruction to proceed.</p>
+<p>Density prediction does not yet solve exact blueprint selection or instancing.
+Per-entity positions, yaw, values, blueprint references and available blueprint
+appearance/provenance are retained for that work. Full per-instance 3D orientation
+and scale were not retained in the current entity snapshots; re-extraction is
+needed if exact reconstruction of those fields becomes a target. A later decoder
+must use learned distributions and the asset catalog, not replace them with a
+rule-based layout. Resource-style symmetry and bounded collision/build-footprint
+validation should be explicit post-generation steps.</p>
+<h2 id="full-cohort-and-training-pilot">Full Cohort And Training Pilot</h2>
+<p>The full release is <code>data/tensors/reclaim_props_curated_256_v1</code>: 1,020 training
+maps, 97 validation maps, one map per curated family, and 6,222,820 in-bounds
+entities across 1,508 blueprint types. Unknown values occur in wrecks and other
+props: 1,307 wreck entities and 875 other entities have unresolved amounts.
+Their count targets remain usable; mass/energy loss support and global controls
+are masked separately. Ninety training maps and fourteen validation maps have
+at least one unavailable global amount control. None are silently relabeled zero.</p>
+<p>All map tensor targets are prepared, but only 25 representative source previews
+are rendered to limit repeated image I/O. Normalization is refitted on the full
+training split. The original 25-map pilot remains immutable and separate.</p>
+<p>A transient Windows permission error interrupted an unpublished progress-file
+update. New-stage JSON/checkpoint publication now retries sharing violations.
+The unpublished preparation directory was rebuilt with the same source contract;
+published datasets and original map files were not overwritten.</p>
+<p>The separate five-scale <code>ReclaimUNet</code> has 5,010,412 parameters. It predicts twelve
+channels conditioned on nine spatial fields and 25 profile coordinates. Training
+uses masked per-channel velocity MSE without the mex pilot&#39;s target-dependent
+foreground weighting. Per-channel and foreground reconstruction diagnostics are
+reported separately so blank backgrounds cannot be the only evaluation signal.</p>
+<p>Pilot configuration: 600 seconds, microbatch four, accumulation two, bfloat16,
+EMA, periodic held-out validation and atomic checkpoints. Source-code snapshots,
+dataset hashes and RNG state are saved. <code>pause.request</code> requests a checkpointed
+pause; <code>--resume</code> continues a matching unfinished run within its original budget.
+The loader rejects <code>pilot_ready</code> datasets and has a bounded RAM cache. There is
+no silent CPU fallback, and CUDA memory headroom/allocation guards are enabled.</p>
+<pre><code class="language-powershell">$env:PYTHONPATH = &#39;src&#39;
+$env:OPENBLAS_NUM_THREADS = &#39;1&#39;
+$env:OMP_NUM_THREADS = &#39;1&#39;
+.venv\Scripts\python.exe -m supmapai.ml.reclaim_diffusion `
+  --dataset data\tensors\reclaim_props_curated_256_v1 `
+  --out data\models\reclaim_props_curated_256_pilot_v1 `
+  --seconds 600 --batch-size 4 --accumulation 2
+</code></pre>
+<p>Model progress is in the run&#39;s <code>progress.json</code>. The immutable dataset artifact&#39;s
+<code>training_started: false</code> describes the preparation tool only, not current model
+activity. All 59 reclaim-related tests pass before this pilot, including loss
+masking, augmentation, density/control decoding and Windows I/O retry behavior.</p>
+<p>The diagnostic sampler uses the approved seed-303 terrain and symmetric learned
+seed-22 medium resource positions. Resource positions are re-rasterized with the
+training heatmap convention. Low/medium/high amount profiles come from actual,
+fully known training examples near the 20th/50th/80th total-mass percentiles,
+preserving real category/count/value combinations rather than inventing them.
+These profiles change category composition as well as total amount; they are not
+a one-variable causal test of reclaim abundance.
+It also samples fixed randomly selected held-out maps and shows source targets.
+Generated density symmetry is enforced in physical space, preserving each
+channel&#39;s sum. No land-only mask, amount calibration, threshold cleanup, or
+procedural prop placement hides raw model behavior. These are density outputs,
+not exported game props, and their integrals are soft counts/amounts.</p>
+<h2 id="completed-first-training-run">Completed First Training Run</h2>
+<p><code>data/models/reclaim_props_curated_256_pilot_v1</code> completed at 1,465 updates in
+approximately ten minutes. The best EMA checkpoint is <code>best.pt</code>; the resumable
+optimizer/model checkpoint is <code>last.pt</code>. Peak training allocation was 2,365 MB.
+Held-out velocity loss decreased from 1.0771 to 0.0920. This is a denoising metric,
+not proof of useful generated prop layouts or economic calibration.</p>
+<p>Gallery: <code>data/models/reclaim_props_curated_256_results_v1/index.html</code>.
+It contains six generated examples (two noise seeds, three amount/composition
+profiles) and three held-out examples with source targets. All nine archives
+contain finite arrays; all twelve PNGs decode correctly. Generated symmetry is
+exact and preserves raw per-channel sums. No props were instantiated or exported.</p>
+<p>The model is not ready for game instancing. Raw output has diffuse positive
+background that produces large integrated amounts in sparse or empty categories.
+For resource seed 11 with the low profile, requested entity counts are
+488 trees / 218 rocks / 16 wrecks / eight other props, while predicted density
+integrals are approximately 7,346 / 7,284 / 3,409 / 9,894. These are soft density
+totals, not actual spawned entities. The medium profile requests zero trees and
+zero wrecks, but the prediction still has substantial positive density for both.
+Tables in the gallery expose the mismatch rather than calibrating it away.</p>
+<p>This establishes a functioning separate training/sampling stage and exposes a
+generation-quality failure. It does not establish that more compute alone will
+fix it. Next experiments should diagnose background/occupancy prediction and
+per-category amount calibration, then compare longer training with appropriate
+generation metrics. Do not replace the learned layout with procedural reclaim
+placement to make this pilot appear successful. Training and sampling are stopped;
+no further run or game launch is scheduled.</p>
+<h2 id="follow-up-budget-controlled-placement">Follow-Up: Budget-Controlled Placement</h2>
+<p>The subsequent experiment is documented in <code>docs/budgeted_prop_placement.md</code>.
+It uses unclipped linear count PDFs and a supervised location model, with exact
+external budgets instead of independent count/mass/energy images. The current
+readable point/PDF gallery is <code>data/models/budgeted_props_review_v2/index.html</code>.
+This replaces neither the original source data nor the historical pilot results.</p>
+<script src="model-atlas/public-links.js" data-public-links></script></body></html>
