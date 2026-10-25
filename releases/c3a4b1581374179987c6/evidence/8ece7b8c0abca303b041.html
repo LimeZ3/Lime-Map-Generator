@@ -1,0 +1,97 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>resource_symmetry.py | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="../docs/model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1>resource_symmetry.py</h1><p class="meta">Saved public evidence snapshot: src/supmapai/export/resource_symmetry.py</p><pre>&quot;&quot;&quot;Project full resource predictions, then decode whole world-coordinate pairs.&quot;&quot;&quot;
+
+import numpy as np
+
+from supmapai.export.resource_points import peaks
+from supmapai.export.symmetry_geometry import opposite
+from supmapai.ml.terrain_symmetry import MODES, average, copy_side, transform
+
+METHODS = ('average', 'copy_a', 'copy_b')
+
+
+def check_condition(relative, spawns, mode='rotate180'):
+    if relative.shape != (513, 513) or not np.isfinite(relative).all():
+        raise ValueError('Expected native 10km terrain')
+    if not np.array_equal(relative, transform(relative, mode)):
+        raise ValueError('Terrain does not share the requested resource symmetry')
+    if len(spawns) != 2:
+        raise ValueError('Expected two planned bases')
+    expected = opposite((spawns[0]['x'], spawns[0]['z']), 512, mode)
+    if not np.allclose(expected, (spawns[1]['x'], spawns[1]['z']), atol=1e-9, rtol=0):
+        raise ValueError('Planned bases do not share the requested resource symmetry')
+
+
+def project(fields, mode='rotate180', method='average'):
+    if (fields.ndim != 3 or fields.shape[0] != 2 or fields.shape[1] != fields.shape[2]
+            or not np.isfinite(fields).all()):
+        raise ValueError('Expected two finite square resource heatmaps')
+    if mode not in MODES or method not in METHODS:
+        raise ValueError('Unknown resource symmetry mode or method')
+    result = average(fields, mode) if method == 'average' else copy_side(fields, mode, method == 'copy_b')
+    if not np.array_equal(result, transform(result, mode)):
+        raise ValueError('Resource heatmap projection is not exactly symmetric')
+    return np.ascontiguousarray(result)
+
+
+def paired_peaks(field, requested, mode='rotate180', extent=512., threshold=.15, spacing=6.):
+    if requested &lt; 0 or requested % 2:
+        raise ValueError('Pair-only resource decoding requires a nonnegative even count')
+    if field.ndim != 2 or field.shape[0] != field.shape[1] or not np.isfinite(field).all():
+        raise ValueError('Expected a finite square resource heatmap')
+    if not np.array_equal(field, transform(field, mode)):
+        raise ValueError('Project the resource heatmap before pair decoding')
+    if requested == 0:
+        return []
+    candidates = peaks(field, field.size, extent, threshold, spacing)
+    selected = []
+    for candidate in candidates:
+        first = tuple(round(candidate[k]*1024)/1024 for k in ('x', 'z'))
+        second = opposite(first, extent, mode)
+        if (second[1], second[0]) &lt; (first[1], first[0]):
+            first, second = second, first
+        # Fixed-axis/central points cannot stand in for two distinct resources.
+        if np.hypot(first[0]-second[0], first[1]-second[1]) &lt; spacing:
+            continue
+        if any(np.hypot(x-p['x'], z-p['z']) &lt; spacing for x, z in (first, second) for p in selected):
+            continue
+        for x, z in (first, second):
+            selected.append(dict(x=float(x), z=float(z), confidence=candidate['confidence']))
+        if len(selected) == requested:
+            break
+    return selected
+
+
+def validate_pairs(records, counts, mode='rotate180', extent=512., spacing=6.):
+    report = {}
+    for kind, requested in zip(('mexes', 'hydros'), counts, strict=True):
+        points = records[kind]
+        if len(points) % 2 or len(points) &gt; requested:
+            raise ValueError('Unpaired or excessive resource markers')
+        error = 0.
+        for first, second in zip(points[::2], points[1::2], strict=True):
+            expected = opposite((first['x'], first['z']), extent, mode)
+            error = max(error, abs(expected[0]-second['x']), abs(expected[1]-second['z']))
+        if error &gt; 1e-9:
+            raise ValueError('Resource position symmetry mismatch')
+        xy = np.array([[p['x'], p['z']] for p in points]).reshape(-1, 2)
+        if not np.isfinite(xy).all() or np.any(xy &lt;= 0) or np.any(xy &gt;= extent):
+            raise ValueError('Resource marker outside world bounds')
+        if len(xy) &gt; 1:
+            distance = np.linalg.norm(xy[:, None]-xy[None], axis=-1)
+            np.fill_diagonal(distance, np.inf)
+            if distance.min() &lt; spacing-1e-9:
+                raise ValueError('Overlapping resource symmetry pairs')
+        report[kind] = dict(requested=requested, decoded=len(points), shortfall=requested-len(points),
+                            symmetry_max_world_error=error, exact_count=len(points) == requested)
+    return report
+
+
+def decode(fields, counts, mode='rotate180', method='average'):
+    if len(counts) != 2:
+        raise ValueError('Provide mex and hydro counts')
+    projected = project(fields, mode, method)
+    records = {kind: paired_peaks(projected[i], counts[i], mode)
+               for i, kind in enumerate(('mexes', 'hydros'))}
+    report = validate_pairs(records, counts, mode)
+    return projected, records, report
+</pre><script src="../docs/model-atlas/public-links.js" data-public-links></script></body></html>

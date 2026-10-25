@@ -1,0 +1,41 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>netlify-overlay-pilot.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="netlify-overlay-pilot-2026-10-13">Netlify overlay pilot — 2026-10-13</h1>
+<p>Production: <a href="https://lime-mapgen.netlify.app/">https://lime-mapgen.netlify.app/</a>
+Deploy: 6ace5077165f0368bc875787
+Persistent Blobs store: map-overlays
+Immutable release prefix: pilot-2026-10-13
+49 PNGs, 4,471,148 bytes, six exact map versions.</p>
+<p>Maps: Setons Clutch - FAF version; DualGap Adaptive; Astro Crater Battles;
+Adaptive Diversity; 20X10 Trial; Astro Crater Battles 4x4 rich huge very long.</p>
+<p>The viewer uses published-overlays.json for hosted availability and the full
+local overlay index in development. Netlify builds set VITE_OVERLAY_BASE_URL.
+The build excludes all overlay PNGs; only the small manifest and viewer ship.
+The read-only /map-overlays endpoint exposes only manifest-listed PNG paths.
+Site-wide Blobs persist independently of app deployments. Review storage is unchanged.</p>
+<p>Run scripts/upload-overlay-pilot.mjs from apps/crowd-labeler-netlify after CLI
+login and project linking. Four bounded workers upload, read back, hash-check,
+retry, and checkpoint. Private checkpoints/readbacks remain in .private.
+Do not overwrite immutable release keys with changed content; generate a new
+release and deploy the matching manifest after all uploads pass verification.
+This pilot uploader uses CLI per file; use an authenticated SDK batch uploader
+for the full library to avoid per-process overhead at 45,794 files.</p>
+<p>Validation:</p>
+<ul>
+<li>npm test and production build passed.</li>
+<li>scripts/verify-overlay-pilot.mjs verified every live PNG hash and MIME,
+immutable caching, HEAD, conditional 304, unknown-file 404, write-method 405,
+and existing session API 200.</li>
+<li>Browser: terrain/resources/passability alignment on Setons, opacity change,
+disabled unsupported adaptive links, adaptive links on Diversity, exact 2:1
+rectangular rendering, 4096-square native layers in zoom, unavailable maps,
+and 390-pixel responsive width with no horizontal page overflow.</li>
+<li>No review/profile submissions were made during testing.</li>
+<li>Preview-host API navigation was blocked by the browser; production endpoint
+and UI checks passed. No access controls were changed.</li>
+</ul>
+<p>Vault artwork is not guaranteed registered; extracted terrain shares the layer
+coordinate system. Passability remains an estimate, and adaptive links describe
+exported defaults/all recorded slots rather than questionnaire configurations.
+Russian-network access needs a participant&#39;s test; it cannot be established from
+this connection. Images use the same live hostname as the working questionnaire.
+Full-library upload has NOT been started.</p>
+<script src="model-atlas/public-links.js" data-public-links></script></body></html>

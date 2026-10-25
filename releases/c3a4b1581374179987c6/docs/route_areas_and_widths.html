@@ -1,0 +1,95 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>route_areas_and_widths.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="route-widths-shared-sections-areas-and-resources">Route widths, shared sections, areas and resources</h1>
+<p>Implemented on the cached Archsimkats Valley routes on 14 October 2026.
+Preview: <a href="http://127.0.0.1:5177/navigation_corridors/index.html">http://127.0.0.1:5177/navigation_corridors/index.html</a>.
+The route polylines and IDs are retained; no new corridor discovery, map extraction
+or naval target calculation is needed.</p>
+<p>Follow-up: symmetry-normalized influence and explicit merged sections are now
+implemented; see docs/symmetric_merged_routes.md. The raw result described below
+is preserved in routes_before_normalization.json. The current viewer uses the
+new normalized geometry and recalculated metrics.</p>
+<h2 id="width">Width</h2>
+<p>Each route-cell centre casts two perpendicular rays using a smoothed local route
+direction. Grid traversal stops exactly at the first blocked-cell interface or
+map boundary. Blocked side cells stop diagonal corner crossings too. The sum of
+both ray distances is the cross-section width, not twice the clearance of a line
+that might hug one wall. Cuts in the previous stage use nearest-side boundaries,
+which may be oblique; their width need not equal the perpendicular ray width.</p>
+<p>Export the complete width profile, interior minimum and location, length-weighted
+mean, p10, median and an eight-unit sustained minimum. The sustained minimum is
+the minimum moving mean on a uniformly resampled one-unit arc-length profile.
+Exclude 32 units at both ends from summary widths; short paths use all samples.
+The viewer has individual profile plots and minimum cross-section highlights.</p>
+<p>These measure the representative line, not the widest possible army route.
+Amphibious route 7 has a one-unit minimum at a turn versus a sustained minimum
+of 29.4. This is flagged as a sharp dip; it must not be promoted to an unavoidable
+one-unit army bottleneck. Width optimization/centering within the corridor and
+unit-footprint checks remain separate work.</p>
+<h2 id="route-territories-and-sharing">Route territories and sharing</h2>
+<p>Compute a multi-source movement distance from every cell of each route across
+the original layer&#39;s eight-neighbor graph, preserving diagonal restrictions.
+Each reachable map cell belongs to every route whose distance is within eight
+units of the nearest route. The CLI parameter --shared-tolerance exposes this
+assumption. Disconnected terrain is unassigned. No distances leak through cliffs.</p>
+<p>Export unique, shared and inclusive area, plus fractionally allocated area:
+divide a shared tile equally among its routes. Allocated areas sum to assigned
+terrain area and can be compared without double counting. Units are square map
+units, not a claim about controlled territory. PNG colors identify route IDs;
+hatching marks shared cells. Checkboxes highlight selected routes without
+reassigning the precomputed territories.</p>
+<p>Pair metrics include exact shared edge length and fractions, lengths within the
+eight-unit proximity tolerance, length-weighted mean nearest-route walking
+distance, p90/maximum separation and shared territory area. Separation summaries
+exclude the same 32-unit endpoint buffers; near-shared lengths include endpoints.
+Exact sharing and proximity sharing are deliberately separate.</p>
+<h2 id="default-resources">Default resources</h2>
+<p>Use resolved active default resources from the adaptive configuration, or
+explicitly label fallback saved-marker potential. Archsimkats has 54 active mex
+sites and six hydros in this all-slots reference. Assign each marker to the route
+territories at its stored position. A site outside reachable terrain is retained
+as unassigned; there is no silent teleport/snap across an obstacle.</p>
+<p>Count unique/shared mexes and hydros separately and retain names and per-site
+route IDs. This is access proximity for the selected spawn pair, not economic
+ownership by a player/team. Other scenario slots and their resources remain in
+the all-slots reference. Reclaim-value association is not part of this milestone.</p>
+<h2 id="why-amphibious-routes-6-and-7-differ">Why amphibious routes 6 and 7 differ</h2>
+<p>Spawns rotate into one another at 180°, but the stored movement masks are not
+exactly symmetric: land differs at 6,318 cells (2.41%); amphibious differs at 6,408
+(2.44%); hover differs at 6,340 (2.42%). Mirroring route 6 onto route 7&#39;s side puts
+45 route centres on blocked cells. The exact rotation also fails legal-step
+validation. The source height vertices themselves differ under rotation (maximum
+3.5078125 height units; mean absolute difference about 0.0833).</p>
+<p>The two outer routes have lengths 609.47 and 609.71, differing by 0.24 map units.
+Geometry also depends on shortest-path ties and the order of temporary cuts.
+The audit identifies counterpart barrier signatures and exports mirror validity,
+blocked-cell counts and maximum mirror deviation. Routes are not forced into
+an invalid symmetric polyline. This is a diagnostic, not proof of gameplay imbalance.</p>
+<p>On the amphibious/hover view, route 6 has the largest allocated area (~70,991
+square units), and route 7 is the longest. Route 6 has 13 exclusive and 19 shared
+mex associations; route 7 has eight exclusive and 19 shared. Shared site counts
+must not be added across routes as if they were separate resources.</p>
+<h2 id="adaptive-resource-export-correction">Adaptive-resource export correction</h2>
+<p>The old strategic tool tested resource_type == &#39;mex&#39;, while the adaptive
+resolver writes &#39;mass&#39;. The tool now accepts both. This explains empty adaptive
+mex lists in eight archived naval exports. They are listed in
+data/processed/strategic_features_featured/known_resource_issues.json, and the
+old audit is marked invalidated. The independent audit now checks the expected
+adaptive target set so this cannot pass unnoticed again.</p>
+<p>No historical naval result was recomputed, in line with the request to avoid
+more per-unit calculations. Current route-resource associations read the resolved
+configuration directly and are unaffected by those stale target lists.</p>
+<h2 id="files-and-checks">Files and checks</h2>
+<p>routes.json contains per-route widths/territories, pair metrics, resource IDs,
+rankings and symmetry diagnostics. territories.npz stores membership bitsets.
+The *_areas.png files are transparent display overlays. The *_ownership.png files
+encode bitsets in RGB for the viewer and are not intended as visible previews.
+The <em><em>width</em></em>.png files provide width profiles. area_comparison.png is the
+three-layer contact sheet. Geometry, input files and code are SHA256-pinned.</p>
+<pre><code>$env:PYTHONPATH=&#39;src&#39;
+.venv-codex/Scripts/python.exe -m supmapai.tools.enrich_corridor_metrics
+.venv-codex/Scripts/python.exe -m unittest discover -s tests -p &#39;test_route_metrics.py&#39; -v
+</code></pre>
+<p>Eight metric tests cover true cross-section widths near a wall, neck minima,
+diagonal ray stops, shared-area conservation, identical route sharing, barriers
+preventing territory leakage, active resource naming and stale export rejection.
+The 21 existing strategic navigation/corridor tests pass as well.</p>
+<script src="model-atlas/public-links.js" data-public-links></script></body></html>

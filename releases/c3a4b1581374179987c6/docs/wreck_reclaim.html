@@ -1,0 +1,154 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>wreck_reclaim.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="learned-wreck-high-value-reclaim-pilot">Learned Wreck / High-Value Reclaim Pilot</h1>
+<h2 id="scope">Scope</h2>
+<p>Add a separate <strong>wreck-mass allocation</strong> model and composer while preserving
+the player-approved tree-energy / rock-mass result. High-value natural rocks
+already contribute proportionally to the existing natural-rock mass field;
+this new role does not arbitrarily reclassify rocks by a mass threshold.
+Living civilian structures remain a later layer.</p>
+<p>The network learns where enabled wreck reclaim belongs, not unit IDs, exact
+chunk counts or orientations. The composer selects unit wrecks from a verified
+pool and applies a chosen physical mass budget. A zero budget disables wrecks.</p>
+<h2 id="data-audit">Data Audit</h2>
+<p>Reuse physical channel 7 from <code>reclaim_props_curated_256_v1</code>. Sum-pool 256 to 128
+and normalize unclipped wreck mass to a unit allocation field. Conditioning is
+the existing nine terrain/spawn/mex/hydro fields. No total mass is an input.</p>
+<ul>
+<li>Training: 193 complete positive wreck-mass maps.</li>
+<li>Validation: 18 complete positive wreck-mass maps, retaining the frozen family split.</li>
+<li>Exclude unresolved wreck mass on 86 training / 14 validation maps.</li>
+<li>Exclude known-zero wreck mass on 741 training / 65 validation maps from spatial supervision.</li>
+<li>Selected known mass: 2,643,319.44 across 211 maps.</li>
+</ul>
+<p>Unknown mass is never substituted with zero. Exclusions apply only to this new
+role experiment, not to the approved terrain/tree/rock datasets. The complete
+subset can underrepresent complicated or underwater wreck cases; excluded maps
+are not automatically bad maps. The model does not predict whether wrecks are
+present; the user&#39;s composer budget controls presence and abundance.</p>
+<p>Dataset: <code>data/tensors/wreck_mass_heatmaps_128_v1</code>.</p>
+<h2 id="model-and-five-minute-run">Model And Five-Minute Run</h2>
+<p>Transfer the approved update-20,657 tree/rock EMA feature weights into an
+independent one-output multiscale U-Net with a fresh output head. This copies
+parameters, not references to mutable source weights. No approved checkpoint
+is modified. Backbone LR is 1e-5; fresh-head LR is 2e-4, with the existing
+spatial NLL / Hellinger / multiscale allocation objective and D4 augmentation.</p>
+<p>17,857,281 parameters; 4,460 updates in 300.34 seconds; peak allocated GPU memory
+2,262 MB. The full-state latest checkpoint also retains CPU/CUDA RNG states for
+a future resume implementation. Training has finished; the old tree/rock run
+remains paused.</p>
+<table>
+<thead>
+<tr>
+<th>Checkpoint</th>
+<th align="right">Step</th>
+<th align="right">Held-Out NLL</th>
+<th align="right">Source mass in hottest predicted 10%</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Best source agreement</td>
+<td align="right">886</td>
+<td align="right">8.434</td>
+<td align="right">64.5%</td>
+</tr>
+<tr>
+<td>Latest</td>
+<td align="right">4,460</td>
+<td align="right">8.731</td>
+<td align="right">62.5%</td>
+</tr>
+</tbody></table>
+<p>Only 18 validation maps support those statistics. They measure source agreement,
+not gameplay quality or originality, and central priors can help these scores.
+Do not claim they prove terrain causality. Both checkpoint predictions are
+shown with the same fixed heatmap color scale. Latest is the provisional export
+candidate, not an assertion that it is visually best before player review.</p>
+<p>Run: <code>data/models/wreck_mass_heatmaps_pilot_v1</code>.</p>
+<h2 id="correct-wreck-export">Correct Wreck Export</h2>
+<p>A generic <code>/props/DefaultWreckage/DefaultWreckage_prop.bp</code> record in <code>.scmap</code>
+does not encode a particular unit&#39;s wreck mesh/economy. The installed FAF
+<code>lua/wreckage.lua</code> supplies <code>CreateWreckage(bp, position, orientation, mass, energy, timeMult)</code>, which sets the unit&#39;s wreck mesh, blueprint display scale,
+collision, reclaim values and <code>AssociatedBP</code> rebuild metadata. The generated
+map script calls that API directly. It does not spawn live units and kill them.
+API source signatures and SHA-256 hashes are recorded, but in-game execution
+has not yet been tested for this export.</p>
+<p>The initial pool has UEF, Cybran and Aeon T2/T3 ground-mobile wrecks:</p>
+<table>
+<thead>
+<tr>
+<th>Unit Blueprint</th>
+<th align="right">Assigned Mass</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>uel0202</td>
+<td align="right">142.56</td>
+</tr>
+<tr>
+<td>uel0303</td>
+<td align="right">302.40</td>
+</tr>
+<tr>
+<td>url0202</td>
+<td align="right">208.80</td>
+</tr>
+<tr>
+<td>url0303</td>
+<td align="right">302.40</td>
+</tr>
+<tr>
+<td>ual0202</td>
+<td align="right">259.20</td>
+</tr>
+<tr>
+<td>ual0303</td>
+<td align="right">529.20</td>
+</tr>
+</tbody></table>
+<p>These are derived from installed unit blueprints and the inspected FAF tier
+factors for fully built, zero-overkill, land-equivalent wrecks. Energy is zero
+for this pool. <strong>Values are explicitly assigned</strong>, including underwater.
+There is no automatic water discount in direct <code>CreateWreckage</code>; this composer
+intentionally does not simulate the normal unit-death layer/overkill pipeline.
+The distinction is recorded in metadata and the gallery. Changing that policy
+later must change value budgeting as well, not merely appearance.</p>
+<p>Project the learned full field to 180-degree symmetry, allocate mass over 2x2
+coarse budget areas (large chunks require larger accounting areas), and sample
+fine positions from the original 128-grid probabilities. Match unit IDs and
+values in pairs. Default wreck-to-wreck minimum center spacing is four world
+units; it does not enforce clearance from trees, rocks, mexes or spawns.
+No land, water, slope or pathing filter and no terrain/resource repair applies.
+Budget remainders stay in their areas; there is no uniform fallback or distant
+refill. A 500-wreck safety cap bounds output.</p>
+<h2 id="first-composition">First Composition</h2>
+<p>Selected latest EMA, seed 11, requested 6,000 mass:</p>
+<ul>
+<li>18 wrecks, nine symmetric pairs, five different unit types used.</li>
+<li>Assigned mass 4,943.52; local shortfall 1,056.48.</li>
+<li>Two underwater wreck centers, retained rather than filtered.</li>
+<li>Existing 3,338 tree/rock props and native terrain are byte-for-byte unchanged.</li>
+<li>Mex/hydro/spawn save-Lua is byte-for-byte unchanged.</li>
+</ul>
+<p>Review: <code>data/exports/wreck_reclaim_pilot_v1/index.html</code>.
+New map folder: <code>maps/mapgen_sym_heatmap_wrecks.v0001</code> under that export.
+The standalone PNG includes magenta wreck markers. The external map preview is
+updated; the copied <code>.scmap</code> embedded preview remains the base map&#39;s image.</p>
+<p>The runtime script logs <code>MAPGEN_WRECKS count=... mass=... energy=...</code> and checks
+assigned maximum mass values. That log is required for a subsequent playtest;
+file generation alone does not verify in-game wreck appearance or behavior.
+Nothing was installed or launched for this milestone.</p>
+<h2 id="windows-commands">Windows Commands</h2>
+<pre><code class="language-powershell">$env:PYTHONPATH = &#39;src&#39;
+$env:OPENBLAS_NUM_THREADS = &#39;1&#39;
+$env:OMP_NUM_THREADS = &#39;1&#39;
+.venv-codex/Scripts/python.exe -m supmapai.tensors.wreck_heatmaps --source data/tensors/reclaim_props_curated_256_v1 --out data/tensors/wreck_mass_heatmaps_128_v1
+.venv/Scripts/python.exe -m supmapai.ml.wreck_heatmaps --dataset data/tensors/wreck_mass_heatmaps_128_v1 --initialize data/models/reclaim_value_heatmaps_128_30min_v1/last.pt --out data/models/wreck_mass_heatmaps_pilot_v1 --seconds 300
+.venv/Scripts/python.exe -m supmapai.tools.review_wreck_heatmaps --out data/exports/wreck_reclaim_pilot_v1
+</code></pre>
+<p>Use new output folders on reruns. Review/export accepts <code>--mass</code>, <code>--spacing</code>,
+<code>--seed</code>, <code>--selection last|best</code> and <code>--device cpu|cuda</code>. The test driver is
+bound to the existing approved seed-303 medium composition. No raw-map rerun,
+texture training, hosted deployment or destructive cleanup is involved.</p>
+<p>Seven new tests cover physical allocation, unknown-value rejection, independent
+transfer initialization, value budgets, symmetry, underwater retention, spacing,
+safety limits and generated script identity. Existing reclaim tests also pass.</p>
+<script src="model-atlas/public-links.js" data-public-links></script></body></html>

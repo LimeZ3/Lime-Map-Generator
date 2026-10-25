@@ -1,0 +1,636 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>report.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="../../index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="all-source-layers-at-once-a-concluded-negative-result">All source layers at once: a concluded negative result</h1>
+<p><strong>MapGen research report · 25 October 2026 · Research closed by user decision</strong></p>
+<p><strong>The straightforward “all in” experiment was implemented and run, but did not produce usable full-map generation.</strong> A single 73.3-million-parameter diffusion model predicted terrain, water, both starts, resources, natural reclaim, wrecks, civilians and RGB appearance together, conditioned on twelve gameplay ratings. It received no clean spatial conditions or derived analytical layers. About <strong>9.10 hours of measured training-session time</strong> on one local RTX 5080, including controlled follow-up diagnostics, did not solve the task.</p>
+<p>This is a negative result for the tested representation, objective, optimization and compute budget. It is not proof that joint diffusion is impossible. The same network could memorize one map&#39;s terrain and point locations in twelve minutes, while still producing incorrect absolute quantities. The evidence points to optimization instability and a mismatch between the sparse-density objective and useful generation. It does not establish a need for a larger model or justify weeks of unchanged training.</p>
+<p>The experimental checkpoints are preserved as historical evidence. None is selected for the working staged generator. No map from this experiment was exported or playtested. No further training is scheduled as part of this research.</p>
+<h2 id="1-question-and-practical-success-criteria">1. Question and practical success criteria</h2>
+<p>The question was deliberately simple: <strong>if we give one model all basic source layers and map ratings together, and use the available GPU intensively, will it discover the necessary relationships without the staged pipeline&#39;s extra layers and constraints?</strong></p>
+<p>The requested result was a complete set of generated heatmaps, plus rating controls. Useful progress therefore needed to appear in fresh generation from noise: coherent terrain and water, two localized starts, plausible marker and reclaim layouts, reasonable quantities, and recognizable surface appearance. A falling denoising loss alone would not satisfy that goal. Exact thresholds for every quality dimension were not preregistered; the clear failures below are observable without choosing a marginal pass/fail threshold after the fact.</p>
+<p>“All in” describes the simultaneous source-layer experiment. It does not mean an exhaustive architecture search or all possible hardware. We used the reserved local GPU, profiled capacity, and chose a network/batch configuration that kept it busy. We did not train a family of larger architectures, sweep dataset sizes, or search many objectives.</p>
+<h2 id="2-data-what-was-actually-available-and-included">2. Data: what was actually available and included</h2>
+<p>The corrected source cohort contained <strong>1,117 curated map families</strong>, with <strong>1,020 training / 97 validation</strong> examples. The scenario was a selected <strong>10 km, 1v1 configuration with two active starts</strong>, one representative per family. Exact identities and family splits were matched across terrain, resources, typed reclaim and texture releases. The model did not consume arbitrary mixtures of tensor sizes.</p>
+<table>
+<thead>
+<tr>
+<th>Source release or representation</th>
+<th>Available shape / coverage</th>
+<th>Treatment in this experiment</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Terrain</td>
+<td>Native height vertices 513 × 513; physical depth 512 × 512; packed terrain 3 × 256 × 256</td>
+<td>Rebuilt 256 × 256 height and depth from physical sources; shoreline signed distance excluded</td>
+</tr>
+<tr>
+<td>Starts and resource markers</td>
+<td>Starts 2 × 256 × 256; mex/hydro 2 × 256 × 256</td>
+<td>Rerasterized exact source coordinates into count densities</td>
+</tr>
+<tr>
+<td>Typed natural reclaim</td>
+<td>12 × 256 × 256, with entity records</td>
+<td>Used source natural energy and mass; not the historical relative allocation targets</td>
+</tr>
+<tr>
+<td>Older natural/wreck allocation models</td>
+<td>Natural allocation 2 × 128 × 128; wreck allocation 1 × 128 × 128</td>
+<td>Not reused or upscaled as joint targets</td>
+</tr>
+<tr>
+<td>Surface appearance</td>
+<td>Unlit RGB 3 × 256 × 256; 1,117 extractions, 929 fully resolved</td>
+<td>Required supported, complete RGB</td>
+</tr>
+<tr>
+<td>Gameplay ratings</td>
+<td>Twelve policy-specific scores, each 1–5; complete on 1,112 maps</td>
+<td>All twelve became scalar conditions</td>
+</tr>
+<tr>
+<td>Initial wreck mass</td>
+<td>Known, including true zero, on 1,017 maps</td>
+<td>Unknown values excluded; known-zero maps retained</td>
+</tr>
+<tr>
+<td>Dedicated civilian release</td>
+<td>1 × 256 × 256 on all 1,117 maps</td>
+<td>Created for this experiment from source civilian entities</td>
+</tr>
+</tbody></table>
+<p>After joining and auditing these sources, the sealed joint release contained <strong>851 maps: 782 train / 69 validation</strong>, with no family overlap. There was <strong>no independent test set used</strong>. Exclusion reasons overlapped: 188 incomplete/unsupported RGB, 100 unknown wreck mass, five incomplete rating vectors, two unknown natural-energy values and two unknown natural-mass values. These removed 266 unique examples. A preliminary 853-map candidate lost two more examples when natural-value completeness was checked.</p>
+<p>The final joint release had positive hydro targets on 824 maps, natural energy on 752, natural mass on 820, wreck mass on 180 and civilians on 140. Both starts and mexes were present on all 851. This imbalance matters: rare and empty output roles were part of the actual learning problem.</p>
+<p>The dedicated civilian extraction covered <strong>24,968 in-canvas source entities on 217 maps</strong>, including 201 train / 16 validation maps in the original cohort. Five outside/invalid placements were excluded. Explicitly inactive source records were omitted. A zero civilian layer means no identified source placement; it does not resolve every lobby option, adaptive script or runtime activation rule. Unit/building identity, footprint and asset choice were not prediction targets.</p>
+<p>RGB was a simplification requested for this experiment. It was the saved <strong>unlit material appearance</strong>, excluding decals, lighting, props, normal-map shading and rendered water. It was not a screenshot of the finished map, and its successful extraction does not mean that a learned RGB image could directly be exported as the original materials.</p>
+<p>Evidence: <a href="../../../joint-source-dataset-inventory.md">dataset inventory</a>, <a href="../../../../data/tensors/joint_sources_curated_256_v1/audit.json">sealed release audit</a>, <a href="../../../../data/tensors/joint_sources_curated_256_v1/release_manifest.json">release manifest</a>.</p>
+<h2 id="3-exact-representation-and-model-interface">3. Exact representation and model interface</h2>
+<p>Every example supplied a <strong>13 × 256 × 256</strong> target in this fixed order:</p>
+<table>
+<thead>
+<tr>
+<th>Channels</th>
+<th>Output meaning</th>
+<th>Source-to-grid construction</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>1: height</td>
+<td>Terrain height relative to source reference</td>
+<td>Four-corner cell mean of native vertices, then area pooling</td>
+</tr>
+<tr>
+<td>2: water_depth</td>
+<td>Physical water depth</td>
+<td>Pooling of saved native physical depth</td>
+</tr>
+<tr>
+<td>3–4: start_a, start_b</td>
+<td>One start per channel</td>
+<td>Unit-integral Gaussian per exact start coordinate, sigma 1.5 cells</td>
+</tr>
+<tr>
+<td>5–6: mex, hydro</td>
+<td>Resource-marker count density</td>
+<td>Unit-integral Gaussians, sigma 1.5 cells</td>
+</tr>
+<tr>
+<td>7–8: natural_energy, natural_mass</td>
+<td>Absolute natural reclaim values per cell</td>
+<td>Source tree/rock/boulder/reclaim props, value-weighted Gaussians, sigma 1 cell</td>
+</tr>
+<tr>
+<td>9: wreck_mass</td>
+<td>Absolute initial wreck mass per cell</td>
+<td>Separate source wreck entities, sigma 1 cell</td>
+</tr>
+<tr>
+<td>10: civilians</td>
+<td>Source civilian entity count density</td>
+<td>Living civilian unit/building records, sigma 1.5 cells</td>
+</tr>
+<tr>
+<td>11–13: red, green, blue</td>
+<td>Unlit surface RGB</td>
+<td>Saved supported material extraction</td>
+</tr>
+</tbody></table>
+<p>Boundary handling preserved raster totals. Targets retained absolute amounts: they were not normalized to one shared budget per map. Both physical and encoded float32 arrays were saved. The loader cached encoded targets in float16 on the CPU and converted batches to float32; model compute used bfloat16. Release encode/decode checks had maximum relative error <strong>7.07 × 10⁻⁷</strong>, before loader-cache quantization.</p>
+<p>Height used a reversible asinh transform, <code>asinh(height / 4) / scale</code>. Nonnegative fields used <code>2 * log1p(quantity) / scale - 1</code>. RGB used <code>2 * rgb - 1</code>. Per-channel scales were fitted from positive training-map samples only, at percentile 99.5 with up to 512 sampled values per map/channel. Source values were not clipped to that percentile. <a href="../../../../data/tensors/joint_sources_curated_256_v1/normalization.json">Saved normalization</a> records the actual constants and sampler support.</p>
+<p>At generation time the network received only <strong>Gaussian noise of shape 13 × 256 × 256, a diffusion timestep, and twelve rating scalars</strong>. Each rating was normalized as <code>(score - 3) / 2</code>:</p>
+<p><code>expansion_drop_rating</code>, <code>offensive_drop_rating</code>, <code>air_raid_rating</code>, <code>drop_impact_rating</code>, <code>air_mobility_relevance</code>, <code>land_attack_relevance</code>, <code>naval_attack_relevance</code>, <code>mex_supply_rating</code>, <code>reclaim_abundance_rating</code>, <code>early_economy_rating</code>, <code>front_openness_rating</code>, <code>army_control_demand_rating</code>.</p>
+<p>These were automated, policy-specific gameplay scores, not community votes or general quality labels. The model did not receive the source map, terrain anchors, SDF, pathing, fronts, access/economy fields, opportunity grids, blueprint IDs, texture masks or palettes. There were no spatial validity/eligibility inputs or loss-exclusion masks. Incomplete examples were excluded before the release was sealed. Target-dependent foreground loss weights are described separately below; “no additional masks” does not mean “no weighting in the loss.”</p>
+<h2 id="4-architecture-optimization-and-sampling">4. Architecture, optimization and sampling</h2>
+<table>
+<thead>
+<tr>
+<th>Item</th>
+<th>Actual configuration</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Network</td>
+<td>Residual five-scale conditional U-Net, <strong>73,323,149 parameters</strong></td>
+</tr>
+<tr>
+<td>Width</td>
+<td>Base 128, multipliers 1 / 2 / 3 / 4 / 4, embedding width 384</td>
+</tr>
+<tr>
+<td>Spatial processing</td>
+<td>Two residual blocks per level; attention at 32 × 32 and 16 × 16</td>
+</tr>
+<tr>
+<td>Input / output</td>
+<td>13 noisy channels → 13 predicted velocity channels; zero clean spatial-condition channels</td>
+</tr>
+<tr>
+<td>Scalar conditioning</td>
+<td>Twelve-score MLP; learned null embedding; 10% whole-profile dropout for classifier-free guidance</td>
+</tr>
+<tr>
+<td>Diffusion</td>
+<td>Cosine schedule, 1,000 timesteps, velocity prediction</td>
+</tr>
+<tr>
+<td>Optimizer</td>
+<td>AdamW, weight decay 0.01 for full-cohort training; gradient norm clipped to 1</td>
+</tr>
+<tr>
+<td>Main learning rate</td>
+<td>0.0002, 500-update warmup, then constant; no decay schedule tested</td>
+</tr>
+<tr>
+<td>Precision</td>
+<td>bfloat16 forward compute, float32 parameters and optimizer state</td>
+</tr>
+<tr>
+<td>Batch</td>
+<td>Microbatch 6 × four accumulated microsteps = effective batch 24</td>
+</tr>
+<tr>
+<td>Augmentation</td>
+<td>Aligned rotations/reflections across all layers, plus start-channel swaps</td>
+</tr>
+<tr>
+<td>Other regularization</td>
+<td>Feature dropout 0.1 and EMA weights; EMA decay increases up to 0.999</td>
+</tr>
+<tr>
+<td>Default fresh sampling</td>
+<td>DDIM, 48 steps, guidance 1.5, matched seeds including 303 and 404</td>
+</tr>
+</tbody></table>
+<p>The 16-map implementation check used a higher LR of 0.0003, disabled augmentation/dropout and zero weight decay. Later one-map diagnostic arms used effective batch six and disabled augmentation, feature dropout and rating dropout. These settings should not be mistaken for the full-cohort configuration.</p>
+<p>The main objective averaged the thirteen channel losses equally. Within the eight sparse entity/value channels, pixel weights were <code>1 + 12 * clamp((encoded_target + 1) / 2, 0, 1)</code>, normalized by each channel&#39;s mean weight. Height, depth and RGB had uniform weights. There were no auxiliary losses enforcing start count, global quantities, shoreline consistency, passability, symmetry or gameplay validity.</p>
+<p>Default sampling bounded intermediate clean estimates using training-range support, with a 20% height margin and 20% upper margin for quantity channels. Raw unbounded final estimates and bounded versions were saved separately. Thus this was not a completely unconstrained numerical sampler, even though it had no analytical spatial conditions. Reported physical totals below come from raw final estimates. No gameplay repair, count caps, budget normalization, symmetry projection, placement decoder or asset composer was applied.</p>
+<p>Checkpoints preserved model, EMA, Adam state, random state, dataset/configuration identities and frozen code snapshots. Continuations were actual resumes rather than fresh models relabeled as longer training. <a href="../../../../data/models/joint_sources_12h_v1/training/config.json">Main configuration</a>, <a href="../../../../data/models/joint_sources_12h_v1/training/training_receipt.json">training receipt</a>, <a href="../../../../src/supmapai/ml/joint_diffusion.py">training implementation</a>.</p>
+<h2 id="5-compute-spent-and-budget-accounting">5. Compute spent and budget accounting</h2>
+<p>All learning used <strong>one local NVIDIA GeForce RTX 5080, 16,303 MiB, Windows WDDM</strong>. Microbatch probes compared four and six samples: six reached about <strong>20.27 examples/second</strong>, versus 19.70 for four, with about 12,152 MiB allocated / 12,702 MiB reserved in the probe. Full training plus desktop use reached roughly 15 GB. The core runs had <strong>98% median sampled GPU utilization</strong>. This was a substantial use of the available single GPU, although not a scaling study.</p>
+<table>
+<thead>
+<tr>
+<th>Measured session</th>
+<th align="right">Additional optimizer updates</th>
+<th align="right">Real-map presentations</th>
+<th align="right">Recorded session time</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>16-map implementation check</td>
+<td align="right">206</td>
+<td align="right">4,944</td>
+<td align="right">4m 03.141s</td>
+</tr>
+<tr>
+<td>Full-cohort pilot</td>
+<td align="right">2,074</td>
+<td align="right">49,776</td>
+<td align="right">41m 41.891s</td>
+</tr>
+<tr>
+<td>Long continuation, 2,074 → 22,947</td>
+<td align="right">20,873</td>
+<td align="right">500,952</td>
+<td align="right">6h 43m 47.906s</td>
+</tr>
+<tr>
+<td>One-map baseline</td>
+<td align="right">2,365</td>
+<td align="right">14,190</td>
+<td align="right">12m 06.438s</td>
+</tr>
+<tr>
+<td>One-map lower LR</td>
+<td align="right">2,340</td>
+<td align="right">14,040</td>
+<td align="right">12m 06.546s</td>
+</tr>
+<tr>
+<td>One-map balanced objective</td>
+<td align="right">2,367</td>
+<td align="right">14,202</td>
+<td align="right">12m 06.344s</td>
+</tr>
+<tr>
+<td>Full-cohort lower LR, 2,074 → 4,971</td>
+<td align="right">2,897</td>
+<td align="right">69,528</td>
+<td align="right">1h 00m 11.516s</td>
+</tr>
+<tr>
+<td><strong>Total measured sessions</strong></td>
+<td align="right"><strong>33,122</strong></td>
+<td align="right"><strong>667,632</strong></td>
+<td align="right"><strong>9h 06m 03.782s</strong></td>
+</tr>
+</tbody></table>
+<p>These are session elapsed clocks, including their validation, previews and checkpoint writes, <strong>not GPU-kernel active timers</strong>. Presentation counts include repeated samples and augmentation, not unique maps. The original lineage reached 550,728 cumulative presentations, about 704 equivalent passes over the 782 training examples; it sampled with replacement rather than completing exact epochs.</p>
+<p>The three supervisor windows total <strong>9h 07m 15.380s</strong>: pilot/check 46m 01.596s, long continuation 6h 44m 06.643s, diagnostic controller 1h 37m 07.141s. This is an alternative elapsed-time view, not time to add to the training-session total. Resumed cumulative counters have been de-duplicated in the ledger.</p>
+<p>The user authorized a <strong>12-hour continuation starting 04:06:11 UTC / 05:06:11 Amsterdam</strong> on 25 October, then explicitly ended it after about 6h44. The later diagnostic budget was <strong>two hours from 10:49:57 UTC / 11:49:57 Amsterdam</strong>, including preparation. All four diagnostic arms completed at approximately <strong>12:37:28 UTC / 13:37:28 Amsterdam</strong>, about 12m28 before that cap. The complete 12-hour allowance was not consumed, and unused reserved time is not reported as compute spent.</p>
+<table>
+<thead>
+<tr>
+<th>Telemetry window</th>
+<th align="right">Samples</th>
+<th align="right">Mean / median utilization</th>
+<th align="right">Peak total device memory</th>
+<th align="right">Estimated GPU-board energy</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Pilot + implementation check</td>
+<td align="right">172</td>
+<td align="right">93.4% / 98%</td>
+<td align="right">14,993 MiB</td>
+<td align="right">0.201 kWh</td>
+</tr>
+<tr>
+<td>Long continuation</td>
+<td align="right">806</td>
+<td align="right">93.7% / 98%</td>
+<td align="right">15,456 MiB</td>
+<td align="right">1.799 kWh</td>
+</tr>
+<tr>
+<td>Diagnostic controller</td>
+<td align="right">277</td>
+<td align="right">92.4% / 98%</td>
+<td align="right">15,745 MiB</td>
+<td align="right">0.420 kWh</td>
+</tr>
+<tr>
+<td><strong>Total sampled estimate</strong></td>
+<td align="right"><strong>1,255</strong></td>
+<td align="right">—</td>
+<td align="right">—</td>
+<td align="right"><strong>2.419 kWh</strong></td>
+</tr>
+</tbody></table>
+<p>Energy is trapezoidal integration of saved GPU-board power samples, approximately every 16–30 seconds. Recorded gaps were below 31 seconds. It covers about 9.10 hours between telemetry endpoints and includes idle/evaluation intervals in those windows. It is <strong>not metered whole-computer electricity</strong>: CPU, memory, storage, cooling, PSU losses and separately launched probes are excluded. Device memory includes desktop/other allocations; it is not entirely model storage. No electricity price, monetary research cost or FLOP total is inferred.</p>
+<p>Additional work was not fully timed as a single budget: capacity probes, the frozen-checkpoint sampling probe launched before the diagnostic controller, CPU data preparation, report rendering and engineering/debugging. The joint dataset build recorded 223.266 seconds; one separately saved CPU checkpoint preview recorded 121.641 seconds. These are separate from GPU learning. The seven-session total is a measured core accounting, not an invented exact total for all project effort. No cloud GPU rental or training purchase was made.</p>
+<p>The <a href="compute-ledger.json">machine-readable compute ledger</a> contains per-session accounting, telemetry sources, exclusions and hashes of the evidence used for this report.</p>
+<h2 id="6-main-experiment-loss-improved-generation-failed">6. Main experiment: loss improved, generation failed</h2>
+<h3 id="implementation-check-and-pilot">Implementation check and pilot</h3>
+<p>The four-minute, 16-map implementation check reduced fixed-noise loss from <strong>1.02605 to 0.06942</strong>, with improvement in every channel. Because evaluation reused training maps, this established only that the implementation could optimize the joint objective.</p>
+<p>The separately initialized full-cohort pilot reached <strong>update 2,074</strong> in about 42 minutes. Held-out t=500 denoising loss fell from <strong>1.01603 to 0.0274457</strong>, a 97.3% reduction. Fresh outputs nevertheless had blurred terrain/appearance and excessive count/value densities. Early scalar response existed: a matched-seed mex-supply request of 1 versus 5 changed mex density integral from <strong>442.7 to 703.5</strong>. That is evidence of sensitivity, not calibrated control or a validated relationship for all twelve knobs.</p>
+<h3 id="long-continuation-and-instability">Long continuation and instability</h3>
+<p>The continuation preserved the pilot&#39;s model/EMA/optimizer/RNG state; its initial validation exactly reproduced 0.0274457. It ended at update <strong>22,947</strong>, with final/best t=500 loss <strong>0.0228252</strong>. Looking only at those endpoints would conceal what happened:</p>
+<table>
+<thead>
+<tr>
+<th align="right">Cumulative update</th>
+<th align="right">Held-out t=500 loss</th>
+<th>Interpretation</th>
+</tr>
+</thead>
+<tbody><tr>
+<td align="right">2,074</td>
+<td align="right">0.027446</td>
+<td>Pilot endpoint / exact resume check</td>
+</tr>
+<tr>
+<td align="right">3,626</td>
+<td align="right">0.023955</td>
+<td>Early useful improvement</td>
+</tr>
+<tr>
+<td align="right">4,412</td>
+<td align="right">0.542125</td>
+<td>Large deterioration across all channels</td>
+</tr>
+<tr>
+<td align="right">5,192</td>
+<td align="right">0.52833</td>
+<td>Still degraded</td>
+</tr>
+<tr>
+<td align="right">Roughly 5,000–17,000</td>
+<td align="right">Around 0.5</td>
+<td>Prolonged degraded plateau</td>
+</tr>
+<tr>
+<td align="right">17,712</td>
+<td align="right">0.2668</td>
+<td>Recovery begins</td>
+</tr>
+<tr>
+<td align="right">19,277</td>
+<td align="right">0.03391</td>
+<td>Near earlier performance again</td>
+</tr>
+<tr>
+<td align="right">22,947</td>
+<td align="right">0.022825</td>
+<td>Final recovered best; generation still unusable</td>
+</tr>
+</tbody></table>
+<p><img src="assets/learning-history.png" alt="Full saved learning history and controlled lower-LR restart"></p>
+<p>The figure uses saved validation records through the final checkpoints. The right panel focuses on the controlled LR restart; the original collapse exceeds that panel&#39;s vertical range and is visible on the left. Denoising is evaluated on noised held-out sources, not by making new maps.</p>
+<p>This was not a clean, smoothly flattening learning curve. Much of the added compute was spent losing and recovering an earlier solution. Longer training did eventually lower the recorded loss, but the final fresh-map evidence did not establish progress toward a useful generator.</p>
+<h3 id="final-fresh-generation">Final fresh generation</h3>
+<p><img src="assets/full-cohort-final.png" alt="Final full-cohort generated layers at update 22947 alongside source examples"></p>
+<p>The first two rows are <strong>source training examples</strong>, included to show the target representation; they are not inputs or expected reconstructions for the generated rows. The remaining rows are <strong>fresh generation at update 22,947</strong>, using default DDIM 48 / guidance 1.5. RGB occupies three neural channels but is combined into one visual tile. These are saved numeric-layer previews, not game screenshots. No gameplay repair was applied. Per-channel display contrast can hide low background density; numeric integrals are essential.</p>
+<p>For seed 303 with the saved typical rating profile, the final raw estimates were:</p>
+<table>
+<thead>
+<tr>
+<th>Quantity</th>
+<th align="right">Generated density integral</th>
+<th>Relevant reference</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Start A</td>
+<td align="right"><strong>109.65</strong></td>
+<td>Exactly 1 in every source map</td>
+</tr>
+<tr>
+<td>Start B</td>
+<td align="right"><strong>100.33</strong></td>
+<td>Exactly 1 in every source map</td>
+</tr>
+<tr>
+<td>Mex</td>
+<td align="right"><strong>417.01</strong></td>
+<td>Training median 72; p20–p80: 50–102</td>
+</tr>
+<tr>
+<td>Hydro</td>
+<td align="right"><strong>170.88</strong></td>
+<td>Training median 8; p20–p80: 4–12</td>
+</tr>
+<tr>
+<td>Natural energy</td>
+<td align="right"><strong>429,910</strong></td>
+<td>Training median 44,923; amounts vary by map</td>
+</tr>
+<tr>
+<td>Natural mass</td>
+<td align="right"><strong>101,613</strong></td>
+<td>Training median 22,628; amounts vary by map</td>
+</tr>
+<tr>
+<td>Wreck mass</td>
+<td align="right"><strong>10,781</strong></td>
+<td>Training median 0; positive only on a minority</td>
+</tr>
+<tr>
+<td>Civilians</td>
+<td align="right"><strong>932.62</strong></td>
+<td>Positive only on a minority; zero cases are legitimate</td>
+</tr>
+</tbody></table>
+<p>These are physical <strong>density integrals</strong>, not an assertion that a placement decoder emitted 110 starts or 417 discrete mexes. No such decoder was run. Their deviation from invariant start totals demonstrates a calibration failure regardless of how appealing the strongest few peaks look.</p>
+<p>Terrain and RGB retained cloudy, weakly organized structure. Reclaim often filled broad areas. A small positive depth background also distorted threshold-based water coverage: the final seed-303 median depth was about <strong>0.0825</strong>, so a 0.05 threshold labeled almost everything wet. That is evidence of background bias, not a trustworthy claim that the generated map is physically deep water everywhere. Water metrics depended on thresholds, and no engine/playability conclusion is drawn from them.</p>
+<h2 id="7-controlled-diagnosis-after-stopping-the-long-run">7. Controlled diagnosis after stopping the long run</h2>
+<p>All four training arms completed. The same 73.3M network, frozen dataset/encoding and thirteen outputs were retained; no analytical spatial inputs or production repair stages were added. The three one-map arms started from matching fresh initialization/seed and used map <strong>4375_6603</strong>, which includes every output role. The full-cohort arm resumed the preserved <strong>pilot update 2,074</strong>, rather than the late recovered model.</p>
+<h3 id="can-the-model-represent-a-complete-map-at-all">Can the model represent a complete map at all?</h3>
+<table>
+<thead>
+<tr>
+<th>Twelve-minute one-map arm</th>
+<th align="right">LR</th>
+<th align="right">Final update</th>
+<th align="right">Mean fresh height correlation</th>
+<th align="right">Mean RGB correlation</th>
+<th align="right">Mean start-peak error, world units</th>
+<th align="right">Mean foreground MSE</th>
+<th align="right">Start A integral, target 1</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Original objective</td>
+<td align="right">0.0002</td>
+<td align="right">2,365</td>
+<td align="right"><strong>0.9980</strong></td>
+<td align="right">0.5877</td>
+<td align="right">0.50</td>
+<td align="right">0.06877</td>
+<td align="right"><strong>139.94</strong></td>
+</tr>
+<tr>
+<td>Original objective, lower LR</td>
+<td align="right">0.00005</td>
+<td align="right">2,340</td>
+<td align="right">0.9867</td>
+<td align="right">0.3663</td>
+<td align="right">0.50</td>
+<td align="right">0.01849</td>
+<td align="right"><strong>170.10</strong></td>
+</tr>
+<tr>
+<td>Balanced objective, same lower LR</td>
+<td align="right">0.00005</td>
+<td align="right">2,367</td>
+<td align="right">0.9836</td>
+<td align="right">0.3374</td>
+<td align="right">0.00</td>
+<td align="right"><strong>0.00877</strong></td>
+<td align="right"><strong>191.82</strong></td>
+</tr>
+</tbody></table>
+<p>Fresh metrics average seeds 303 and 404; peak error averages both start channels. Foreground MSE averages the eight entity/value channels using the saved diagnostic definition. These are small, descriptive comparisons, with no confidence intervals or claim of replication across many seeds.</p>
+<p><img src="assets/one-map-memorization.png" alt="One-map source and fresh-noise generation after twelve minutes"></p>
+<p>Top: <strong>source 4375_6603</strong>. Bottom: <strong>fresh-noise seed 303, update 2,365</strong>, trained only on that map. Terrain and shoreline visibly reproduce the template; Start A/B peaks lie 0 / 2 world units from the source in this seed. This is <strong>memorization, not novel generation or held-out generalization</strong>. Source quantities are still not reproduced: seed-303 Start A integrates to 139.6 versus approximately one, and civilians to 1,412 versus approximately 120. Displayed localization success must not be confused with correct totals.</p>
+<p>This result rules out the strongest claim that the network cannot learn spatial structure at all. It does not show that it can learn the full distribution from the available data, or that its generated quantities are suitable for export.</p>
+<h3 id="did-lower-lr-help-stability">Did lower LR help stability?</h3>
+<p>The full-cohort controlled restart changed the learning rate from <strong>0.0002 to 0.00005</strong>, retaining the original loss, augmentation, effective batch, model/EMA/Adam state and random-state lineage. Over one hour it reached update <strong>4,971</strong>, crossing the original failure point at 4,412 without the loss spike. Its held-out loss decreased smoothly from <strong>0.0274457 to 0.0233471</strong>. The final value was only <strong>2.29% above</strong> the old long run&#39;s 0.0228252 after roughly 6.7 additional hours.</p>
+<p>This is evidence that optimization stability was a major avoidable cost in the original run. It is one controlled restart window, not proof of indefinite stability or a complete identification of the collapse&#39;s cause. LR decay, optimizer alternatives, larger backbones and repeated restarts were not tested.</p>
+<p>Fresh full-cohort maps were still blurred and overpopulated. At seed 303, Start A/B integrals were <strong>152.38 / 120.57</strong>, mex 513.97 and civilians 1,317.36. Better stability did not solve the representation/objective problem. <a href="assets/full-lower-lr.png">Saved lower-LR output</a>.</p>
+<h3 id="did-emphasizing-foreground-solve-sparse-outputs">Did emphasizing foreground solve sparse outputs?</h3>
+<p>The objective audit found that nonzero Start A target activity covered only <strong>0.46% of its actual loader-weighted pixel mass</strong>, despite the foreground boost. Most weighted pixels still described background. A simple empty nonnegative-layer baseline had very small unweighted reconstruction errors on starts/civilians. That makes aggregate losses poor proxies for localization and meaningful quantities. The baseline&#39;s clean-MSE metric is not interchangeable with the network&#39;s weighted velocity objective.</p>
+<p>The balanced objective assigned half the nonempty entity-channel loss to ordinary pixel error and half to source-activity-normalized error; empty channels used ordinary MSE. It changed loss weights, not inputs or target layers. Compared with the same lower LR and time budget, foreground MSE improved <strong>52.6%</strong>, from 0.01849 to 0.00877. However, Start A integral worsened from <strong>170.10 to 191.82</strong>. Local foreground fit and global quantity calibration are separate problems. This variant was not a successful fix and was not promoted to a full training release.</p>
+<p><img src="assets/diagnostic-conclusions.png" alt="Diagnostic comparison of optimization, foreground error and global quantity bias"></p>
+<h3 id="could-sampling-or-rounding-explain-the-failure">Could sampling or rounding explain the failure?</h3>
+<p>The frozen final checkpoint was tested with matched seed/profile, without further training:</p>
+<table>
+<thead>
+<tr>
+<th>Sampling variant</th>
+<th align="right">Start A integral, target 1</th>
+<th align="right">Mex integral</th>
+<th>Finding</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>EMA, 48 steps, guidance 1.5, original bounds</td>
+<td align="right">109.65</td>
+<td align="right">417.01</td>
+<td>Reproduced the original failure</td>
+</tr>
+<tr>
+<td>EMA, 128 steps, guidance 1.5</td>
+<td align="right">147.06</td>
+<td align="right">450.51</td>
+<td>Extra steps did not correct totals</td>
+</tr>
+<tr>
+<td>EMA, 128 steps, guidance 1.0</td>
+<td align="right">146.90</td>
+<td align="right">453.94</td>
+<td>Less guidance did not correct totals</td>
+</tr>
+<tr>
+<td>EMA, 128 steps, no bounds</td>
+<td align="right">−0.61</td>
+<td align="right">297.84</td>
+<td>Negative cancellation; invalid, not calibrated</td>
+</tr>
+<tr>
+<td>EMA, 128 steps, epsilon recomputed after bounding</td>
+<td align="right">32.96</td>
+<td align="right">334.23</td>
+<td>Bias reduced, still far from valid</td>
+</tr>
+<tr>
+<td>Raw model weights, 48-step comparison</td>
+<td align="right">183.99</td>
+<td align="right">481.37</td>
+<td>EMA was not the sole cause</td>
+</tr>
+</tbody></table>
+<p>Numerical bounding contributed to bias, but the tested sampler changes did not recover usable maps. Removing bounds produced negative quantity predictions on about 23% of evaluated quantity pixels, so a near-zero signed total could not count as success. <a href="assets/sampling-comparison.png">Full sampling comparison</a>, <a href="../../../../data/models/joint_diagnostics_v1/sampling/summary.json">frozen-checkpoint results</a>.</p>
+<p>A source-aware oracle reconstructed the real target with float32 sampler algebra; focused tests also checked exact equivalence to the original sampler. Artificial bfloat16 velocity rounding alone changed start integrals by about 0.2%. Artificial input/output rounding caused roughly 15–41% errors in that simplified oracle, depending on bounds, rather than the observed hundredfold excess. This does not exclude every learned-network precision interaction, but sampler algebra or rounding alone is not an adequate account of the observed failure.</p>
+<p>Additional validation at timesteps 100, 500, 900 and 990 reproduced the saved t=500 result and showed greater reconstruction error toward nearly pure noise. Those tests strengthen the distinction between denoising an existing source and synthesizing a coherent complete map from noise. They do not establish a generative-quality score.</p>
+<h2 id="8-conclusions-and-limits">8. Conclusions and limits</h2>
+<table>
+<thead>
+<tr>
+<th>Claim</th>
+<th>Conclusion supported by this experiment</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>“Throw all source layers and ratings into one model and sufficient local compute solves it.”</td>
+<td><strong>Not supported.</strong> This implementation consumed substantial compute and failed to generate useful complete maps.</td>
+</tr>
+<tr>
+<td>“The network cannot learn a map at all.”</td>
+<td><strong>Contradicted by memorization.</strong> A fixed map&#39;s terrain and peak positions were learned quickly.</td>
+</tr>
+<tr>
+<td>“The long curve simply reached a normal plateau.”</td>
+<td><strong>Incorrect description.</strong> It underwent a large deterioration and spent hours recovering.</td>
+</tr>
+<tr>
+<td>“More time on the unchanged setup is justified.”</td>
+<td><strong>Not by the recorded evidence.</strong> Lower-LR diagnostics were more efficient, while fresh output and totals remained poor.</td>
+</tr>
+<tr>
+<td>“More parameters are required.”</td>
+<td><strong>Not established.</strong> No model-size comparison was performed.</td>
+</tr>
+<tr>
+<td>“Foreground weighting fixes it.”</td>
+<td><strong>Not established.</strong> Local fit improved, global totals worsened.</td>
+</tr>
+<tr>
+<td>“The rating knobs work.”</td>
+<td><strong>Only limited sensitivity observed.</strong> One pilot mex sweep responded; broad calibration, independence and useful controllability were not demonstrated.</td>
+</tr>
+<tr>
+<td>“Joint diffusion cannot work.”</td>
+<td><strong>Not established.</strong> The negative result is bounded to this data, representation, objective, optimization and budget.</td>
+</tr>
+</tbody></table>
+<p>The earlier staged models provided more encouraging visual structure within short runs, as observed during the project. This experiment supports retaining that working staged path. It is not a controlled proof that staging is universally superior: staged models receive different spatial information, solve narrower tasks, use different representations and can depend on deterministic composition. We did not run an equal-budget matched comparison in this study.</p>
+<p>Important limits are the small curated distribution, a reduced 851-map complete-source cohort, rare civilian/wreck positives, automated rating semantics, no independent final test set, few generated seeds and no systematic diversity/nearest-neighbor study. Validation was repeatedly consulted for research decisions. There was no engine validation, export, balance test, broad rating calibration, architecture scaling law or estimate of weeks-to-success.</p>
+<p>If this direction is reopened, the evidence suggests first testing quantity/background representations and global-total objectives under stable optimization, with progressive small-dataset fresh generation. Those are <strong>future hypotheses</strong>, not implemented fixes or scheduled training. Research is closed now; no claim is made that these changes would necessarily succeed.</p>
+<p><strong>Recorded outcome: the “all in” approach was tried seriously on the available GPU and did not solve MapGen&#39;s complete generation task.</strong> The useful result is a preserved failure case with evidence separating learnability, instability, sparse-layer calibration and fresh generation.</p>
+<h2 id="9-evidence-reproducibility-and-preservation">9. Evidence, reproducibility and preservation</h2>
+<p>The local checkout retains the complete artifacts. Public snapshots provide this report, portable figures and selected small receipts; large checkpoints/raw arrays and local review applications remain local by design. Missing public downloads must not be interpreted as missing scientific evidence.</p>
+<table>
+<thead>
+<tr>
+<th>Evidence</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><a href="compute-ledger.json">Compute ledger</a></td>
+<td>De-duplicated session updates, time, presentations, telemetry integration and evidence SHA-256 hashes</td>
+</tr>
+<tr>
+<td><a href="../../../joint_sources_pilot.md">Pilot contract and methods</a></td>
+<td>Initial implementation, dataset contract and pilot methods; dated early observations</td>
+</tr>
+<tr>
+<td><a href="../../../joint_sources_12h.md">Continuation methods</a></td>
+<td>Twelve-hour authorization, checkpoint lineage, supervision and preserved stopping state</td>
+</tr>
+<tr>
+<td><a href="../../../joint_source_diagnostics.md">Diagnostic methods</a></td>
+<td>Controlled arms and diagnostic definitions; final outcome summarized here</td>
+</tr>
+<tr>
+<td><a href="../../../../data/models/joint_sources_12h_v1/training/summary.json">Long-run summary</a> / <a href="../../../../data/models/joint_sources_12h_v1/training/history.json">history</a></td>
+<td>Final update 22,947 and complete denoising curve</td>
+</tr>
+<tr>
+<td><a href="../../../../data/models/joint_diagnostics_v1/comparison_summary.json">Diagnostic comparisons</a></td>
+<td>Completed arm metrics and scope</td>
+</tr>
+<tr>
+<td><a href="../../../../data/models/joint_diagnostics_v1/objective_audit.json">Objective audit</a> / <a href="../../../../data/models/joint_diagnostics_v1/oracle_precision.json">oracle precision</a></td>
+<td>Foreground/background evidence and numerical controls</td>
+</tr>
+<tr>
+<td><a href="../../../../src/supmapai/tensors/joint_sources.py">Joint dataset builder</a></td>
+<td>Physical source decomposition, rasterization and encoding</td>
+</tr>
+<tr>
+<td><a href="../../../../src/supmapai/ml/joint_diagnostics.py">Diagnostic implementation</a></td>
+<td>Controlled LR/objective/sampling tests</td>
+</tr>
+<tr>
+<td><a href="../../../../tools/build_all_in_research_report.py">Report packager</a></td>
+<td>Rebuilds the compute ledger and learning figure from saved records, with no inference</td>
+</tr>
+</tbody></table>
+<p>The frozen dataset release identity used by training was:</p>
+<p><code>a1abde6646e65c8f4a89f8d066f564eecc64265f9942b7f93040fede71b5f5b4</code></p>
+<p>The original training-source snapshots record:</p>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>SHA-256</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>joint_diffusion.py</td>
+<td><code>49cf5e60cc245c88dc90f29b9ed0b3fc33fc20902fc446cee3d2dfcf3ff72110</code></td>
+</tr>
+<tr>
+<td>multiscale_terrain.py</td>
+<td><code>aa7e28f963c8c3d3f00726cc4f2fbadefc451b7556f09bc51f844424c2135a33</code></td>
+</tr>
+<tr>
+<td>joint_diagnostics.py</td>
+<td><code>4a4da3e991aa72fae83020db48254a02e910a03494ee2c18e9e8875493a898de</code></td>
+</tr>
+</tbody></table>
+<p>The final long-run checkpoint fingerprint in the frozen sampling receipt is <code>516c882dd9791e1146bcfc49f1eed914677507ba4b8e24ab02b6635fc966df86</code>. Diagnostic directories retain independent checkpoints and receipts. The atlas preserves them as experiments rather than changing any selected production loader or checkpoint.</p>
+<p>Focused verification covered count conservation, unknown-source handling, encoding round trips, aligned augmentation, finite gradients for all thirteen channels, seeded sampling, oracle velocity/DDIM reconstruction, original-sampler equivalence, balanced-loss empty/rare handling and baseline-objective equivalence. These checks establish implementation contracts; they are not claims of generative success.</p>
+<p>Report reconstruction uses saved JSON/PNG evidence only. It does not load a checkpoint or initialize CUDA. Historical run notes remain available with their chronology, but this closed report is the authoritative final interpretation of this experiment.</p>
+<script src="../../public-links.js" data-public-links></script></body></html>
