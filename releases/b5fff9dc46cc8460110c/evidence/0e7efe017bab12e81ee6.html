@@ -1,0 +1,203 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>map_textures.py | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="../docs/model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1>map_textures.py</h1><p class="meta">Saved public evidence snapshot: src/supmapai/tensors/map_textures.py</p><pre>&quot;&quot;&quot;Palette-conditioned terrain texture tensors, not global biome class labels.&quot;&quot;&quot;
+from __future__ import annotations
+
+import io
+import hashlib
+from pathlib import Path,PurePosixPath
+from zipfile import ZipFile
+
+import numpy as np
+from PIL import Image
+
+from supmapai.extract.scmap_textures import read_materials
+
+SCHEMA='map_texture_tensor_v1'
+SHADER_SOURCE='https://raw.githubusercontent.com/FAForever/fa/develop/effects/terrain.fx'
+
+
+def resize_channels(array,size):
+    &quot;&quot;&quot;Area averaging; caller applies nonlinear shader decoding before pooling.&quot;&quot;&quot;
+    return np.stack([np.asarray(Image.fromarray(p.astype(np.float32)).resize((size,size),Image.Resampling.BOX)) for p in array]).astype(np.float32)
+
+
+def shader_rule(shader,version):
+    if shader=='TTerrain':return dict(supported=True,overlays=4,half_range=True)
+    if shader=='TTerrainXP' and version&gt;=56:return dict(supported=True,overlays=8,half_range=True)
+    return dict(supported=False,overlays=0,half_range=None)
+
+
+def paint_weights(raw,rule):
+    &quot;&quot;&quot;Weights before the upper material's own texture alpha; not sum-normalized masks.&quot;&quot;&quot;
+    alpha=np.clip(raw.astype(np.float32)/255*2-1,0,1)
+    weights=np.zeros((9,*raw.shape[1:]),np.float32)
+    if not rule['supported']:return alpha,weights
+    weights[0]=1
+    for index in range(rule['overlays']):
+        weights[:index+1]*=1-alpha[index]
+        weights[index+1]=alpha[index]
+    return alpha,weights
+
+
+def canonical_path(path):
+    value=str(path).replace('\\','/').strip().lower()
+    if not value:return ''
+    parts=PurePosixPath(value).parts
+    if '..' in parts or ':' in value:raise ValueError('Unsafe virtual material path')
+    return '/'+value.lstrip('/')
+
+
+class MaterialAssets:
+    &quot;&quot;&quot;Resolve stock archives and current-map custom assets; never fetch assets.&quot;&quot;&quot;
+    def __init__(self,game_data=None,extra_archives=()):
+        self.archives=[];self.index={};self.cache={};self.cache_bytes=0
+        if game_data is not None:
+            for name in ['env.scd','textures.scd']:
+                path=Path(game_data)/name
+                if path.is_file():
+                    archive=ZipFile(path);self.archives.append(archive)
+                    for item in archive.namelist():
+                        if not item.endswith('/'):self.index[canonical_path(item)]=(archive,item)
+        # Explicit FAF packs mount after stock assets and therefore override them.
+        for path in extra_archives:
+            archive=ZipFile(path);self.archives.append(archive)
+            for item in archive.namelist():
+                if not item.endswith('/'):self.index[canonical_path(item)]=(archive,item)
+
+    def close(self):
+        for archive in self.archives:archive.close()
+
+    def get(self,virtual,map_dir):
+        key=canonical_path(virtual)
+        if not key:return None,dict(status='empty')
+        cache_key=(key,str(Path(map_dir).resolve())) if key.startswith('/maps/') else key
+        if cache_key in self.cache:return self.cache[cache_key]
+        provenance=dict(status='missing',path=key)
+        payload=None
+        if key.startswith('/maps/'):
+            parts=key.strip('/').split('/')
+            root=Path(map_dir).resolve()
+            # A current-map reference must name this map's own virtual folder.
+            if len(parts)&gt;2 and parts[1]==root.name.lower():
+                candidate=root
+                for part in parts[2:]:
+                    if not candidate.is_dir():break
+                    matches=[p for p in candidate.iterdir() if p.name.lower()==part]
+                    if len(matches)!=1:break
+                    candidate=matches[0]
+                else:
+                    if candidate.is_file() and candidate.resolve().is_relative_to(root):
+                        payload=candidate.read_bytes();provenance.update(status='resolved',source=str(candidate))
+        elif key in self.index:
+            archive,name=self.index[key];payload=archive.read(name)
+            provenance.update(status='resolved',source=str(archive.filename),member=name)
+        image=None
+        if payload is not None:
+            try:
+                with Image.open(io.BytesIO(payload)) as source:
+                    if source.width*source.height&gt;16777216:raise ValueError('Material image exceeds memory bound')
+                    image=source.convert('RGBA').copy()
+                provenance.update(sha256=hashlib.sha256(payload).hexdigest(),size=list(image.size))
+            except (ValueError,OSError) as exc:provenance.update(status='decode_failed',error=str(exc))
+        result=(image,provenance)
+        # Stock image caching is bounded; map-specific files must not grow a batch cache.
+        size=image.width*image.height*4 if image is not None else 0
+        if not key.startswith('/maps/') and len(self.cache)&lt;128 and self.cache_bytes+size&lt;=64*1024**2:
+            self.cache[cache_key]=result;self.cache_bytes+=size
+        return result
+
+
+def sample_tiled(image,scale,width,height,grid):
+    &quot;&quot;&quot;Bilinear, wrap-addressed diagnostic sampling at map-cell centres.&quot;&quot;&quot;
+    pixels=np.asarray(image,np.float32)/255
+    x=((np.arange(grid)+.5)*width/grid/scale*pixels.shape[1]-.5)%pixels.shape[1]
+    z=((np.arange(grid)+.5)*height/grid/scale*pixels.shape[0]-.5)%pixels.shape[0]
+    x0=np.floor(x).astype(int);z0=np.floor(z).astype(int);fx=x-x0;fz=z-z0
+    a=pixels[z0[:,None],x0[None,:]];b=pixels[z0[:,None],(x0[None,:]+1)%pixels.shape[1]]
+    c=pixels[(z0[:,None]+1)%pixels.shape[0],x0[None,:]];d=pixels[(z0[:,None]+1)%pixels.shape[0],(x0[None,:]+1)%pixels.shape[1]]
+    top=a*(1-fx[None,:,None])+b*fx[None,:,None]
+    bottom=c*(1-fx[None,:,None])+d*fx[None,:,None]
+    return (top*(1-fz[:,None,None])+bottom*fz[:,None,None]).transpose(2,0,1).astype(np.float32)
+
+
+def extract_texture_tensor(scmap,assets,*,grid=128,swatch=64):
+    if not 8&lt;=grid&lt;=2048:raise ValueError('Grid must be in [8,2048]')
+    metadata,raw,preview=read_materials(scmap);rule=shader_rule(metadata['shader'],metadata['version'])
+    alpha,weights=paint_weights(raw,rule)
+    pooled_weights=resize_channels(weights,grid)
+    pooled_alpha=resize_channels(alpha,grid)
+    active=np.zeros(9,bool)
+    if rule['supported']:active[:rule['overlays']+1]=True
+    palette=metadata['palette'];patches=np.zeros((10,4,swatch,swatch),np.float32);available=np.zeros(10,bool);tiling_valid=np.zeros(10,bool)
+    tiled=[];asset_info=[]
+    for layer in palette:
+        image,info=assets.get(layer['albedo'],Path(scmap).parent);asset_info.append(info)
+        if image is None:
+            tiled.append(np.zeros((4,grid,grid),np.float32));continue
+        index=layer['slot'];available[index]=True
+        patches[index]=np.asarray(image.resize((swatch,swatch),Image.Resampling.BOX),np.float32).transpose(2,0,1)/255
+        scale=layer['albedo_scale']
+        if scale&lt;=0:
+            info.update(tiling_status='invalid_scale')
+            tiled.append(np.zeros((4,grid,grid),np.float32));continue
+        tiling_valid[index]=True
+        tiled.append(sample_tiled(image,scale,metadata['width'],metadata['height'],grid))
+    rgb=sum((pooled_weights[i][None]*tiled[i][:3] for i in range(9)))
+    rgb_valid=sum((pooled_weights[i] for i in range(9) if tiling_valid[i]),np.zeros((grid,grid),np.float32))
+    upper=palette[9];top_valid=(not upper['albedo']) or bool(tiling_valid[9])
+    top_alpha=tiled[9][3] if tiling_valid[9] else np.zeros((grid,grid),np.float32)
+    rgb=rgb*(1-top_alpha[None])+tiled[9][:3]*top_alpha[None]
+    rgb_valid=(rgb_valid*(1-top_alpha)+top_alpha) if top_valid else np.zeros_like(rgb_valid)
+    if not rule['supported']:rgb_valid[:]=0
+    metadata.update(schema=SCHEMA,shader_rule=rule,shader_source=SHADER_SOURCE,grid=grid,
+        asset_resolution=asset_info,paint_weight_mean=pooled_weights.mean(axis=(1,2)).tolist(),
+        mask_semantics='Native bytes preserved. Standard shaders: clamp(2*raw/255-1,0,1), sequential later-over-earlier composition, then area pooling.',
+        weight_semantics='9 paint weights: lower + strata 0..7, before upper albedo alpha; palette required across maps',
+        semantic_weights_valid=rule['supported'],rgb_valid_fraction=float((rgb_valid&gt;=1-1e-5).mean()),
+        rgb_interpretation='Diagnostic unlit tiled albedo, with upper alpha; no decals, water surface, shadows, lighting, normal shading or texture mipmap filtering',
+        limits=['No biome classes inferred from slot numbers','Advanced/custom shaders retain raw masks but derived weight validity is false',
+                'Missing assets remain explicit; zero colors are never implicitly valid','Full-map native appearance is not assumed symmetric'])
+    arrays=dict(mask_bytes_native=raw,mask_samples=resize_channels(raw.astype(np.float32)/255,grid),blend_alpha=pooled_alpha,
+        paint_weights=pooled_weights,active_layers=active,paint_weights_valid=np.asarray(rule['supported']),
+        palette_albedo_rgba=patches,palette_asset_available=available,palette_tiling_valid=tiling_valid,
+        palette_albedo_scale=np.asarray([p['albedo_scale'] for p in palette],np.float32),
+        palette_normal_scale=np.asarray([p['normal_scale'] for p in palette],np.float32),
+        palette_albedo_paths=np.asarray([canonical_path(p['albedo']) for p in palette]),
+        palette_normal_paths=np.asarray([canonical_path(p['normal']) for p in palette]),
+        albedo_rgb=rgb.astype(np.float32),albedo_validity=rgb_valid[None].astype(np.float32),upper_alpha=top_alpha[None])
+    return arrays,metadata,preview
+
+
+def augment_arrays(arrays,rotation=0,flip=False,half=False):
+    &quot;&quot;&quot;Apply the terrain augmentation to spatial fields only; palette slots stay fixed.&quot;&quot;&quot;
+    fields={'mask_samples','blend_alpha','paint_weights','albedo_rgb','albedo_validity','upper_alpha'}
+    result=dict(arrays)
+    for name in fields:
+        value=np.rot90(arrays[name],rotation,axes=(-2,-1))
+        if flip:value=value[...,::-1]
+        if half:value=value[...,:value.shape[-2]//2,:]
+        result[name]=value.copy()
+    # Native masks describe the unchanged source; omit them from augmented batches.
+    result.pop('mask_bytes_native',None)
+    return result
+
+
+class TextureDataset:
+    &quot;&quot;&quot;Lazy, checksummed NumPy loader; geometry is paired, never re-generated.&quot;&quot;&quot;
+    def __init__(self,root,split):
+        import json
+        self.root=Path(root)
+        release=json.loads((self.root/'release_manifest.json').read_text())
+        if release['schema']!=SCHEMA or release['status']!='ready':raise ValueError('Texture dataset is not published')
+        manifest=split+'.jsonl'
+        for name in [manifest,'audit.json','contract.json']:
+            if hashlib.sha256((self.root/name).read_bytes()).hexdigest()!=release['artifacts'][name]:raise ValueError('Changed texture release artifact')
+        self.rows=[json.loads(s) for s in (self.root/manifest).read_text().splitlines() if s.strip()]
+
+    def __len__(self):return len(self.rows)
+
+    def get(self,index,*,rotation=0,flip=False,half=False):
+        row=self.rows[index];path=self.root/row['archive']
+        if hashlib.sha256(path.read_bytes()).hexdigest()!=row['sha256']:raise ValueError('Changed texture archive')
+        with np.load(path,allow_pickle=False) as source:arrays={k:source[k].copy() for k in source.files}
+        return augment_arrays(arrays,rotation,flip,half),row
+</pre><script src="../docs/model-atlas/public-links.js" data-public-links></script></body></html>

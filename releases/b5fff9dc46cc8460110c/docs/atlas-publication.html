@@ -1,0 +1,52 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>atlas-publication.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="atlas-publication-and-maintenance">Atlas publication and maintenance</h1>
+<p>The atlas under <code>docs/model-atlas</code> is the project&#39;s main source of truth. The
+public address is <a href="https://mapgen-project-atlas.elven-bowl-7506.chatgpt.site">https://mapgen-project-atlas.elven-bowl-7506.chatgpt.site</a> .
+ChatGPT Sites hosts the portal; the <code>codex/atlas-live</code> branch of the project GitHub
+repository holds immutable, sanitized public snapshots and <code>latest.json</code>.
+The portal checks that pointer every 60 seconds while open, on returning to the
+tab, or when Check updates is pressed. It has a bundled initial fallback. It
+never reads uncommitted desktop files or infers progress from a running process.</p>
+<h2 id="record-and-publish-meaningful-progress">Record and publish meaningful progress</h2>
+<ol>
+<li>Update the atlas catalog/control registry, method/work notes and
+<code>docs/map-extraction-todos.md</code> as appropriate. Preserve exact checkpoint and
+map identities; record completed, active, experimental and planned separately.</li>
+<li>Refresh the offline model reference using project GPU Python, metadata only:
+<code>$env:PYTHONPATH=&#39;src&#39;; .venv/Scripts/python.exe -m supmapai.tools.build_model_atlas</code>.</li>
+<li>Run <code>node tools/refresh_project_status.mjs</code> to refresh the structured progress
+page and dated GitHub report from atlas receipts and saved supervisor states.
+Check wording before publication, especially a running/paused/completed state.</li>
+<li>Run <code>node tools/publish_project_atlas.mjs --push</code>. This builds a public snapshot
+and pushes only the dedicated <code>codex/atlas-live</code> publication branch. It does not
+stage or commit the research checkout or modify <code>main</code>. Git write access is
+required; failures must not be reported as published. Verify the remote pointer
+after a push. No Site deployment is needed for a data/content update.</li>
+<li>Commit reviewed source documentation/progress changes to the research branch
+through the normal GitHub workflow. Keep a dated report as history; the current
+atlas status is authoritative. Update the local offline reference too.</li>
+</ol>
+<p>A content publisher must run after meaningful recorded progress. The minute
+browser check does <strong>not</strong> itself turn local edits into public updates. This
+workflow is agent-driven/event-driven publication, not an unattended training
+monitor, and creates no recurring tasks or Netlify deployment.</p>
+<h2 id="public-packaging-boundaries">Public packaging boundaries</h2>
+<p>The publisher includes reviewed atlas images/scripts, rendered project notes and
+selected small source/evidence snapshots. It scrubs machine-specific absolute
+paths. It excludes checkpoints, full raw tensor archives, private response exports,
+portfolio drafts and local review applications; links become explanatory evidence
+pages rather than broken file URLs. It must never upload credentials or expand
+an excluded artifact merely because a document links to it.</p>
+<p>A public snapshot has a content digest, immutable release directory, recorded
+source timestamp and per-file hashes. The version pointer advances only after
+its snapshot is uploaded in the same Git push. GitHub retains prior versions.
+The Site portal embeds only this fixed project&#39;s owner-published source; it does
+not allow arbitrary remote document origins.</p>
+<h2 id="portalcode-updates">Portal/code updates</h2>
+<p>Site identity is in <code>sites/mapgen-project-atlas/.openai/hosting.json</code>. Reuse it.
+Use the Sites skill&#39;s source helper and native save/deploy workflow for changes
+to the portal itself, preserving public access. Do not deploy to Netlify. Source
+credentials belong only in session memory/stdin. The initial bundled fallback is
+packaged under <code>sites/mapgen-project-atlas/dist</code>; newer content comes from GitHub.</p>
+<p>The Markdown renderer uses the bundled <code>marked</code> dependency. Set
+<code>ATLAS_MARKED_MODULE</code> to its absolute module path when a runtime bundle moves.</p>
+<script src="model-atlas/public-links.js" data-public-links></script></body></html>

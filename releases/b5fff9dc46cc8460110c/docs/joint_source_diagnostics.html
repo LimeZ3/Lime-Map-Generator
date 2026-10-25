@@ -1,0 +1,216 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>joint_source_diagnostics.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="joint-source-diagnostics-25-october-2026">Joint source diagnostics — 25 October 2026</h1>
+<h2 id="final-conclusions">Final conclusions</h2>
+<p>All four arms completed successfully, with the batch finishing around 13:37
+Amsterdam, before its 13:49:57 cap. No GPU training remains active in this batch.
+Earlier sections below preserve the original protocol and intermediate observations.</p>
+<ol>
+<li><strong>The network can represent a map layout.</strong> The original-objective one-map
+test reached mean fresh-noise height correlation 0.9980 and mean strongest-start
+peak error 0.5 world units across two seeds. This is memorization only, not
+learning a useful distribution of unseen maps. Absolute values remained wrong.</li>
+<li><strong>Reducing LR avoided the earlier instability within this test.</strong> The full
+restart from pilot update 2,074 used the same objective, batch, dataset,
+augmentation, optimizer state and sample/noise sequences, with LR reduced from
+0.0002 to 0.00005. It ran through update 4,971 without the original collapse
+near update 4,412. Held-out t500 loss decreased smoothly from 0.02745 to
+0.02335. That is only 2.3% above the old long run&#39;s 0.02283 after about 6.7
+additional hours. This strongly supports testing optimization before extra
+capacity or long compute budgets, but one restart does not establish indefinite
+stability. Fresh full-cohort generation remains blurry and overpopulated.</li>
+<li><strong>Foreground weighting addresses one error and exposes another.</strong> At the same
+lower LR and twelve-minute budget, balancing reduced mean fresh foreground MSE
+from 0.01849 to 0.00877 (52.6%). Strongest start peaks became exactly aligned in
+both seeds. However Start A density integral worsened from 170.1 to 191.8
+against a target of one. RGB/terrain fitting also slowed relative to the
+original-LR one-map run. Local reconstruction and global quantity semantics
+require separate metrics; foreground reweighting is not a complete fix.</li>
+<li><strong>Sampler settings alone did not recover useful maps.</strong> Additional DDIM steps
+and weaker CFG did not fix global blur. Consistent epsilon recomputation after
+clipping reduced density accumulation, but did not calibrate quantities.</li>
+</ol>
+<p>The evidence does not justify more parameters or weeks of unchanged training.
+The next source-only joint experiment should test an objective/representation
+that explicitly learns layer totals and suppresses background mass, while
+retaining stable optimization. A global source-quantity loss can be computed
+from existing heatmaps without adding analytical spatial inputs or inference
+repair. Progressive 4–16-map fitting and fresh-noise evaluation should precede
+another full-cohort long run. No such follow-up is claimed trained here.</p>
+<p>See <code>data/models/joint_diagnostics_v1/conclusions.png</code> for the final comparison,
+and <code>comparison_summary.json</code> for the actual metrics and their scopes.</p>
+<p>The user requested ending the unchanged long run and diagnosing its limited
+progress, with a couple of GPU hours remaining. The old supervisor stopped
+cooperatively at <strong>22,947 updates</strong>, around <strong>11:50 Amsterdam</strong>. The final/best
+held-out loss was <strong>0.0228252</strong>. Original last/best checkpoints, galleries,
+optimizer state, sources and history are preserved. It will not resume silently.</p>
+<p>Run: <code>data/models/joint_diagnostics_v1</code>. Hard deadline: <strong>13:49:57 Amsterdam /
+12:49:57 UTC</strong>, two hours from the request including preparation. Each training
+arm has its own directory, checkpoint and actual receipt. Planned arms below
+must not be read as completed or trained until their saved status says so.</p>
+<h2 id="completed-mathematical-and-frozen-checkpoint-checks">Completed mathematical and frozen-checkpoint checks</h2>
+<p>Three focused tests passed: the velocity/DDIM equations reconstruct a known
+source with an oracle predictor; the diagnostic legacy sampler reproduces the
+frozen original implementation; and foreground balancing handles both rare
+activity and genuinely empty layers without division errors.</p>
+<p>The stopped checkpoint&#39;s EMA was sampled from the same fresh noise and rating
+vector under five settings, plus one raw-weight comparison:</p>
+<table>
+<thead>
+<tr>
+<th>EMA sampler</th>
+<th align="right">Start A density integral</th>
+<th align="right">Mex integral</th>
+<th align="right">Median depth</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Original, 48 steps, CFG 1.5</td>
+<td align="right">109.65</td>
+<td align="right">417.01</td>
+<td align="right">0.083</td>
+</tr>
+<tr>
+<td>Original, 128 steps, CFG 1.5</td>
+<td align="right">147.06</td>
+<td align="right">450.51</td>
+<td align="right">0.107</td>
+</tr>
+<tr>
+<td>Original, 128 steps, CFG 1</td>
+<td align="right">146.90</td>
+<td align="right">453.94</td>
+<td align="right">0.107</td>
+</tr>
+<tr>
+<td>Unbounded, 128 steps, CFG 1.5</td>
+<td align="right">-0.61</td>
+<td align="right">297.84</td>
+<td align="right">0.021</td>
+</tr>
+<tr>
+<td>Recompute noise after bounds, 128 steps, CFG 1.5</td>
+<td align="right">32.96</td>
+<td align="right">334.23</td>
+<td align="right">0.035</td>
+</tr>
+</tbody></table>
+<p>The normal source Start A integral is one. These are density sums, not decoded
+start counts. Removing bounds produces invalid negative densities; a sum near
+one due to negative cancellation is not success. Correcting the epsilon estimate
+after clean-estimate clipping reduces accumulation, but does not solve amounts
+or visibly fix global structure. More DDIM steps or weaker CFG alone did not
+fix the blur. Raw network weights were not clearly better than EMA.</p>
+<p>Held-out denoising was also evaluated at t=100, 500, 900 and 990. At t=500, the
+frozen EMA reproduced its recorded 0.0228252 loss exactly. Clean reconstruction
+degrades as the source becomes mostly noise: height MSE was 0.00518 at t=500
+and 0.06156 at t=990; red-channel MSE was 0.01470 and 0.07752. This motivates
+testing generation rather than relying on a single intermediate noise level.</p>
+<p>The source-weight audit uses 64 deterministically sampled training maps. About
+0.46% of the actual float16 loader&#39;s Start A pixel weight covers nonzero target
+activity (about 0.49% before cache quantization). Sparse roles can therefore
+have low aggregate denoising errors while localization/count calibration remain
+bad. An empty-layer baseline and training-derived scalar means are recorded in
+<code>objective_audit.json</code>; these are evaluation baselines, not neural inputs.</p>
+<h2 id="controlled-training-sequence">Controlled training sequence</h2>
+<p>All arms retain the 73,323,149-parameter network, thirteen original source
+targets, twelve rating inputs, the original physical/encoded dataset and zero
+source spatial conditions. No SDF, pathing, terrain mask or repair is introduced.</p>
+<table>
+<thead>
+<tr>
+<th>Arm</th>
+<th>Data</th>
+<th align="right">Learning rate</th>
+<th>Objective</th>
+<th align="right">Planned time</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>one_map_baseline</td>
+<td>Fixed map 4375_6603</td>
+<td align="right">0.0002</td>
+<td>Original weighting</td>
+<td align="right">12 min</td>
+</tr>
+<tr>
+<td>one_map_lower_lr</td>
+<td>Same map and initialization</td>
+<td align="right">0.00005</td>
+<td>Original weighting</td>
+<td align="right">12 min</td>
+</tr>
+<tr>
+<td>one_map_balanced</td>
+<td>Same map and initialization</td>
+<td align="right">0.00005</td>
+<td>Foreground-balanced weighting</td>
+<td align="right">12 min</td>
+</tr>
+<tr>
+<td>full_lower_lr</td>
+<td>Full 782 train / 69 validation</td>
+<td align="right">0.00005</td>
+<td>Original weighting</td>
+<td align="right">60 min</td>
+</tr>
+</tbody></table>
+<p>The fixed map contains water, natural reclaim, wrecks, civilians and both marker
+types, so all outputs are exercised. Single-map arms start fresh with identical
+seeds and effective batch six. Augmentation, feature dropout and rating dropout
+are disabled. Their evaluations reuse the training map and establish only
+memorization, not generalization. Fresh seeds 303 and 404 are generated every
+five minutes, with no source spatial inputs. Source/target strips, terrain/RGB
+correlations, start-peak distance, foreground MSE and physical density sums are
+saved alongside multi-noise denoising losses.</p>
+<p>The balanced objective leaves height, water and RGB losses unchanged. For
+nonempty entity/value layers, half the channel objective is ordinary pixel MSE
+and half is weighted by normalized continuous source activity. Empty layers use
+ordinary MSE. This changes training weights only; it adds no input/target layer
+and no analytical or eligibility mask. The baseline/lower-LR pair isolates LR;
+the lower-LR/balanced pair isolates the sparse-layer objective. Different
+objective values are not compared as if they were the same loss: common
+evaluation metrics and raw generation are used instead.</p>
+<p>The full-cohort arm restarts from the preserved pilot <strong>update 2,074</strong>, not the
+late recovered checkpoint. It inherits model, EMA, optimizer and random states,
+keeps augmentation/dropout, effective batch 24 and the original objective, and
+changes only the learning rate. This should cross the original deterioration
+point around update 4,412 with matching sample/noise sequences. The schedule
+remains constant during this controlled LR test; LR decay is not claimed tested.
+Pre-clipping gradient norms and output-weight norms are recorded every 100 updates.</p>
+<h2 id="first-fresh-generation-result">First fresh-generation result</h2>
+<p>At approximately five minutes in the first one-map arm (update 997), fresh-noise
+height had <strong>0.978 correlation</strong> with the fixed training target. The strongest
+Start A/B peaks were <strong>0 / 2 world units</strong> from their source positions. The
+generated shoreline also follows the source layout visibly. This is evidence
+that the network/sampler can learn a complete spatial template; it does not
+prove learning the full multi-map distribution or create a novel map.</p>
+<p>Sparse density sums remain badly biased, and RGB correlation was only roughly
+0.19–0.34 across channels. Later arms are required to assess whether balancing
+or a lower LR helps. These early figures must not be treated as final arm results.</p>
+<p>The original-objective one-map arm subsequently completed 2,365 updates in
+12 minutes. Seed-303 fresh-noise height correlation reached <strong>0.9980</strong>, start
+peak distances remained <strong>0 / 2 world units</strong>, and RGB channel correlations were
+roughly 0.55–0.63. The shoreline and terrain template are visibly reproduced.
+Density sums remain biased: Start A integral was 139.6 instead of one. This
+separates ability to represent a map layout from density/background errors and
+learning the multi-map distribution. Other controlled arms remain pending.</p>
+<p>An oracle test reconstructs the actual 13-channel source exactly in float32.
+Artificial bfloat16 velocity rounding alone changes start integrals by about
+0.2%; artificial input/output rounding produces roughly 15–41% errors depending
+on clipping. This simplified oracle is not a learned-network precision test,
+but does not reproduce the observed hundredfold excess density. Sampler algebra
+or rounding alone is not an adequate explanation of the learned failure.</p>
+<h2 id="artifacts-and-controls">Artifacts and controls</h2>
+<p><code>pipeline.json</code> gives the active stage, PID, GPU telemetry and remaining time.
+<code>contract.json</code> records the planned sequence and deadline. Each started arm
+has <code>training_receipt.json</code>, <code>config.json</code>, frozen <code>code_snapshot/</code>, checkpoints,
+multi-noise <code>history.json</code>, <code>training_stats.json</code>, raw sample NPZs and PNGs.
+<code>results.json</code> includes only finished/failed stages. <code>index.html</code> is the local
+review page; rerun <code>tools/build_joint_diagnostic_report.py</code> to refresh snapshot
+tables. Image and JSON links point to the current saved artifacts.</p>
+<p>A lightweight CPU report watcher refreshes completed-stage comparisons and HTML
+after stage transitions, and exits when the batch ends. It launches no GPU work.
+<code>comparison_summary.json</code> distinguishes completed arms from pending stages and
+keeps memorization separate from held-out performance.</p>
+<p>Create <code>data/models/joint_diagnostics_v1/pause.request</code> to stop the batch
+cooperatively. No diagnostic model is selected for the production pipeline.</p>
+<script src="model-atlas/public-links.js" data-public-links></script></body></html>

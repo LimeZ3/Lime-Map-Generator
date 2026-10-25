@@ -1,0 +1,116 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>conditional_1v1_training.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="conditional-10km-1v1-training">Conditional 10km 1v1 Training</h1>
+<p>This experiment learns from the frozen strategy-label release 1.2.1, run
+<code>f1ae04e925f139a8</code>. Labels are automated structural estimates, not community quality
+ratings. The first target is a full-size 512x512 world-unit arena with two active
+players. Cropped playable arenas are excluded rather than stretched.</p>
+<h2 id="dataset-contract">Dataset Contract</h2>
+<p><code>supmapai.tensors.strategy_dataset</code> uses the exact selected source spawns, active
+resource configuration and initial reclaim used by the scoring pipeline. Some
+scientific response calculations conservatively normalize approximate symmetry;
+the tensor retains the original geometry and original selected spawns. That small
+teacher/input approximation is retained in source job provenance.</p>
+<p>Packing verifies the SCMAP source hash, audited input signature, active slots,
+configured mex count, known mass and handling-adjusted stock. Resources are resolved
+through the existing pipeline helper. Family train/validation/test assignments are
+preserved. Every training family has equal aggregate sampling weight, including
+when a training subset is requested.</p>
+<p>At 128x128, each cell covers a 4x4 world-unit block. Native height vertices and
+land/hover/depth grids remain in each archive. Movement coverage fractions are not
+certified pathfinding masks at model resolution. Count and mass grids use sum
+pooling; terrain/depth use mean pooling. Resource/spawn Gaussians each integrate to
+one, including at map edges. Reclaim channels describe positive known-mass initial
+entities; unknown entities are tracked separately and are never taught as known
+zero stock. Incomplete reclaim maps can train terrain/resources but cannot train
+the initial reclaim model.</p>
+<p>Shared physical scales and control statistics are fitted on the train split only.
+Height is relative to the serialized sea level on wet-enabled maps and the lowest
+vertex on dry maps. The water-enabled flag accompanies inference. Height is scaled
+linearly; reclaim mass/count/handling-adjusted stock use reversible log1p scaling.
+Physical originals are always retained. Held-out values beyond train support are
+clipped only at denoiser input and counted by the audit. The frozen rating
+calibration is not refitted.</p>
+<h2 id="controls-and-models">Controls And Models</h2>
+<p>The profile consists of mexes per player, handling-adjusted reclaim per player,
+land-connected mex share, economic bottleneck width, and air-mobility affected
+share. Each value has a presence mask. Missing/invalid targets and lower-bound
+reclaim abundance are masked. Confidence categories are retained as categories,
+not converted into invented probabilities. The initial model does not condition
+on the known-problematic aggregate naval rating or an overall quality score.</p>
+<p>The three stages are:</p>
+<ol>
+<li>Terrain: relative height, water coverage and depth, given two spawn fields and
+the gameplay profile.</li>
+<li>Resources: mex/hydro fields, given terrain, structural coverage, spawns and profile.</li>
+<li>Reclaim: mass, entity count and handling-adjusted stock fields, given terrain,
+resources, spawns and profile.</li>
+</ol>
+<p>A profile-free terrain baseline receives the same spatial inputs and water-state
+flag. It is not spatially unconditional. The conditional model uses 15% whole
+profile dropout, which supports classifier-free guidance. Unsupported profile
+combinations should not be interpreted as independent gameplay guarantees.</p>
+<p>All models use a small normalized residual U-Net, a cosine diffusion schedule,
+configurable epsilon/velocity prediction and gradient clipping. Bottleneck global
+attention is optional. Runs have explicit update limits,
+progress files, fixed validation noise, checkpoints, environment/code/data hashes
+and family-weighted sampling. Validation loss is teacher-forced denoising loss:
+later stages receive real preceding layers during training/validation. It is not
+an end-to-end gameplay metric. The test split is packed/audited but not fitted or
+used for model selection.</p>
+<h2 id="windows-commands">Windows Commands</h2>
+<p>The current <code>.venv</code> contains working CUDA PyTorch. <code>.venv-codex</code> contains the
+scientific extraction dependencies. These commands use those existing environments;
+they do not reinstall packages.</p>
+<pre><code class="language-powershell">$env:PYTHONPATH = &#39;src&#39;
+.venv-codex/Scripts/python.exe -m supmapai.tensors.strategy_dataset `
+  --release data/processed/strategy_annotation_batch/v1.2.1/f1ae04e925f139a8 `
+  --out data/tensors/strategy_10km_1v1_v1 --grid-size 128
+.venv-codex/Scripts/python.exe -m supmapai.tools.audit_strategy_tensors `
+  --dataset data/tensors/strategy_10km_1v1_v1
+./tools/run_strategy_training_smoke.ps1
+.venv/Scripts/python.exe -m supmapai.ml.sample_strategy `
+  --model-root data/models/strategy_10km_1v1_v2_smoke `
+  --out data/models/strategy_10km_1v1_v2_smoke/gallery_reclaim `
+  --vary handling_adjusted_reclaim_per_player --seeds 101 202 303 404
+.venv/Scripts/python.exe -m supmapai.tools.strategy_training_report `
+  --model-root data/models/strategy_10km_1v1_v2_smoke
+</code></pre>
+<p>Packing resumes matching, checksum-verified archives. A changed builder/release/grid
+requires a new output directory. Training <code>--resume</code> restores the optimizer and
+checkpoint under the same configuration; per-update sampling and training noise
+are indexed by update number. Progress is written every ten updates, validation
+and checkpoints every hundred by default. Training refuses silent CPU fallback.</p>
+<p>For a matched profile-free terrain gallery, pass
+<code>--terrain-checkpoint .../terrain_unconditional/best.pt</code>. For tests under the
+restricted Windows sandbox, set <code>TMP</code> and <code>TEMP</code> to the workspace <code>.tmp</code> folder.
+Unit tests use the standard-library unittest runner.</p>
+<h2 id="generation-and-evaluation-gates">Generation And Evaluation Gates</h2>
+<p>Gallery generation starts from fresh PCG64 noise, uses DDIM eta=0, and runs all
+three stages. It requests the same diagonal spawn layout for each sample. The
+decoder imposes 180-degree symmetry, derives depth/movement from interpolated
+and quantized height, repairs paired spawns, and extracts stable resource peaks.
+Raw predictions are saved alongside decoded outputs. Exact mex count is a
+decoder instruction; it does not prove learned supply control. Hydro count is
+currently fixed at two. Reclaim priority is bounded by raw mass; no discrete prop
+blueprint realization is claimed yet.</p>
+<p>Low/medium/high presets use train-cohort 20/50/80 percentiles. Some axes may have
+identical presets because of imbalance; the audit flags this instead of inventing
+new frozen labels. Requested profile distance from observed training examples is
+reported as a rough support diagnostic, not a probability or compatibility proof.</p>
+<p>Before longer training or playable showcase exports, inspect fresh-noise geometry,
+repair distances, native passability, continuous resource integrals, source-map
+similarity and consistency of matched-seed changes. Then recompute the full
+gameplay teacher on assembled outputs using the same policy. Air relevance,
+openness and land-connected mex share cannot be validated by terrain appearance
+or raw water percentage. Human playtests remain necessary for quality/balance.
+The sampler marks outputs unsuitable for game export until these checks exist.</p>
+<h2 id="deferred-seed-portability">Deferred Seed Portability</h2>
+<p>Each sample records its seed, model hashes, normalization, controls, requested
+spawn layout, sampler settings, decoder hash and runtime. Checkpoints/assets must
+be distributed as part of a versioned generator package. Seeds identify results
+within that package; changing weights or settings changes the generation identity.</p>
+<p>The user deferred cross-machine seed matching on 23 October 2026. It is outside
+the current training milestone. Deterministic PyTorch operators plus PCG64 noise
+support local repeatability, but do not guarantee identical floating-point
+results across CPUs, GPUs or runtime versions. No portable inference work is
+required for the current experiment.</p>
+<script src="model-atlas/public-links.js" data-public-links></script></body></html>
