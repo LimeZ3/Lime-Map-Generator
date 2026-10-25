@@ -1,0 +1,61 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>first-playable-map.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="first-playable-map-achieved">First Playable Map: Achieved</h1>
+<p><strong>25 October 2026.</strong> The project owner played <strong>MapGen Heatmap Medium 303</strong>
+(<code>mapgen_sym_heatmap_medium.v0001</code>) and confirmed:</p>
+<blockquote>
+<p>This map is actually playable. Not good, but also not terribly bad and IS playable.</p>
+</blockquote>
+<p>This is the first explicitly player-confirmed playable milestone for the staged
+ML pipeline. It is a proof of concept worth preserving and presenting, not a
+claim of competitive balance, FAF ranking eligibility or general map quality.
+It does not mean the separate all-in experiment succeeded.</p>
+<h2 id="frozen-presentation-artifact">Frozen Presentation Artifact</h2>
+<ul>
+<li>10 x 10 km, two players, intended 1v1; terrain seed 303, requested water 20%.</li>
+<li>32 mex markers, two hydro markers, 2,694 trees and 644 natural rocks.</li>
+<li>Learned terrain/water, learned resource-marker heatmaps and learned natural
+reclaim allocation. Supplied starts and deterministic symmetry, finishing,
+decoding and prop composition. Inherited stock materials, not learned textures.</li>
+<li>No later wreck pilot or civilian generator is included.</li>
+<li>No terrain/resource snapping or flattening was re-enabled for this milestone.</li>
+</ul>
+<p><a href="model-atlas/milestones/first-playable-map.json">Frozen receipt</a> identifies the
+exact map, original export and game-file SHA-256 values. The existing source and
+installed game files were verified identical; no map regeneration was performed.
+The successful direct-map launch log is
+<code>data/exports/launch_logs/mapgen_sym_heatmap_medium_scenario_20261025_173817_933_utc.log</code>.
+The log confirms loading; the player&#39;s assessment establishes the playability
+judgment. Neither is an independent balance or full-engine validation study.</p>
+<h2 id="launch-without-codex">Launch Without Codex</h2>
+<p>The desktop shortcut <strong>MapGen - First Playable Demo</strong> runs
+<code>scripts/Launch-PlayableDemo.ps1</code>. It verifies the five installed game files
+against the frozen receipt, then uses the existing direct-map launcher. No FAF
+lobby, Python, model inference or training is needed. It refuses to interrupt an
+already running game and displays an error if files are missing or changed.
+FAF-patched game files and the installed game are still required.</p>
+<p>PowerShell alternative:</p>
+<pre><code class="language-powershell">.\scripts\Launch-PlayableDemo.ps1
+</code></pre>
+<p>For a relocated installation, provide <code>-MapsRoot</code> and <code>-GameExe</code>. These must refer
+to paths mounted by that game installation. <code>-CheckOnly</code> verifies without launch.</p>
+<h2 id="community-export">Community Export</h2>
+<p>Archive: <code>data/exports/presentation/MapGen-First-Playable-v0001.zip</code> (988,095 bytes).
+SHA-256: <code>aa13531f3b036fe0ddf5e2a62677b53a79844f49ea8f62e5b616a9ea051bd029</code>.</p>
+<p>The ZIP contains one correctly named map folder with the five byte-identical
+game files plus a <a href="presentation/README.txt">presentation README</a>. Training arrays,
+composition JSON with local provenance, checkpoints and private paths are excluded.
+No executable or separate game-asset library is included. The map references
+installed game assets; it is not a standalone game or seed-only generator.</p>
+<p>Recipients extract the whole folder into their FAF/game configured custom-maps
+directory, refresh the map list, and select <strong>MapGen Heatmap Medium 303</strong>.
+This export is ready to share manually; no FAF vault upload or ranking approval
+has been performed. Preserve the folder name and v0001 artifact unchanged.</p>
+<p><code>scripts/Export-PlayableDemo.ps1</code> rebuilds the package with frozen ZIP timestamps,
+verifies source hashes and reads back every packed game file. It refuses to
+overwrite an existing archive; use <code>-OutputDirectory</code> for a verification rebuild.</p>
+<h2 id="next-work">Next Work</h2>
+<p>Preserve this demonstration while research and training-data improvements
+continue. Resource placement, gameplay conditioning, access/buildability,
+representation and extraction uncertainty remain open. No new training is
+scheduled or started by this milestone. The wreck runtime and texture painter
+remain separately unverified/untrained as recorded in the atlas.</p>
+<script src="model-atlas/public-links.js" data-public-links></script></body></html>

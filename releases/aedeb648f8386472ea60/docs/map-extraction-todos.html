@@ -1,0 +1,103 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>map-extraction-todos.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="maps-extraction-work-queue-atlas-review">Maps extraction work queue — atlas review</h1>
+<p>Open tasks from the 25 October 2026 project-atlas reviews. The current atlas
+shows existing saved scientific outputs; it does not repair these data issues.
+This is a handoff document for future maps extraction/analysis work, not a
+scheduled job or a claim that another agent has started it.</p>
+<h2 id="extract-01-dualgap-air-slot-pair">EXTRACT-01 DualGap air slot pair</h2>
+<p><strong>Open — user-visible incorrect scenario.</strong> Exact map: DualGap Adaptive by
+Robustness, <code>8070_26498</code>, <code>dualgap_adaptive.v0014</code> (2 July 2023).</p>
+<p>The user reports that the source render is correct but the factual air-mask
+render is wrong because the second player is positioned incorrectly. Inspection
+confirms a mismatch between saved analysis families:</p>
+<table>
+<thead>
+<tr>
+<th>Evidence</th>
+<th>Slot 1 world x,z</th>
+<th>Opposing slot and world x,z</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Extracted markers</td>
+<td>112.5, 390.5</td>
+<td>ARMY_2: 911.4999, 390.5</td>
+</tr>
+<tr>
+<td>Historical air scenario</td>
+<td>112.5, 390.5</td>
+<td>ARMY_12: 909.5, 639.5</td>
+</tr>
+<tr>
+<td>Newer frontier scenario</td>
+<td>112.5, 390.5</td>
+<td>ARMY_2: approximately 911.5, 390.5</td>
+</tr>
+</tbody></table>
+<p>Source evidence:</p>
+<ul>
+<li><a href="../data/processed/project_atlas_v1/8070_26498/markers.json">Extracted slots</a></li>
+<li><a href="../data/processed/strategy_collection_1v1/8070_26498/opportunities.json">Historical air analysis</a></li>
+<li><a href="../data/processed/strategy_collection_1v1/8070_26498/automatic_layers.npz">Historical per-side masks</a></li>
+<li><a href="../data/processed/frontier_map_comparison/8070_26498/result.json">Newer frontier inputs and paths</a></li>
+</ul>
+<p>TODO: trace slot selection, coordinate orientation and scenario identity through
+extraction, historical analysis and rendering. Use the intended ARMY_1 vs ARMY_2
+scenario consistently. Check expansion drops, offensive drops and raids, and
+regenerate the affected scientific outputs under an explicit new release when
+that work is undertaken. Validate positions against the source map. Never move
+an old mask or rename ARMY_12 to ARMY_2 to conceal the mismatch. Preserve the
+old receipt as history and document whether the root cause is selection,
+coordinate handling, rendering, or several of these.</p>
+<p>The atlas currently shows both actual archived masks with an explicit warning:
+orange is <strong>slot 12</strong>, not the requested slot 2. That is disclosure, not a fix.</p>
+<h2 id="extract-02-battle-path-movement-layers">EXTRACT-02 Battle-path movement layers</h2>
+<p><strong>Open.</strong> Atlas battle paths currently cover <strong>land only</strong>. The display now
+uses both saved K3 approaches: blue slot 1, orange slot 2; separate rotational
+frontier contacts are not joined. FAF Beetles uses an explicitly labeled older
+whole-map route fallback, colored by endpoint side.</p>
+<p>TODO: add hover and navy battle-path evidence for the five exact atlas versions.
+Historical hover routes already exist in <code>strategy_collection_1v1/&lt;key&gt;/routes.json</code>;
+they are not automatically the same model as newer K3 frontier paths. Define and
+record the movement profile, routing method, spawn pair and settings. Locate
+usable navy results or record/implement the missing stage; do not substitute
+amphibious routes for navy. Keep land/hover/navy individually selectable and
+label disconnected or unavailable cases. Newer frontier output for FAF Beetles
+<code>10838_21065</code> is still missing from the checked comparison.</p>
+<h2 id="extract-03-main-base-rear-forward-zoning">EXTRACT-03 Main-base rear forward zoning</h2>
+<p><strong>Open — user reports visible errors.</strong> Existing saved zoning is now drawn with
+adjustable fill opacity (default 100%), but the extraction/definition has not been corrected.</p>
+<p>TODO: review near-base/rear/forward definitions, source slots, reachable movement
+space, boundaries, target assignments and the relationship of dense zone masks
+to actual resource records. Inspect the user-visible inconsistencies before
+choosing a correction; do not tune per-map thresholds merely to match an image.
+Verify each new release against the saved source and selected scenario.</p>
+<p>Existing exact-version v1.2.1 results: Canis <code>4617_6826</code>, Tabula <code>9675_18616</code>,
+DualGap <code>8070_26498</code>, under
+<code>data/processed/strategy_annotation_batch/v1.2.1/f1ae04e925f139a8/jobs/&lt;key&gt;/whole_economy/</code>.</p>
+<p>TODO: missing exact-version whole-economy outputs for Setons FAF <code>8553_17709</code>
+and FAF Beetles <code>10838_21065</code>. Stock <code>433_560</code> and <code>4822_7169</code> are different
+versions and must not be substituted.</p>
+<h2 id="extract-04-contestability-and-resource-zones">EXTRACT-04 Contestability and resource zones</h2>
+<p><strong>Open — definition and implementation need work.</strong> Explain why the current
+contestable-region view differs from main-base/rear/forward resource zoning.
+The current fields come from different analyses: historical air/opportunity
+territory classifications versus newer whole-economy location/access roles.</p>
+<p>TODO: establish a coherent vocabulary and explicit relationships between location
+(main-base/rear/forward), accessibility, opponent response, neutral ownership and
+contestability. Decide whether contestability is a separate axis or a derived
+zone class; record its units, assumptions and inference-time meaning. Update
+implementation and compare the same map version and spawn pair. Do not label all
+forward resources contested or all rear resources safe without a definition.
+Keep current masks marked provisional until reviewed.</p>
+<h2 id="accepted-and-presentation-rules">Accepted and presentation rules</h2>
+<ul>
+<li>Walk access and access structure are accepted by the user. Preserve their
+scientific meaning; the global mask slider changes display alpha only.</li>
+<li>Global sidebar sliders range 0–100: background brightness defaults to 10 and
+mask opacity to 100. This supersedes the earlier fixed 50% fill rule. Layer PNGs
+have full base opacity; source tensor values and classifications stay unchanged.</li>
+<li>Official vault context stays separate from tensor data; its brightness is independently adjustable (default 10%).</li>
+<li>Each side-specific field must name its source slot. Normally blue is SLOT 1
+and orange SLOT 2. Different or incorrect archived pairs must be explicit.</li>
+</ul>
+<script src="model-atlas/public-links.js" data-public-links></script></body></html>

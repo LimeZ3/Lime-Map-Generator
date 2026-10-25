@@ -1,0 +1,620 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>extract_layers_v2.py | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="../docs/model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1>extract_layers_v2.py</h1><p class="meta">Saved public evidence snapshot: src/supmapai/tools/extract_layers_v2.py</p><pre>&quot;&quot;&quot;Export auditable native map layers and source identities from the download catalog.&quot;&quot;&quot;
+
+import argparse
+import csv
+import hashlib
+import json
+import io
+import re
+import zipfile
+import urllib.request
+import urllib.parse
+from dataclasses import asdict
+from collections import Counter
+from pathlib import Path
+
+import numpy as np
+from PIL import Image, ImageDraw, ImageOps
+
+from supmapai.extract import adaptive_resources, blueprint_values, lua_entities, reclaim_layers, scmap_props, scmap_terrain, script_wrecks, terrain_layers
+
+
+def dump(path, value):
+    path.write_text(json.dumps(value, ensure_ascii=False, indent=2), encoding='utf-8')
+
+
+def source_hash(path):
+    with path.open('rb') as stream:
+        return hashlib.file_digest(stream, 'sha256').hexdigest()
+
+
+def vault_comparison(row, output, fetch_previews):
+    vault = output / 'vault_preview.png'
+    error = None
+    if fetch_previews and not vault.exists():
+        try:
+            url = row['thumbnail_large'] or row['thumbnail_small']
+            parsed = urllib.parse.urlsplit(url)
+            if parsed.scheme != 'https' or parsed.netloc != 'content.faforever.com' or not parsed.path.startswith('/maps/previews/'):
+                raise ValueError('Unexpected vault-preview URL')
+            request = urllib.request.Request(urllib.parse.quote(url, safe=':/%'),
+                                             headers={'User-Agent':'MapGen-Research-Collector/0.1'})
+            with urllib.request.urlopen(request, timeout=30) as response:
+                raw = response.read(20 * 1024**2 + 1)
+            if len(raw) &gt; 20 * 1024**2:
+                raise ValueError('Preview exceeds size limit')
+            import io
+            with Image.open(io.BytesIO(raw)) as picture:
+                picture.convert('RGB').save(vault)
+        except Exception as exc:
+            error = str(exc)
+    canvas = Image.new('RGB', (512 * 4, 552), '#20242a')
+    draw = ImageDraw.Draw(canvas)
+    panels = [('FAF vault', vault), ('Extracted terrain + water', output/'terrain_water.png'),
+              ('Ground / amphibious estimate', output/'pathing.png'), ('Spawns / mexes / hydros', output/'markers.png')]
+    for column, (label, path) in enumerate(panels):
+        draw.text((column * 512 + 10, 10), label, fill='white')
+        if path.exists():
+            with Image.open(path) as picture:
+                tile = ImageOps.contain(picture.convert('RGB'), (512, 512))
+                canvas.paste(tile, (column * 512 + (512-tile.width)//2, 40+(512-tile.height)//2))
+        else:
+            draw.text((column * 512+10, 70), 'Vault preview not cached', fill='#ffca66')
+    canvas.save(output/'comparison.png')
+    return {'source_url':row['thumbnail_large'] or row['thumbnail_small'],
+            'status':'cached' if vault.exists() else 'unavailable', 'error':error}
+
+
+def load_resource_icons(game_data, output):
+    if game_data is None:
+        return {}
+    icons = {}
+    with zipfile.ZipFile(game_data/'textures.scd') as archive:
+        for resource in ['mass','energy']:
+            member = f'textures/ui/common/game/build-ui/icon-{resource}_bmp.dds'
+            with Image.open(io.BytesIO(archive.read(member))) as picture:
+                icons[resource] = picture.convert('RGBA')
+            destination = output/'ui_assets'
+            destination.mkdir(exist_ok=True)
+            icons[resource].save(destination/f'{resource}.png')
+    return icons
+
+
+def prop_metrics(entities):
+    &quot;&quot;&quot;Count ground asset variety, including source identities of unit wrecks.&quot;&quot;&quot;
+    static_props = [entity for entity in entities if entity.get('source_type') == 'prop']
+    unit_wrecks = [entity for entity in entities if entity.get('source_type') == 'unit'
+                  and entity.get('kind') == 'wreckage' and entity.get('active_in_configuration') is not False]
+    props = static_props + unit_wrecks
+    def identity(entity):
+        return (entity.get('blueprint_id') or '').replace('\\', '/').lower().lstrip('/')
+    counts = Counter(identity(entity) for entity in props if identity(entity))
+    result = {'prop_instances':len(props), 'unique_prop_blueprints':len(counts),
+              'prop_instances_without_blueprint':sum(not identity(entity) for entity in props)}
+    result.update(static_prop_instances=len(static_props),
+                  unique_static_prop_blueprints=len({identity(e) for e in static_props if identity(e)}),
+                  wreck_instances=sum(e.get('kind')=='wreckage' for e in props),
+                  unique_wreck_blueprints=len({identity(e) for e in props if e.get('kind')=='wreckage' and identity(e)}))
+    for kind in ['tree','rock','other']:
+        population = [entity for entity in props if entity.get('prop_type','other') == kind]
+        result[kind+'_instances'] = len(population)
+        result['unique_'+kind+'_blueprints'] = len({identity(entity) for entity in population if identity(entity)})
+    return result, counts
+
+
+def entity_views(output, terrain, entities, reclaim, icons, tile_size=4, *, overlays_only=False, png_compression=6):
+    &quot;&quot;&quot;Fixed-scale density colours; stacking adds value before rendering.&quot;&quot;&quot;
+    for resource, colour in [('mass', [199, 255, 143]), ('energy', [255, 225, 70])]:
+        grid = reclaim['known_'+resource+'_per_cell']
+        # Tile sums preserve stacked amounts; tile size affects only previews.
+        padded = np.pad(grid, ((0, (-grid.shape[0]) % tile_size), (0, (-grid.shape[1]) % tile_size)))
+        tiles = padded.reshape(padded.shape[0]//tile_size, tile_size, padded.shape[1]//tile_size, tile_size).sum(axis=(1, 3))
+        density = np.repeat(np.repeat(tiles, tile_size, axis=0), tile_size, axis=1)[:grid.shape[0], :grid.shape[1]]
+        if resource == 'mass':
+            stops = [0, 100, 500, 10000]
+            colours = np.array([[48,62,50], [90,210,80], [255,220,45], [235,50,35]])
+            pixels = np.stack([np.interp(density, stops, colours[:,channel])
+                               for channel in range(3)], axis=-1)
+            pixels[density &gt; 10000] = [110,15,20]
+            # Empty tiles retain the terrain; occupied tiles use the absolute scale.
+            pixels[density == 0] = terrain[density == 0].astype(float)*0.25
+        else:
+            strength = np.clip(np.log1p(density) / np.log1p(10000), 0, 1)[..., None]
+            pixels = terrain.astype(float)*0.25*(1-strength) + np.array(colour)*strength
+        overlay_pixels = pixels.copy()
+        if resource == 'energy':
+            overlay_pixels = np.broadcast_to(np.array(colour), pixels.shape).copy()
+            alpha = (strength[..., 0]*255).astype(np.uint8)
+        else:
+            alpha = np.where(density &gt; 0, 255, 0).astype(np.uint8)
+        Image.fromarray(np.dstack((overlay_pixels.astype(np.uint8), alpha))).save(output/f'overlay_reclaim_{resource}.png', compress_level=png_compression)
+        if overlays_only:
+            continue
+        picture = Image.fromarray(pixels.astype(np.uint8))
+        draw = ImageDraw.Draw(picture)
+        missing = int(reclaim['unresolved_'+resource+'_count'].sum())
+        draw.text((8, 8), f'{resource.upper()}: known baseline {grid.sum():,.0f}; unknown entities {missing}; amount per {tile_size}x{tile_size} tile', fill='white', stroke_width=1, stroke_fill='black')
+        if resource in icons:
+            picture.paste(icons[resource], (8, 28), icons[resource])
+        if resource == 'mass':
+            for column, (label, fill) in enumerate([('0',(48,62,50)),('100',(90,210,80)),
+                    ('500',(255,220,45)),('10,000',(235,50,35)),('&gt;10,000',(110,15,20))]):
+                x = 35+column*90
+                draw.rectangle((x,29,x+16,43),fill=fill,outline='#aaaaaa')
+                draw.text((x+21,30),label,fill='white',stroke_width=1,stroke_fill='black')
+        picture.save(output/f'reclaim_{resource}.png')
+    picture = Image.new('RGBA', (terrain.shape[1], terrain.shape[0]))
+    draw = ImageDraw.Draw(picture)
+    for entity in entities:
+        if entity.get('active_in_configuration') is False:
+            continue
+        x, z = entity['x'], entity['z']
+        kind = entity.get('kind', '')
+        if entity.get('source_type') == 'unit':
+            if kind == 'wreckage':
+                draw.polygon([(x,z-4),(x-4,z+4),(x+4,z+4)], fill='#ffe146')
+            else:
+                colour = '#e69dff' if 'civilian' in kind else '#ffab50'
+                draw.rectangle((x-3, z-3, x+3, z+3), fill=colour)
+        elif entity['value_status'] in {'blueprint_unresolved','wreck_source_unit_unresolved','partial_blueprint_values'}:
+            draw.ellipse((x-2,z-2,x+2,z+2), fill='#ff5050')
+        else:
+            if entity.get('prop_type')=='rock':
+                draw.rectangle((x-1,z-1,x+1,z+1), fill='#bfc7ce')
+            else:
+                draw.point((x,z), fill='#c7ff8f' if entity.get('prop_type')=='tree' else '#56dcdf')
+    picture.save(output/'overlay_props.png', compress_level=png_compression)
+    if overlays_only:
+        return
+    picture = Image.alpha_composite(Image.fromarray((terrain*0.45).astype(np.uint8)).convert('RGBA'), picture).convert('RGB')
+    draw = ImageDraw.Draw(picture)
+    draw.text((8, 8), 'Green: trees | grey: rocks | cyan: other props | yellow: wrecks | red: unresolved', fill='white', stroke_width=1, stroke_fill='black')
+    metrics, _ = prop_metrics(entities)
+    draw.text((8, 27), f&quot;Unique prop blueprints: {metrics['unique_prop_blueprints']} | prop instances: {metrics['prop_instances']:,}&quot;, fill='white', stroke_width=1, stroke_fill='black')
+    picture.save(output/'props_units.png')
+    canvas = Image.new('RGB', (2048, 552), '#20242a')
+    draw = ImageDraw.Draw(canvas)
+    for column, (label, filename) in enumerate([('FAF vault','vault_preview.png'),('Mass density','reclaim_mass.png'),('Energy density','reclaim_energy.png'),('Props / units','props_units.png')]):
+        draw.text((column*512+8, 12), label, fill='white')
+        path = output/filename
+        if path.exists():
+            with Image.open(path) as source:
+                tile = ImageOps.contain(source.convert('RGB'), (512,512))
+                canvas.paste(tile, (column*512,40))
+    canvas.save(output/'entities_comparison.png')
+
+
+def adaptive_view(output, terrain, spawns, adaptive, icons, transparent=False, png_compression=6):
+    picture = Image.new('RGBA', (terrain.shape[1],terrain.shape[0])) if transparent else Image.fromarray(terrain.copy())
+    draw = ImageDraw.Draw(picture)
+    colours = ['#ff7979','#75c7ff','#ffd36b','#c69aff','#6ce2ba','#ff9dd0']
+    by_slot = {spawn['slot']:spawn for spawn in spawns if spawn['slot_valid']}
+    def colour(slot):
+        return colours[(slot-1)%len(colours)]
+    for resource in adaptive['resources']:
+        x,z=resource['x'],resource['z']
+        for slot in resource['owner_slots']:
+            if slot in by_slot:
+                spawn=by_slot[slot]
+                draw.line((spawn['x'],spawn['z'],x,z),fill=colour(slot),width=1)
+        if not resource['active_in_configuration']:
+            draw.line((x-4,z-4,x+4,z+4),fill='#ff4444',width=2)
+            draw.line((x-4,z+4,x+4,z-4),fill='#ff4444',width=2)
+        else:
+            icon=icons.get('mass' if resource['resource_type']=='mass' else 'energy')
+            if icon:
+                picture.paste(icon,(round(x-icon.width/2),round(z-icon.height/2)),icon)
+            else:
+                draw.ellipse((x-3,z-3,x+3,z+3),fill='#c7ff8f')
+            if resource['owner_slots']:
+                draw.ellipse((x-11,z-11,x+11,z+11),outline=colour(resource['owner_slots'][0]),width=2)
+    for slot,spawn in by_slot.items():
+        x,z=spawn['x'],spawn['z']
+        active=slot in adaptive['active_slots']
+        draw.ellipse((x-8,z-8,x+8,z+8),fill=colour(slot) if active else '#444444',outline=colour(slot),width=2)
+        draw.text((x+10,z-8),str(slot),fill='white',stroke_width=1,stroke_fill='black')
+    if transparent:
+        picture.save(output/'overlay_adaptive_slots.png', compress_level=png_compression)
+        return
+    draw.text((8,8),f&quot;Active slots: {adaptive['active_slots']} | resource mode: {adaptive.get('dynamic_spawn_mode','?')}&quot;,fill='white',stroke_width=1,stroke_fill='black')
+    draw.text((8,25),'Coloured links: declared slot resources | red X: inactive',fill='white',stroke_width=1,stroke_fill='black')
+    picture.save(output/'adaptive_slots.png')
+
+
+def select_scmap(files):
+    &quot;&quot;&quot;Resolve bundled backup SCMAPs only through a literal scenario reference.&quot;&quot;&quot;
+    candidates=files['scmap_paths']
+    if len(candidates)==1:
+        return candidates[0]
+    references=set()
+    for scenario in files['scenario_paths']:
+        text=adaptive_resources.clean(scenario.read_text(encoding='utf-8',errors='replace'))
+        references.update(Path(value.replace('\\','/')).name.casefold() for value in
+            re.findall(r'\bmap\s*=\s*[\'\&quot;]([^\'\&quot;]+\.scmap)[\'\&quot;]',text,re.I))
+    matched=[path for path in candidates if path.name.casefold() in references]
+    if len(references)==1 and len(matched)==1:
+        return matched[0]
+    raise ValueError('Expected exactly one scmap file or an unambiguous scenario map reference')
+
+
+def extract(row, root, fetch_previews=False, blueprints=None, icons=None, wreck_profile=None, tile_size=4, player_count=None, active_slots=None, map_options=None, spawn_mex_slots=None, export_data=True, include_settings=False, *, overlays_only=False, png_compression=6, strategy_only=False):
+    if strategy_only:overlays_only=True
+    if not isinstance(tile_size, int) or tile_size &lt; 1:
+        raise ValueError('Reclaim tile size must be a positive integer')
+    ident = f&quot;{row['map_id']}_{row['version_id']}&quot;
+    output = root / ident
+    output.mkdir(parents=True, exist_ok=True)
+    folder = Path(row['local_path'])
+    files = {key: [Path(p) for p in json.loads(row[key])] for key in
+             ['scmap_paths', 'scenario_paths', 'save_paths', 'script_paths']}
+    from supmapai.extract.map_family import select_family
+    original_files = files
+    files, family_selection = select_family(files, row)
+    path = select_scmap(files)
+    save = files['save_paths'][0] if files['save_paths'] else None
+    raw = path.read_bytes()
+    header = scmap_terrain._terrain_header(raw)
+    vertices = np.frombuffer(raw, dtype='&lt;u2', offset=header.height_offset,
+                             count=(header.map_height + 1) * (header.map_width + 1))
+    vertices = vertices.reshape(header.map_height + 1, header.map_width + 1).astype(np.float32) / 128
+    if strategy_only:
+        # The strategy navigation reader uses the stored scale too. Preserve
+        # old preview behavior by default while keeping the new path coherent.
+        vertices *= scmap_terrain._read_f32(raw,header.height_offset-4)*128
+    heights = scmap_terrain._height_vertices_to_cells(vertices)
+    if overlays_only:
+        # Preserve water inference and playable metadata, without component
+        # summaries, repeated gradients or other training/audit statistics.
+        zs, xs, bounds = scmap_terrain._playable_slice(heights.shape, scmap_terrain._area_1_rectangle(save))
+        level, level_source = scmap_terrain._infer_water_level(heights[zs,xs],raw)
+        # decode_scmap exposes the water level rounded to four decimals; keep
+        # that same input to the existing masks for pixel-identical overlays.
+        metrics = {**bounds, 'water_level':round(level,4) if level is not None else '',
+                   'water_level_source':level_source,'warnings':[]}
+    else:
+        metrics = scmap_terrain.decode_scmap(path, save_lua_path=save,
+                                            pathblocking_slope_threshold=terrain_layers.MAX_SLOPE)
+    water_level = float(metrics['water_level']) if metrics['water_level'] != '' else None
+    arrays = terrain_layers.calculate(heights, water_level)
+    water_uncertain = water_level is None or 'uncertain' in metrics['water_level_source']
+    if water_uncertain:
+        arrays['movement_valid_mask'][:] = False
+    # Retain raw full-map grids. Playable bounds are metadata, not a destructive crop.
+    if export_data and not strategy_only:
+        np.savez_compressed(output / 'layers.npz', height_vertices=vertices, **arrays)
+    wet = arrays['water_mask']
+    grey = (40 + 180 * (heights - heights.min()) / max(float(np.ptp(heights)), 1e-6)).astype(np.uint8)
+    image = np.repeat(grey[..., None], 3, axis=2)
+    depth_fraction = np.clip(arrays['water_depth'] / 25, 0, 1)
+    image[wet] = np.stack([np.full_like(grey, 25), 150 - depth_fraction * 75,
+                            230 - depth_fraction * 50], axis=-1)[wet].astype(np.uint8)
+    if not strategy_only:Image.fromarray(image).save(output / 'terrain_water.png', compress_level=png_compression)
+    pathing = np.zeros((*heights.shape, 3), dtype=np.uint8)
+    pathing[arrays['amphibious_passable_mask']] = [40, 130, 210]
+    pathing[arrays['land_passable_mask']] = [70, 160, 80]
+    if not overlays_only:
+        Image.fromarray(pathing).save(output / 'pathing.png')
+    pathing_overlay = pathing.copy()
+    pathing_overlay[~arrays['amphibious_passable_mask']] = [230,65,65]
+    alpha = np.where(arrays['movement_valid_mask'],255,0).astype(np.uint8)
+    if not strategy_only:Image.fromarray(np.dstack((pathing_overlay,alpha))).save(output/'overlay_pathing.png', compress_level=png_compression)
+    underwater_steep = wet &amp; (arrays['slope'] &gt; terrain_layers.MAX_SLOPE)
+    underwater_deep = wet &amp; (arrays['water_depth'] &gt; terrain_layers.AMPHIBIOUS_MAX_DEPTH)
+    underwater_allowed = wet &amp; arrays['amphibious_passable_mask']
+    if not overlays_only:
+        diagnostic = np.full((*heights.shape, 3), 65, dtype=np.uint8)
+        diagnostic[underwater_allowed] = [50, 170, 235]
+        diagnostic[underwater_steep] = [180, 85, 215]
+        diagnostic[underwater_deep] = [230, 65, 65]
+        diagnostic[underwater_steep &amp; underwater_deep] = [255, 155, 40]
+        legend = Image.new('RGB', (max(heights.shape[1], 760), heights.shape[0]+55), '#20242a')
+        legend.paste(Image.fromarray(diagnostic), (0, 55))
+        legend_draw = ImageDraw.Draw(legend)
+        legend_draw.text((8, 6), 'AMPHIBIOUS ESTIMATE: blue=passable | purple=slope&gt;0.75 | red=depth&gt;25', fill='white')
+        legend_draw.text((8, 25), 'orange=both blocked | grey=dry land | static terrain checks, not engine pathfinding', fill='white')
+        legend.save(output / 'underwater_pathing.png')
+    map_record = {'map_dir': row['folder_name']}
+    for source_key, record_key in [('scenario_paths', 'scenario_lua'), ('save_paths', 'save_lua')]:
+        map_record[record_key] = [{'path': str(p)} for p in files[source_key]]
+    parsed = lua_entities.parse_map_entities(map_record, folder, markers_only=overlays_only)
+    scripts = '\n'.join(p.read_text(encoding='utf-8', errors='replace') for p in files['script_paths'])
+    adaptive_evidence = bool(re.search(r'ScenarioInfo\s*\.\s*Options|GetArmyStartPosition', scripts))
+    spawns = []
+    for marker in parsed.get('spawn_positions', []):
+        match = re.fullmatch(r'ARMY_(\d+)', marker['name'], re.I)
+        slot = int(match[1]) if match else None
+        spawns.append({**marker, 'slot': slot, 'slot_valid': slot is not None and 1 &lt;= slot &lt;= 16})
+    adaptive = adaptive_resources.resolve(folder, scripts, spawns, parsed.get('mex_positions',[]),
+        parsed.get('hydro_positions',[]), active_slots, map_options, spawn_mex_slots)
+    for spawn in spawns:
+        connections=[connection for connection in adaptive['resource_connections'] if connection['slot']==spawn['slot']]
+        spawn['active_in_configuration']=spawn['slot'] in adaptive['active_slots']
+        spawn['adaptive_resource_slot']=bool(connections)
+        spawn['connected_resources']=[connection['marker_name'] for connection in connections]
+    dump(output/'adaptive_options.json',adaptive)
+    if not overlays_only:
+        adaptive_view(output,image,spawns,adaptive,icons or {})
+    if not strategy_only:adaptive_view(output,image,spawns,adaptive,icons or {},transparent=True,png_compression=png_compression)
+    resource_columns = ['name','resource_type','x','y','z','owner_slots','option_conditions','adaptive',
+                        'active_in_configuration','activation_status']
+    if not overlays_only:
+        with (output/'adaptive_resources.csv').open('w',encoding='utf-8-sig',newline='') as stream:
+            writer=csv.DictWriter(stream,fieldnames=resource_columns,extrasaction='ignore')
+            writer.writeheader()
+            for resource in adaptive['resources']:
+                writer.writerow({**resource,'owner_slots':json.dumps(resource['owner_slots']),
+                                 'option_conditions':json.dumps(resource['option_conditions'])})
+    dump(output / 'markers.json', {
+        'spawns': spawns, 'mexes': parsed.get('mex_positions', []),
+        'hydros': parsed.get('hydro_positions', []),
+        'adaptive_status': adaptive['status'] if adaptive_evidence else 'not_detected',
+        'adaptive_evidence_is_exhaustive': False,
+        'resource_connections': adaptive['resource_connections'], 'resource_connections_status':adaptive['status'],
+        'resolved_resources':adaptive['resources'],
+        'configuration': {'active_slots':adaptive['active_slots'],'options':adaptive['selected_options']},
+    })
+    marker_image = Image.new('RGBA', (image.shape[1],image.shape[0]))
+    draw = ImageDraw.Draw(marker_image)
+    for markers, colour, radius in [(parsed.get('mex_positions', []), '#c7ff8f', 3),
+                                    (parsed.get('hydro_positions', []), '#ffe146', 5)]:
+        for marker in markers:
+            x, z = marker['x'], marker['z']
+            icon = (icons or {}).get('mass' if radius==3 else 'energy')
+            if icon is not None:
+                marker_image.paste(icon, (round(x-icon.width/2),round(z-icon.height/2)), icon)
+            else:
+                draw.ellipse((x-radius, z-radius, x+radius, z+radius), fill=colour)
+    for spawn in spawns:
+        x, z = spawn['x'], spawn['z']
+        draw.ellipse((x-7, z-7, x+7, z+7), fill='#db3838', outline='white')
+        draw.text((x+9, z-7), str(spawn['slot']) if spawn['slot_valid'] else '?', fill='white')
+    if not strategy_only:marker_image.save(output/'overlay_resources.png', compress_level=png_compression)
+    if not overlays_only:
+        Image.alpha_composite(Image.fromarray(image).convert('RGBA'),marker_image).convert('RGB').save(output / 'markers.png')
+    props_metadata, props = scmap_props.read_scmap_props(path)
+    entities = []
+    for index, prop in enumerate(props):
+        entities.append({**asdict(prop), 'entity_id': f'{ident}:scmap:{index}',
+                         'source': 'scmap', 'source_type': 'prop', 'blueprint_id': prop.path, 'source_unit_id': None,
+                         'mass': None, 'energy': None, 'value_status': 'blueprint_unresolved'})
+    for save_index, save_path in enumerate(files['save_paths']):
+        text = save_path.read_text(encoding='utf-8', errors='replace')
+        for source_type, items in [('unit', lua_entities._parse_units(text)), ('prop', lua_entities._parse_props(text))]:
+            for index, item in enumerate(items):
+                if item.position is None:
+                    raise ValueError(f'Entity has no position: {save_path}: {item.name}')
+                entities.append({**asdict(item), **asdict(item.position),
+                    'entity_id': f'{ident}:save:{save_index}:{source_type}:{index}',
+                    'source': 'save_lua', 'source_type': source_type,
+                    'blueprint_id': item.blueprint})
+    blueprints = blueprint_values.map_index(blueprints or {},folder,
+        [entity.get('blueprint_id') or '' for entity in entities])
+    entities = [blueprint_values.resolve(entity, blueprints) for entity in entities]
+    excluded_entrypoints = {p for key in ('scenario_paths','save_paths','script_paths')
+                            for p in original_files[key] if p not in files[key]}
+    map_lua_paths = sorted(p for p in folder.rglob('*.lua') if p not in excluded_entrypoints)
+    configured_players = player_count if player_count is not None else len(adaptive['active_slots'])
+    if active_slots is not None and player_count is not None and len(set(active_slots)) != player_count:
+        raise ValueError('Player count must match active slots')
+    wreck_script_evidence = script_wrecks.resolve_player_count_wrecks(entities, map_lua_paths, configured_players)
+    wreck_script_evidence += script_wrecks.resolve_diversity_groups(entities, map_lua_paths, adaptive['selected_options'])
+    if any(proof['method']=='audited_diversity_v0002_optional_groups' for proof in wreck_script_evidence):
+        for key in ['optional_reclaim','optional_civilian_base','optional_civilian_shields']:
+            adaptive['option_effect_status'][key]='resolved_audited_optional_entity_group'
+        dump(output/'adaptive_options.json',adaptive)
+    if include_settings:
+        settings = adaptive_resources.settings_report(folder,scripts,spawns,parsed.get('mex_positions',[]),
+            parsed.get('hydro_positions',[]),adaptive)
+        dump(output/'adaptive_settings.json',settings)
+        lines=['# Map settings', '', f&quot;Active slots: {adaptive['active_slots']}&quot;, '',
+               'Each alternative changes one option while keeping all other settings fixed. Counts are initial deposits; runtime growth is not simulated.',
+               'Descriptions below come from the map author. Calculated counts follow the inspected script.', '']
+        for setting in settings['settings']:
+            lines += [f&quot;## {setting['label']} (`{setting['key']}`)&quot;,'',setting['author_help'],'',
+                      f&quot;Effect support: `{setting['effect_status']}`&quot;,'',
+                      '| Choice | Key | Default / selected | Initial mexes | Initial hydros |',
+                      '|---|---:|---|---:|---:|']
+            for choice in setting['choices']:
+                counts=choice['initial_resource_counts'] or {}
+                flags=', '.join(flag for flag,enabled in [('default',choice['is_default']),('selected',choice['is_selected'])] if enabled)
+                label=choice['label'].replace('|','\\|').replace('\n',' ')
+                lines.append(f&quot;| {label} | {choice['key']:g} | {flags} | {counts.get('mass','unknown')} | {counts.get('hydro','unknown')} |&quot;)
+            lines += ['']
+            for choice in setting['choices']:
+                if choice['help']:
+                    lines += [f&quot;- **{choice['label']}**: {choice['help']}&quot;]
+            lines += ['']
+        (output/'adaptive_settings.md').write_text('\n'.join(lines),encoding='utf-8')
+    if not water_uncertain:
+        blueprint_values.assign_wreck_values(entities, blueprints or {}, wet, wreck_profile)
+    natural_multiplier = adaptive['selected_options'].get('naturalReclaimModifier',1)
+    for entity in entities:
+        if entity.get('source_type')=='prop' and entity.get('kind')!='wreckage':
+            entity['natural_reclaim_modifier']=natural_multiplier
+            entity['adaptive_dependencies']={'naturalReclaimModifier':natural_multiplier,
+                'scope':'global_option_not_slot_owned'}
+            if entity.get('prop_type')=='tree':
+                entity['adaptive_dependencies']['TreeRegrowSpeed']=adaptive['selected_options'].get('TreeRegrowSpeed',1)
+                entity['adaptive_dependencies']['runtime_regrowth']='not_simulated'
+            for resource in ['mass','energy']:
+                entity['blueprint_baseline_'+resource]=entity.get(resource)
+                if entity.get(resource) is not None:
+                    entity[resource] *= natural_multiplier
+        if entity.get('wreck_conversion') and 'adaptive_dependencies' not in entity:
+            entity['adaptive_dependencies']={'active_player_count':configured_players,
+                                            'selected_group':entity['wreck_conversion']['selected_group']}
+    if export_data:
+        if strategy_only:
+            import gzip
+            (output/'entities.json.gz').write_bytes(gzip.compress(json.dumps(entities,separators=(',',':')).encode('utf-8'),compresslevel=3,mtime=0))
+        else:dump(output / 'entities.json', entities)
+    map_metrics, prop_counts = prop_metrics(entities)
+    map_metrics = {'map_id':row['map_id'], 'version_id':row['version_id'],
+                   'display_name':row['display_name'], 'folder_name':row['folder_name'],
+                   'reclaim_render_tile_size':tile_size, **map_metrics}
+    map_metrics.update(adaptive_resource_status=adaptive['status'],
+        slot_bound_resource_markers=sum(bool(resource['owner_slots']) for resource in adaptive['resources']),
+        active_mex_markers=sum(resource['resource_type']=='mass' and resource['active_in_configuration'] for resource in adaptive['resources']) if adaptive['resources'] else None,
+        active_hydro_markers=sum(resource['resource_type']=='hydro' and resource['active_in_configuration'] for resource in adaptive['resources']) if adaptive['resources'] else None)
+    if not overlays_only:
+        with (output/'map_metrics.csv').open('w',encoding='utf-8-sig',newline='') as stream:
+            writer = csv.DictWriter(stream,fieldnames=list(map_metrics))
+            writer.writeheader()
+            writer.writerow(map_metrics)
+        with (output/'prop_blueprint_counts.csv').open('w',encoding='utf-8-sig',newline='') as stream:
+            writer = csv.writer(stream)
+            writer.writerow(['blueprint_id','instance_count'])
+            writer.writerows(sorted(prop_counts.items()))
+    columns = ['entity_id','source','source_type','blueprint_id','kind','army','name','x','y','z',
+               'mass','energy','value_status','source_unit_id','potential_wreck_mass','potential_wreck_energy',
+               'group_path','blueprint_sources','orientation','rotation','appearance',
+               'value_formula','wreck_layer_estimate','wreck_value_assumptions']
+    columns += ['prop_type','prop_type_source','is_tree_group','reclaim_field_status']
+    columns += ['active_in_configuration','activation_status','wreck_conversion']
+    columns += ['natural_reclaim_modifier','blueprint_baseline_mass','blueprint_baseline_energy','adaptive_dependencies']
+    if export_data and not strategy_only:
+        with (output/'entities.csv').open('w', encoding='utf-8-sig', newline='') as stream:
+            writer = csv.DictWriter(stream, fieldnames=columns, extrasaction='ignore')
+            writer.writeheader()
+            for entity in entities:
+                writer.writerow({**entity, **{key:json.dumps(entity.get(key)) for key in
+                    ['group_path','blueprint_sources','orientation','rotation','appearance','wreck_value_assumptions','reclaim_field_status','wreck_conversion','adaptive_dependencies']}})
+    reclaim = reclaim_layers.rasterize([e for e in entities if e.get('active_in_configuration') is not False
+                                       and (e['source_type']=='prop' or e.get('kind')=='wreckage')], heights.shape)
+    if export_data:
+        np.savez_compressed(output / 'reclaim.npz', **reclaim)
+    known = water_level is not None
+    record = {
+        'schema_version': 2, 'extraction_version': '2.6.0',
+        'prop_variety_scope':'static_props_plus_active_unit_wrecks_using_source_unit_blueprint',
+        'map_metrics':map_metrics,
+        'map_id': row['map_id'], 'version_id': row['version_id'],
+        'selected_scmap':path.name,
+        'family_selection':family_selection,
+        'folder_name': row['folder_name'], 'source_files': {
+            str(p): source_hash(p) for paths in files.values() for p in paths},
+        'coordinate_system': 'world x,z; grid array[z,x]; height vertices separate from cells',
+        'cell_size': [1, 1], 'water_level': water_level, 'water_level_source': metrics['water_level_source'],
+        'max_slope': 0.75, 'amphibious_max_depth': 25,
+        'playable_bounds': [metrics[k] for k in ['playable_x0','playable_z0','playable_x1','playable_z1']],
+        'pathing_method': 'static_gradient_and_depth_estimate_not_engine_verified',
+        'validation': {'terrain': 'decoded', 'water': 'estimated' if water_uncertain and known else
+                       ('decoded' if known else 'unresolved'),
+                       'reclaim_values': 'static_blueprint_baseline_not_runtime_verified', 'adaptive_resources': adaptive['status'],
+                       'entities': len(entities),
+                       'placed_units': sum(e['source_type']=='unit' for e in entities),
+                       'value_status_counts': {status:sum(e['value_status']==status for e in entities) for status in sorted({e['value_status'] for e in entities})},
+                       'known_prop_mass': float(reclaim['known_mass_per_cell'].sum()),
+                       'known_prop_energy': float(reclaim['known_energy_per_cell'].sum()),
+                       'reclaim_unresolved_in_bounds': int(reclaim['unresolved_value_count'].sum()),
+                       'reclaim_outside_grid': reclaim['entities_outside_grid'],
+                       'warnings': metrics['warnings'], 'props_warnings': props_metadata['warnings']},
+        'outputs': {name: str((output / name).resolve()) for name in
+                    ['layers.npz','terrain_water.png','pathing.png','markers.json','markers.png',
+                     'entities.json','reclaim.npz','underwater_pathing.png']},
+    }
+    if not overlays_only:
+        record['vault_preview'] = vault_comparison(row, output, fetch_previews)
+    used_ids={(entity.get('blueprint_id') or '').replace('\\','/').lower().lstrip('/') for entity in entities}
+    record['map_blueprint_sources']={key:bp['sources'] for key,bp in blueprints.items()
+        if key in used_ids and any('file' in source for source in bp.get('sources',[]))}
+    if not strategy_only:entity_views(output, image, entities, reclaim, icons or {}, tile_size, overlays_only=overlays_only, png_compression=png_compression)
+    record['wreck_value_profile'] = wreck_profile
+    record['adaptive_configuration']={'active_slots':adaptive['active_slots'],
+        'spawn_mex_slots':adaptive['spawn_mex_slots'],'options':adaptive['selected_options'],
+        'resource_status':adaptive['status'],'runtime_generated_resources':'not_enumerated'}
+    record['script_wreck_resolution'] = {'player_count':configured_players,
+        'player_count_source':'explicit' if player_count is not None else 'explicit_active_slots' if active_slots is not None else 'all_static_spawn_slots_assumed',
+        'evidence':wreck_script_evidence, 'other_script_rules_status':'unresolved'}
+    record['auxiliary_lua_sources'] = {str(path):source_hash(path) for path in map_lua_paths}
+    record['reclaim_mass_render'] = {'aggregation':f'sum per {tile_size}x{tile_size} world-unit tile',
+        'interpolation':'linear between stops', 'stops':[0,100,500,10000],
+        'colours':['#303e32','#5ad250','#ffdc2d','#eb3223'], 'above_10000':'#6e0f14',
+        'zero_tiles':'dimmed terrain background'}
+    record['reclaim_semantics'] = 'Props plus calculable WRECKAGE groups, using recorded blueprint/rule snapshot. Empty/missing prop amounts default to zero; unparsed expressions, absent blueprints and unknown wreck layers stay unknown. Live units excluded; scripts/hooks not evaluated.'
+    for name in ['entities.csv','map_metrics.csv','prop_blueprint_counts.csv','reclaim_mass.png','reclaim_energy.png','props_units.png','entities_comparison.png','adaptive_slots.png','adaptive_options.json','adaptive_resources.csv','adaptive_settings.json','adaptive_settings.md']:
+        record['outputs'][name] = str((output/name).resolve())
+    record['water_percent'] = round(float(wet.mean()) * 100, 4)
+    record['underwater_checks'] = {
+        'water_cells': int(wet.sum()), 'passable_cells': int(underwater_allowed.sum()),
+        'blocked_slope_cells': int(underwater_steep.sum()),
+        'blocked_depth_cells': int(underwater_deep.sum()),
+        'blocked_both_cells': int((underwater_steep &amp; underwater_deep).sum()),
+        'max_depth': float(arrays['water_depth'].max()),
+        'valid': not water_uncertain,
+    }
+    record['outputs']['comparison.png'] = str((output/'comparison.png').resolve())
+    if strategy_only:
+        record['outputs']['entities.json.gz']=str((output/'entities.json.gz').resolve())
+        record['strategy_only']=True
+    record['outputs'] = {key:value for key,value in record['outputs'].items() if Path(value).exists()}
+    dump(output / 'record.json', record)
+    return record
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--catalog', type=Path, required=True)
+    parser.add_argument('--output', type=Path, required=True)
+    parser.add_argument('--limit', type=int, default=5)
+    parser.add_argument('--include-settings', action='store_true', help='Future-work option catalog and alternative counts')
+    parser.add_argument('--map-id', action='append', help='Select explicit vault map IDs')
+    parser.add_argument('--reclaim-tile-size',type=int,default=4,
+                        help='World units per mass/energy preview tile (default: 4)')
+    parser.add_argument('--player-count',type=int,help='Active player count for supported adaptive wreck groups')
+    parser.add_argument('--active-slot',type=int,action='append',help='Active spawn slot (repeat); default all static slots')
+    parser.add_argument('--spawn-mex-slot',type=int,action='append',help='Keep resources of a closed slot (SpawnMex override)')
+    parser.add_argument('--map-option',action='append',default=[],help='Numeric adaptive option key=value (repeat)')
+    parser.add_argument('--game-data', type=Path, help='Installed game gamedata directory for blueprint values')
+    parser.add_argument('--faf-archive', type=Path, help='Optional local FAF blueprint overrides; records provenance')
+    parser.add_argument('--faf-source-archive', type=Path, help='Pinned FAF source ZIP: current unit overrides and wreck rules')
+    parser.add_argument('--fetch-vault-previews', action='store_true',
+                        help='Cache official vault previews and create comparison panels')
+    args = parser.parse_args()
+    if args.reclaim_tile_size &lt; 1:
+        parser.error('--reclaim-tile-size must be positive')
+    if args.player_count is not None and not 1 &lt;= args.player_count &lt;= 16:
+        parser.error('--player-count must be between 1 and 16')
+    map_options={}
+    for option in args.map_option:
+        try:
+            key,value=option.split('=',1)
+            map_options[key]=float(value)
+            if not np.isfinite(map_options[key]):
+                raise ValueError('Nonfinite option')
+        except ValueError:
+            parser.error('--map-option requires key=numeric_value')
+    args.output.mkdir(parents=True, exist_ok=True)
+    blueprints = blueprint_values.build_index(args.game_data, args.faf_archive, args.faf_source_archive) if args.game_data else {}
+    dump(args.output/'blueprint_index.json', blueprints)
+    icons = load_resource_icons(args.game_data, args.output)
+    wreck_profile = blueprint_values.wreck_profile(args.faf_source_archive or args.faf_archive)
+    dump(args.output/'wreck_value_profile.json', wreck_profile)
+    with args.catalog.open(encoding='utf-8-sig', newline='') as stream:
+        rows = [r for r in csv.DictReader(stream) if r['download_status'] in {'downloaded','existing_local'}]
+    if args.map_id:
+        rows = [r for r in rows if r['map_id'] in set(args.map_id)]
+    results = []
+    for row in rows[:args.limit]:
+        try:
+            result = extract(row, args.output, args.fetch_vault_previews, blueprints, icons, wreck_profile, args.reclaim_tile_size, args.player_count, args.active_slot, map_options, args.spawn_mex_slot, include_settings=args.include_settings)
+            results.append({'map_id':row['map_id'],'status':'extracted','record':result['outputs']})
+        except Exception as error:
+            results.append({'map_id':row['map_id'],'status':'failed','error':str(error)})
+        print(json.dumps(results[-1]), flush=True)
+    dump(args.output / 'extraction_report.json', results)
+    metric_rows = []
+    for path in sorted(args.output.glob('*/record.json')):
+        record = json.loads(path.read_text(encoding='utf-8'))
+        if 'map_metrics' in record:
+            metric_rows.append(record['map_metrics'])
+    if metric_rows:
+        with (args.output/'map_metrics.csv').open('w',encoding='utf-8-sig',newline='') as stream:
+            writer = csv.DictWriter(stream,fieldnames=list(metric_rows[0]))
+            writer.writeheader()
+            writer.writerows(metric_rows)
+
+
+if __name__ == '__main__':
+    main()
+</pre><script src="../docs/model-atlas/public-links.js" data-public-links></script></body></html>

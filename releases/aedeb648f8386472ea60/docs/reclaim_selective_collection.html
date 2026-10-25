@@ -1,0 +1,115 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>reclaim_selective_collection.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="selective-reclaim-collection-effort-curves">Selective reclaim collection effort curves</h1>
+<p>The viewer at <code>data/processed/reclaim_collection_comparison/index.html</code> now
+shows per-contact collection curves for all 11 existing pilot maps, six delay
+profiles and contact budgets 1–8. This is an additional diagnostic. Existing
+route geometry, ownership, objective scores and physical mass are unchanged.</p>
+<p>For an entity containing mass <code>m</code>, reference processing rate <code>r=25 mass/s</code>
+and per-entity acquisition delay <code>d</code>, the collection effort score is
+<code>q = m / (m/r + d)</code> in mass per engineer-second. Order targets by decreasing
+<code>q</code>. The vertical axis is the score of the next target, while the horizontal
+axis can show cumulative mass or cumulative handling work. Equal-mass entities
+are grouped for display only after their individual overhead is counted.</p>
+<p>Each segment amortizes acquisition work across its target&#39;s mass. It is not
+instantaneous output during engine animations, nor an optimal finite-budget
+collection schedule. A single entity must still be acquired and reclaimed.
+Engineer travel and actual acquisition timings remain unmeasured. Sorting by
+this rate disregards spatial visit order, so these curves describe a best-first
+handling-only opportunity rather than a feasible route between all objects.</p>
+<p>The movable rate probe counts all attributed targets meeting <code>q &gt;= threshold</code>,
+and reports their mass and handling work. The initial 12.5 mass/engineer-s value
+is an explicit 50%-of-reference diagnostic probe, not a recommended boundary
+between good and bad stock. There is no automatic cutoff. Dots mark the largest
+absolute rate decline between adjacent target groups; a details table separately
+shows the first decline. Neither is automatically a meaningful gameplay knee.
+The end of a curve is exhaustion of stock, not an artificial zero-rate target.
+At zero acquisition delay every target has rate 25 and no rate decline exists.</p>
+<p>Existing projected own-half entity scope and saved contact territory membership
+are reused. Tied ownership divides both entity mass and handling work equally;
+such fractional curves are attributed opportunity, not executable partial-object
+jobs. Base-preferred and whole-own-pool curves are exported separately; the
+viewer plots only contacts. Unknown mass remains excluded, with prior warnings
+retained. Adding low-return objects to a fixed pool does not lower the mass of
+its existing high-return targets.</p>
+<h2 id="adaptive-tabula-rasa-v7-example">Adaptive Tabula Rasa v7 example</h2>
+<p>Default 1v1, ARMY_1 versus ARMY_2, four contacts, 0.5-second delay probe:</p>
+<table>
+<thead>
+<tr>
+<th>Contact</th>
+<th align="right">Total mass</th>
+<th align="right">Full-clear mass/engineer-s</th>
+<th align="right">Mass at or above 12.5</th>
+<th align="right">Work for that mass</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>F1</td>
+<td align="right">6854.7</td>
+<td align="right">4.41</td>
+<td align="right">3375.4</td>
+<td align="right">143.0</td>
+</tr>
+<tr>
+<td>F2</td>
+<td align="right">2288.7</td>
+<td align="right">2.57</td>
+<td align="right">0.0</td>
+<td align="right">0.0</td>
+</tr>
+<tr>
+<td>F3</td>
+<td align="right">5873.6</td>
+<td align="right">19.10</td>
+<td align="right">5659.2</td>
+<td align="right">245.4</td>
+</tr>
+<tr>
+<td>F4</td>
+<td align="right">6269.2</td>
+<td align="right">2.87</td>
+<td align="right">2026.1</td>
+<td align="right">92.0</td>
+</tr>
+</tbody></table>
+<p>F1 retains a substantial high-return core despite its weak full-clear average.
+Its first decline occurs after 1814.4 mass / 75.6 engineer-s, from 24.01 to
+23.75 mass/engineer-s. Its largest decline is later: after 3375.4 mass /
+143.0 engineer-s, from 22.55 to 12.24. This distinction is why no single drop
+boundary is automatically labelled the correct cutoff. F3&#39;s largest decline
+occurs after 5659.2 mass, from 19.60 to 12.24. These are uncalibrated scenarios;
+Tabula&#39;s ten unresolved wreck values remain outside known totals.</p>
+<h2 id="reproduction-and-validation">Reproduction and validation</h2>
+<p>Use the existing runtime with <code>PYTHONPATH=src</code>:</p>
+<pre><code>.venv-codex/Scripts/python.exe -m supmapai.tools.build_reclaim_effort_curves
+.venv-codex/Scripts/python.exe -m supmapai.tools.audit_reclaim_effort_curves
+.venv-codex/Scripts/python.exe -m supmapai.tools.compare_reclaim_collection --report
+</code></pre>
+<p>The builder does not rerun extraction or contact searches. Each map exports
+<code>effort_curves.json</code> and <code>effort_curve_segments.csv</code>, including full boundaries,
+fractional entity counts, first/largest declines and source/territory hashes.
+Across 528 saved configurations the exports contain 3432 curves and 26132
+segments. Independent audit verifies source hashes, route/base/all-pool
+mass/count/work parity, fractional conservation, per-entity equations, monotonic
+rates, continuity, decline boundaries and CSV/JSON parity. All 163 targeted
+tests pass, including eight selective-curve tests. Browser QA covers all maps,
+all six profiles, contact budgets, both axes, rate controls and first-decline
+details. No model thresholds, hosted deployments or collection reruns changed.</p>
+<h2 id="comparing-nonzero-overhead-assumptions">Comparing nonzero overhead assumptions</h2>
+<p>The default viewer now compares0.5/1/2s, with the already-computed zero-delay
+case retained only in optional controls/all profiles. No new zero-delay contact
+search was run for this UI change. It remains a numerical validation baseline.
+For a fixed entity pool all positive delays order targets identically, because
+q_d=25m/(m+25d) is strictly increasing with mass. Every entity-group boundary
+therefore occurs at the same cumulative mass, though handling-work coordinates
+change. However, rate changes are nonlinear: q_2=q_0.5/(4-3q_0.5/25). Small
+objects lose proportionally more rate than large ones. Absolute thresholds and
+the largest absolute rate decline need not select the same stock.</p>
+<p>Tabula K4 has exactly identical entity masses and ownership shares in both
+profiles. F1&#39;s largest drop stays after3375.36 mass; F3&#39;s stays after5659.2.
+F4&#39;s largest-drop boundary moves2026.08-&gt;1209.6. At the same12.5 mass/engineer-s
+probe, F3 qualifying mass falls5659.2-&gt;4752.0, and F4 falls2026.08-&gt;1209.6.
+Thus good-core-versus-tree-tail conclusions are robust here, but exact good-mass
+amounts and largest-drop knees are delay-dependent. The whole library profiles
+also reoptimize contacts and may change ownership, so they are not uniformly
+fixed-pool rate-rescaling comparisons. No delay is physically calibrated yet.</p>
+<script src="model-atlas/public-links.js" data-public-links></script></body></html>
