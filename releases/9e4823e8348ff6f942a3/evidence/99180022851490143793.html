@@ -1,0 +1,190 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>training_receipt.json | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="../docs/model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1>training_receipt.json</h1><p class="meta">Saved public evidence snapshot: data/models/joint_sources_12h_v1/training/training_receipt.json</p><pre>{
+  &quot;config&quot;: {
+    &quot;schema&quot;: &quot;joint_source_diffusion_v1&quot;,
+    &quot;dataset&quot;: &quot;data/tensors/joint_sources_curated_256_v1&quot;,
+    &quot;release_sha256&quot;: &quot;a1abde6646e65c8f4a89f8d066f564eecc64265f9942b7f93040fede71b5f5b4&quot;,
+    &quot;base&quot;: 128,
+    &quot;target_channels&quot;: [
+      &quot;height&quot;,
+      &quot;water_depth&quot;,
+      &quot;start_a&quot;,
+      &quot;start_b&quot;,
+      &quot;mex&quot;,
+      &quot;hydro&quot;,
+      &quot;natural_energy&quot;,
+      &quot;natural_mass&quot;,
+      &quot;wreck_mass&quot;,
+      &quot;civilians&quot;,
+      &quot;red&quot;,
+      &quot;green&quot;,
+      &quot;blue&quot;
+    ],
+    &quot;targets&quot;: 13,
+    &quot;spatial_channels&quot;: 0,
+    &quot;profile_dim&quot;: 12,
+    &quot;ratings&quot;: [
+      &quot;expansion_drop_rating&quot;,
+      &quot;offensive_drop_rating&quot;,
+      &quot;air_raid_rating&quot;,
+      &quot;drop_impact_rating&quot;,
+      &quot;air_mobility_relevance&quot;,
+      &quot;land_attack_relevance&quot;,
+      &quot;naval_attack_relevance&quot;,
+      &quot;mex_supply_rating&quot;,
+      &quot;reclaim_abundance_rating&quot;,
+      &quot;early_economy_rating&quot;,
+      &quot;front_openness_rating&quot;,
+      &quot;army_control_demand_rating&quot;
+    ],
+    &quot;micro_batch&quot;: 6,
+    &quot;effective_batch&quot;: 24,
+    &quot;seed&quot;: 20261025,
+    &quot;parameters&quot;: 73323149,
+    &quot;train_maps&quot;: 782,
+    &quot;validation_maps&quot;: 69,
+    &quot;overfit&quot;: null,
+    &quot;learning_rate&quot;: 0.0002,
+    &quot;code&quot;: {
+      &quot;src/supmapai/ml/joint_diffusion.py&quot;: &quot;49cf5e60cc245c88dc90f29b9ed0b3fc33fc20902fc446cee3d2dfcf3ff72110&quot;,
+      &quot;src/supmapai/ml/multiscale_terrain.py&quot;: &quot;aa7e28f963c8c3d3f00726cc4f2fbadefc451b7556f09bc51f844424c2135a33&quot;,
+      &quot;src/supmapai/tensors/joint_sources.py&quot;: &quot;b0504cb14cc6840d5cb1cd77328dceddd527caf627e4caa19c30ecba9d6e910b&quot;
+    },
+    &quot;test_used&quot;: false,
+    &quot;precision&quot;: &quot;bfloat16 compute; float32 parameters/optimizer; CPU source cache float16&quot;,
+    &quot;objective&quot;: &quot;Equal channel mean of foreground-weighted velocity MSE; no geometry/placement auxiliary losses&quot;,
+    &quot;sampling&quot;: &quot;DDIM 48 steps, CFG 1.5; training-range numerical bounds inside sampler; unbounded final estimate saved&quot;,
+    &quot;schedule&quot;: &quot;500-step LR warmup then constant LR for resumable pilot; no pilot-end decay&quot;
+  },
+  &quot;dataset_audit&quot;: {
+    &quot;status&quot;: &quot;passed&quot;,
+    &quot;maps&quot;: 851,
+    &quot;splits&quot;: {
+      &quot;train&quot;: 782,
+      &quot;validation&quot;: 69
+    },
+    &quot;families&quot;: 851,
+    &quot;shape&quot;: [
+      13,
+      256,
+      256
+    ],
+    &quot;ratings&quot;: [
+      &quot;expansion_drop_rating&quot;,
+      &quot;offensive_drop_rating&quot;,
+      &quot;air_raid_rating&quot;,
+      &quot;drop_impact_rating&quot;,
+      &quot;air_mobility_relevance&quot;,
+      &quot;land_attack_relevance&quot;,
+      &quot;naval_attack_relevance&quot;,
+      &quot;mex_supply_rating&quot;,
+      &quot;reclaim_abundance_rating&quot;,
+      &quot;early_economy_rating&quot;,
+      &quot;front_openness_rating&quot;,
+      &quot;army_control_demand_rating&quot;
+    ],
+    &quot;positive_maps&quot;: {
+      &quot;start_a&quot;: 851,
+      &quot;start_b&quot;: 851,
+      &quot;mex&quot;: 851,
+      &quot;hydro&quot;: 824,
+      &quot;natural_energy&quot;: 752,
+      &quot;natural_mass&quot;: 820,
+      &quot;wreck_mass&quot;: 180,
+      &quot;civilians&quot;: 140
+    },
+    &quot;exclusion_reasons&quot;: {
+      &quot;unknown_wreck_mass&quot;: 100,
+      &quot;incomplete_or_unsupported_rgb&quot;: 188,
+      &quot;incomplete_ratings&quot;: 5,
+      &quot;unknown_natural_energy&quot;: 2,
+      &quot;unknown_natural_mass&quot;: 2
+    },
+    &quot;max_relative_roundtrip_error&quot;: 7.067978913255502e-7,
+    &quot;source_hashes_verified&quot;: true,
+    &quot;test_used&quot;: false,
+    &quot;elapsed_seconds&quot;: 223.26600000000008
+  },
+  &quot;generation_inputs&quot;: {
+    &quot;noise&quot;: [
+      13,
+      256,
+      256
+    ],
+    &quot;timestep&quot;: &quot;scalar&quot;,
+    &quot;ratings&quot;: [
+      12
+    ],
+    &quot;spatial_conditions&quot;: []
+  },
+  &quot;supervised_targets&quot;: [
+    &quot;height&quot;,
+    &quot;water_depth&quot;,
+    &quot;start_a&quot;,
+    &quot;start_b&quot;,
+    &quot;mex&quot;,
+    &quot;hydro&quot;,
+    &quot;natural_energy&quot;,
+    &quot;natural_mass&quot;,
+    &quot;wreck_mass&quot;,
+    &quot;civilians&quot;,
+    &quot;red&quot;,
+    &quot;green&quot;,
+    &quot;blue&quot;
+  ],
+  &quot;source_contract&quot;: {
+    &quot;schema&quot;: &quot;joint_source_layers_v1&quot;,
+    &quot;source_releases&quot;: {
+      &quot;data\\tensors\\terrain_curated_20261024_v1&quot;: &quot;4d3ce44330497fdeb9c860acb461a593db219d4f0eacae572c47e52dfafc7ccd&quot;,
+      &quot;data\\tensors\\reclaim_props_curated_256_v1&quot;: &quot;673726c3aece8ac8c6fd66e63e21dc3d7751d0bb261933cb1fc9b9c91227c70a&quot;,
+      &quot;data\\tensors\\map_textures_curated_256_v2&quot;: &quot;84b4fd5c64ba3c28f8dfc0a69746576468b35958c56be76a3ed982f626f45797&quot;
+    },
+    &quot;builder_sha256&quot;: &quot;e3c580bda48b3d9f90f61f951938da4a2bebb8baa5098919d72e7d203922cc9e&quot;,
+    &quot;channels&quot;: [
+      &quot;height&quot;,
+      &quot;water_depth&quot;,
+      &quot;start_a&quot;,
+      &quot;start_b&quot;,
+      &quot;mex&quot;,
+      &quot;hydro&quot;,
+      &quot;natural_energy&quot;,
+      &quot;natural_mass&quot;,
+      &quot;wreck_mass&quot;,
+      &quot;civilians&quot;,
+      &quot;red&quot;,
+      &quot;green&quot;,
+      &quot;blue&quot;
+    ],
+    &quot;ratings&quot;: [
+      &quot;expansion_drop_rating&quot;,
+      &quot;offensive_drop_rating&quot;,
+      &quot;air_raid_rating&quot;,
+      &quot;drop_impact_rating&quot;,
+      &quot;air_mobility_relevance&quot;,
+      &quot;land_attack_relevance&quot;,
+      &quot;naval_attack_relevance&quot;,
+      &quot;mex_supply_rating&quot;,
+      &quot;reclaim_abundance_rating&quot;,
+      &quot;early_economy_rating&quot;,
+      &quot;front_openness_rating&quot;,
+      &quot;army_control_demand_rating&quot;
+    ],
+    &quot;shape&quot;: [
+      13,
+      256,
+      256
+    ],
+    &quot;spatial_conditions&quot;: 0,
+    &quot;generation_inputs&quot;: &quot;Gaussian noise, diffusion timestep and 12 requested ratings only&quot;,
+    &quot;quantities&quot;: &quot;Absolute values; reversible asinh/log scaling fitted on training maps; no clipping or per-map normalization&quot;,
+    &quot;excluded_layers&quot;: &quot;No SDF, passability, front/access/economy layers, supplied anchors or validity-mask model inputs&quot;,
+    &quot;civilian_definition&quot;: &quot;Source-recorded civilian_unit/building count; runtime activation unresolved&quot;,
+    &quot;natural_definition&quot;: &quot;Source prop kinds tree/rock/boulder/reclaim, all their known energy and mass&quot;,
+    &quot;water_definition&quot;: &quot;Saved physical water depth; no shoreline-distance or added water mask&quot;,
+    &quot;source_rgb&quot;: &quot;Unlit diagnostic albedo RGB, excluding lighting, decals, water rendering and props&quot;,
+    &quot;postprocessing&quot;: &quot;None; no symmetry, placement repair, count caps or gameplay masks&quot;,
+    &quot;test_used&quot;: false
+  },
+  &quot;masks&quot;: &quot;No input, target validity, spatial eligibility, or loss-exclusion masks&quot;,
+  &quot;augmentation&quot;: &quot;Aligned full-stack rotations/reflections and start-channel exchange&quot;,
+  &quot;postprocessing&quot;: &quot;No gameplay repair, symmetry projection, marker decoding, count caps or asset composition&quot;
+}</pre><script src="../docs/model-atlas/public-links.js" data-public-links></script></body></html>

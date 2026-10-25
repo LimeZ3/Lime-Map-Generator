@@ -1,0 +1,90 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>drop_response_strength.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><blockquote>
+<p>Engineer water-unload update (15 October 2026): engineers now use hover movement and can unload onto water. The tables below describe the earlier run; refreshed counts and rules are in <a href="engineer_water_unloads.md">engineer_water_unloads.md</a>.</p>
+</blockquote>
+<h1 id="route-and-base-response-strength">Route and base response strength</h1>
+<p>15 October 2026. Viewer: <a href="http://127.0.0.1:5177/drop_response_strength_1v1/index.html">http://127.0.0.1:5177/drop_response_strength_1v1/index.html</a></p>
+<p>This extends the calibrated drop model with independent normalized <strong>land-route</strong> and <strong>base ground-response</strong> strengths. It reuses the three maps&#39; 1v1 geometry, resources, physical travel times and economic presets. No extraction, route search or naval sweep is repeated.</p>
+<h2 id="meaning">Meaning</h2>
+<p>Strength 1 is the previous full-strength response. Strength 0.5 or 0.25 models reduced suppressive capacity; strength 0 means that source has no suppressive effect. The strength is a scenario assumption about available/effective defenders, not movement speed, a unit count or terrain-derived gameplay importance.</p>
+<p>A force may arrive immediately yet be too weak to stop the drop. To represent this without inventing a slower walking time, the model retains physical ETA <code>t</code> and computes an opportunity window in seconds-equivalent over assessment horizon <code>H = 60</code>:</p>
+<pre><code>effective_window(t, strength) = H - strength * (H - min(t, H))
+combined_window = min(route_window, base_window)
+</code></pre>
+<p>At strength 1, this is the original response window capped at 60, which preserves every baseline candidate flag and destination count. At strength 0.25, a route with zero walking ETA gives a 45-second-equivalent opportunity score; that is not a prediction of 45 real seconds without resistance. A nearby full-strength base can still veto the location. The two response sources are not summed; combined weaker armies are outside this approximation.</p>
+<p>The existing strict/medium/permissive effective-window thresholds remain 35/22/12 seconds-equivalent. The weighted window also drives the existing capped income-denial ceiling. Expansion resource value, production cost, physical arrival races, base exclusion radii and enemy air travel gates are unchanged. Ground-inaccessibility exceptions and counter requirements continue to use physical connectivity, not weakened strength.</p>
+<p>Base strength affects ground response from the base only. It does not remove the independent base-proximity exclusion, assumed air counter, or represent a reduction in actual AA/intel coverage. Naval fire support may defend some newly admitted coastal targets; this weighting experiment does not incorporate that support. Combining the existing naval reach with these opportunities remains separate work.</p>
+<h2 id="default-assumptions-and-results">Default assumptions and results</h2>
+<ul>
+<li>Astro and Seton&#39;s: land-route strength 100%, base strength 100%.</li>
+<li>Drunken Beetles: land-route strength 25%, base strength 100%, as a user-requested naval-priority hypothesis. This percentage is a review setting, not a measured property of Beetles.</li>
+<li>Every map also has all nine route/base combinations at 100%, 50% and 25%, selectable independently in the viewer. Thresholds remain identical across maps.</li>
+</ul>
+<p>Offensive destinations, slot 1 attacking:</p>
+<table>
+<thead>
+<tr>
+<th>Map</th>
+<th>Route/base strength</th>
+<th align="right">Strict</th>
+<th align="right">Medium</th>
+<th align="right">Permissive</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Astro</td>
+<td>100% / 100%</td>
+<td align="right">0</td>
+<td align="right">0</td>
+<td align="right">0</td>
+</tr>
+<tr>
+<td>Seton&#39;s</td>
+<td>100% / 100%</td>
+<td align="right">3</td>
+<td align="right">5</td>
+<td align="right">9</td>
+</tr>
+<tr>
+<td>Beetles baseline</td>
+<td>100% / 100%</td>
+<td align="right">4</td>
+<td align="right">4</td>
+<td align="right">5</td>
+</tr>
+<tr>
+<td>Beetles</td>
+<td>50% / 100%</td>
+<td align="right">4</td>
+<td align="right">6</td>
+<td align="right">9</td>
+</tr>
+<tr>
+<td>Beetles default</td>
+<td>25% / 100%</td>
+<td align="right">5</td>
+<td align="right">6</td>
+<td align="right">9</td>
+</tr>
+</tbody></table>
+<p>Beetles&#39; medium preset gains five resource patches: 4 destinations / 4 patches / 15 mexes becomes 6 destinations / 9 patches / 31 mexes. The new patches are on land routes that are geographically close but assumed weak. Strict admits one additional patch at 25% versus 50%. A plateau between weights is expected when resource, base or air gates become limiting.</p>
+<p>With the same medium setting, Beetles&#39; expansion destinations change 4 to 6 and gunship destinations 11 to 13. Astro and Seton&#39;s full-strength control outputs remain exactly unchanged. Weakening their route assumptions is available for sensitivity analysis but is not applied to their defaults.</p>
+<h2 id="viewer-and-exports">Viewer and exports</h2>
+<p>The viewer adds <strong>Land-route strength</strong> and <strong>Base strength</strong> selectors. Switching them changes overlays, candidate checks, economics and the all-map comparison for the selected map. Rows show effective route/base scores alongside physical ETA. Area details report the two strengths and the limiting combined window. The original geometry and route viewer remain available.</p>
+<p><code>data/processed/drop_response_strength_1v1/</code> contains:</p>
+<ul>
+<li><code>comparison.csv</code>: all map/scenario/preset/side/opportunity counts.</li>
+<li><code>&lt;map&gt;/response_strength_metrics.csv</code>: all per-area measurements and checks for every scenario.</li>
+<li><code>&lt;map&gt;/opportunities.json</code>: nine scenarios, an explicit selected default and baseline-input/code provenance.</li>
+<li><code>&lt;map&gt;/opportunity_layers.npz</code> and scenario-prefixed transparent PNG masks.</li>
+<li><code>beetles_route_strength_comparison.png</code>: visual sensitivity comparison, medium offense.</li>
+<li><code>validation.json</code>: checks on all three maps and all nine scenarios.</li>
+</ul>
+<p>Reproduce with <code>PYTHONPATH=src</code>:</p>
+<pre><code class="language-powershell">.venv-codex/Scripts/python.exe -m supmapai.tools.reweight_drop_responses
+# Example: add intermediate or absent-force scenarios
+.venv-codex/Scripts/python.exe -m supmapai.tools.reweight_drop_responses --strength-values 1 .75 .5 .25 0 --beetles-route-strength .25
+</code></pre>
+<p>The independent weights accept finite values from zero to one. Initial destination distances are calculated once and cached; scoring variants reuse them. Baseline artifacts stay unchanged. The original extractor still produces full-strength controls; this dedicated tool applies the explicit map hypotheses.</p>
+<h2 id="validation">Validation</h2>
+<p>All 51 targeted tests passed. New cases check weak-route/unchanged-ETA behavior, a strong base veto, an independent route veto, zero-strength semantics, invalid inputs and monotonic strength effects. Actual-data checks confirm exact candidate compatibility at 100%/100%, nested preset sets, monotonic candidate sets as either strength decreases, unchanged physical ETAs, conserved destination membership, PNG/numerical-mask agreement and current source hashes. Heuristic destination counts need not themselves be monotonic when grouping changes; the underlying candidate sets are.</p>
+<script src="model-atlas/public-links.js" data-public-links></script></body></html>

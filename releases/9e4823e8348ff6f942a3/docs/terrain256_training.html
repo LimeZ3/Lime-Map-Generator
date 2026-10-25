@@ -1,0 +1,130 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>terrain256_training.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="full-map-256-terrain-training-v3">Full-map 256 Terrain Training V3</h1>
+<h2 id="water-fix">Water Fix</h2>
+<p>The saved 28-sample steering sweep isolated the main loss to averaging signed
+water-distance fields for symmetry. In the medium setting, raw model coverage
+was 19.55%, averaged coverage 8.21%, and refined coverage 8.36%.</p>
+<p>The versioned <code>export.terrain_water.finish_terrain</code> decoder carries the raw
+model&#39;s predicted wet-cell count through symmetry and any optional refinement.
+It reuses the existing water-aware orbit ranking, rebuilds consistent signed
+shore distance/height/depth, reconstructs native vertices, and applies the
+shoreline-protected light filter. It never reads the requested water percentage.
+This is deterministic postprocessing, not proof that a model predicts the exact
+requested area. It can change shorelines and does not guarantee connectivity.</p>
+<p>All 28 archived cases passed the regression: maximum final cell-centre water-area
+error is 0.394 percentage points relative to the raw prediction. Mean coverages:</p>
+<table>
+<thead>
+<tr>
+<th>Setting</th>
+<th align="right">Raw prediction</th>
+<th align="right">Previous final terrain</th>
+<th align="right">Corrected final terrain</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Low water</td>
+<td align="right">2.00%</td>
+<td align="right">0.43%</td>
+<td align="right">1.97%</td>
+</tr>
+<tr>
+<td>Medium water</td>
+<td align="right">19.55%</td>
+<td align="right">8.28%</td>
+<td align="right">19.45%</td>
+</tr>
+<tr>
+<td>High water</td>
+<td align="right">48.32%</td>
+<td align="right">47.55%</td>
+<td align="right">48.23%</td>
+</tr>
+</tbody></table>
+<p>Evidence: <code>data/models/terrain_water_fix_v2/audit.json</code> and
+<code>restored_water.png</code>. Historical model outputs/checkpoints are preserved.
+New V3 training galleries use this decoder; the historical V1 comparison tools
+remain historical references rather than silently overwriting their results.</p>
+<h2 id="why-another-dataset-build-is-necessary">Why Another Dataset Build Is Necessary</h2>
+<p>The newly completed label release,
+<code>data/tensors/terrain_half_10km_1v1_controls_v2</code>, labels four rotated <strong>half-map
+completions</strong> of each 128-grid map. Those profiles are scientifically incompatible
+with the requested full-map 256 model. They cannot be copied onto full targets.</p>
+<p>V3 reuses that exact cohort and family assignment: <strong>1,200 train / 110 validation</strong>.
+It rebuilds all full-map targets from the original checksummed 513x513 height
+vertices and 512x512 depth arrays stored in the strategy tensor archives.
+It does not upscale the 128-grid model targets. Native metadata and height
+reference are verified by reproducing the old 128-grid source height channel.
+No original .scmap extraction or 6,000-map scan is needed.</p>
+<p>Full native physical heights, coverage and depth are pooled to 256 and encoded
+with the existing frozen train-only physical scales. Clipping fractions are
+recorded. Spawn fields preserve the previous physical Gaussian width: sigma
+eight model cells at 256, rather than four cells at 128.</p>
+<p>Direct controls are remeasured from each exact decoded 256 target reconstructed
+at native resolution, using the original selected opposing bases. No half crop,
+imposed symmetry, learned refinement, resource pad or smoothing enters labels.
+The same ten-field schema distinguishes total front width, largest span,
+fragmentation, absolute sustained bottlenecks, relative contraction, restriction
+duration, water, relief and connectivity. Unavailable widths stay masked.
+Only training examples fit the new control scaling. No test split is read.</p>
+<p>The durable builder has per-map leases, source/code signatures, resumable
+checksummed completion records and full measurement evidence. A complete audit
+and published release are required by the new loader. A failed map is not silently
+dropped. Two CPU workers are used. Source and half-map artifacts stay unchanged.</p>
+<p>Dataset: <code>data/tensors/terrain_full256_controls_v3</code>.</p>
+<h2 id="training-configuration">Training Configuration</h2>
+<ul>
+<li>Full 256x256 output: joint relative height, water SDF and depth.</li>
+<li>Two spatial requested-base fields; 21 profile entries (ten values, ten masks,
+water-enabled flag). Legacy economic profile coordinates are not reused.</li>
+<li>Fresh 2,988,787-parameter U-Net, base width 48, global bottleneck attention.</li>
+<li>Velocity objective, existing auxiliary terrain losses, bfloat16, AdamW, EMA,
+gradient clipping, warm-up/decay and family-balanced sampling.</li>
+<li>Bounded 12,000 updates at batch 16: 192,000 presentations.</li>
+<li>Validation every 1,000 updates, preserving <code>last.pt</code> and validation-selected
+<code>best.pt</code>. PNG galleries every 4,000 updates and at completion.</li>
+<li>No final resource/prop/texture training, game installation or game launch.</li>
+</ul>
+<p>The old 13-condition checkpoints cannot be resumed as this new 21-condition model.
+Training starts fresh. Higher resolution and compute do not guarantee better
+quality or steering. Validation, fresh samples and remeasured controls are still
+needed before judging success.</p>
+<p>The RTX 5080 probe at batch 16 passed finite forward/backward updates, using about
+6.9 GB peak allocated memory and 0.154 seconds per update after warm-up. That
+suggests roughly 31 minutes of update compute, excluding real-data loading,
+validation, checkpoint writes and gallery generation. It is not an overall ETA.
+Dataset geometry measurement is a separate CPU phase.</p>
+<h2 id="persistent-run">Persistent Run</h2>
+<p>Run folder: <code>data/models/terrain_full256_controls_v3</code>.
+The hidden local runner automatically starts training only after dataset audit
+and a fresh GPU probe pass. It refuses a changed pipeline contract on resume,
+holds an OS lease against duplicate controllers, and reports failures instead of
+silently continuing. It does not schedule a cloud job or purchase compute.</p>
+<pre><code class="language-powershell">./scripts/terrain256-training.ps1 -Action Start
+./scripts/terrain256-training.ps1 -Action Status
+./scripts/terrain256-training.ps1 -Action Pause
+./scripts/terrain256-training.ps1 -Action Resume
+</code></pre>
+<p>Dataset pausing drains active maps. Training pausing checks every 100 updates,
+evaluates and saves a checkpoint before stopping. Resume keeps the original
+12,000-update total, optimizer state and learning-rate schedule. A completed run
+is not extended by resume.</p>
+<p>Inspect <code>pipeline.json</code> for phase, heartbeat, child PID and logs;
+dataset <code>status.json</code> for map counts; and training <code>progress.json</code> for steps,
+throughput and provisional training ETA. Logs are under the run&#39;s <code>logs/</code> folder.
+Checkpoints are atomic. Galleries include raw versus final water coverage so
+postprocessing drift is visible.</p>
+<p>At dispatch on 24 October 2026, the first four native conversions, both GPU
+batch-size probes, 28-sample water regression and the full <strong>391-test suite</strong>
+passed. The dataset/training pipeline was started; these checks are not a claim
+that the full preparation or training run has completed. Live status files are
+authoritative.</p>
+<h2 id="completed-run-and-control-test">Completed Run and Control Test</h2>
+<p>The complete 1,310-map preparation finished and all 12,000 training updates
+completed successfully. Training took 34 minutes, with best validation loss
+0.01047; that is a denoising diagnostic, not a map-quality score. The final
+12-sample gallery retained learned water area within 0.1 percentage points.</p>
+<p>The subsequent <a href="terrain256_control_results.md">32-sample direct-control test</a>
+shows a clear fragmentation response, modest raw front-width response weakened
+by postprocessing, and unreliable bottleneck/disconnection control. It does not
+justify calling all controls reliable. No further training was started.</p>
+<script src="model-atlas/public-links.js" data-public-links></script></body></html>

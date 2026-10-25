@@ -1,0 +1,341 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>train_joint_terrain.py | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="../docs/model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1>train_joint_terrain.py</h1><p class="meta">Saved public evidence snapshot: src/supmapai/ml/train_joint_terrain.py</p><pre>&quot;&quot;&quot;Longer, terrain-only joint height/water diffusion with EMA and sample checkpoints.&quot;&quot;&quot;
+
+from __future__ import annotations
+
+import argparse
+from collections import deque
+import copy
+import json
+import math
+from pathlib import Path
+import shutil
+import time
+
+import numpy as np
+from PIL import Image, ImageDraw
+import torch
+from torch import nn
+
+from supmapai.ml.conditional_diffusion import ProfileUNet, schedule
+from supmapai.ml.sample_strategy import spawn_connection
+from supmapai.tensors.strategy_dataset import file_hash, read_json, read_rows, write_json
+from supmapai.tensors.terrain_joint import decode, spawn_fields
+
+
+class TerrainDataset:
+    def __init__(self, root, split):
+        self.rows = read_rows(Path(root) / (split+&quot;.jsonl&quot;))
+        self.data = []
+        families = {}
+        for row in self.rows:
+            path = Path(root) / row[&quot;archive&quot;]
+            if file_hash(path) != row[&quot;sha256&quot;]:
+                raise ValueError(&quot;Terrain archive changed: &quot; + row[&quot;key&quot;])
+            with np.load(path) as archive:
+                self.data.append(tuple(archive[k].copy() for k in [&quot;target&quot;,&quot;spatial&quot;,&quot;profile&quot;]))
+            families[row[&quot;family&quot;]] = families.get(row[&quot;family&quot;],0)+1
+        if not self.data:
+            raise ValueError(&quot;Empty split: &quot; + split)
+        self.weights = np.array([1/families[r[&quot;family&quot;]] for r in self.rows])
+        self.weights /= self.weights.sum()
+
+    def batch(self, indices, device, rng=None):
+        targets, inputs, profiles = [], [], []
+        for index in indices:
+            target, spatial, profile = self.data[int(index)]
+            if rng is not None:
+                rotation, flip = int(rng.integers(4)), rng.random()&lt;.5
+                target, spatial = [np.rot90(value,rotation,axes=(-2,-1)) for value in [target,spatial]]
+                if flip:
+                    target, spatial = target[...,::-1], spatial[...,::-1]
+                if rng.random()&lt;.5:
+                    spatial = spatial[::-1]
+            targets.append(target.copy());inputs.append(spatial.copy());profiles.append(profile)
+        return tuple(torch.from_numpy(np.stack(values)).to(device) for values in [targets,inputs,profiles])
+
+
+def water_flag_index(profile):
+    &quot;&quot;&quot;Legacy profiles use index 10; terrain-controls v2 puts the flag last.&quot;&quot;&quot;
+    if profile.shape[-1] == 13:return 10
+    if profile.shape[-1] == 21:return 20
+    raise ValueError('Unknown terrain conditioning schema')
+
+
+def losses(model, clean, spatial, profile, cumulative, generator, *, training=False, auxiliary=.1):
+    if training:
+        profile = profile.clone()
+        drop = torch.rand((len(profile),1),device=clean.device,generator=generator)&lt;.15
+        water_index = water_flag_index(profile)
+        keep_water = profile[:,water_index].clone()
+        profile = torch.where(drop, 0., profile)
+        profile[:,water_index] = keep_water
+    t = torch.randint(len(cumulative),(len(clean),),device=clean.device,generator=generator)
+    noise = torch.randn(clean.shape,device=clean.device,generator=generator)
+    alpha = cumulative[t,None,None,None]
+    noisy = alpha.sqrt()*clean + (1-alpha).sqrt()*noise
+    predicted = model(noisy,t,spatial,profile).float()
+    velocity = alpha.sqrt()*noise - (1-alpha).sqrt()*clean
+    base_weight = 1 + 2*((spatial.amax(dim=1,keepdim=True)+1)*.5)
+    mse = ((predicted-velocity).square()*base_weight).mean(dim=(1,2,3))/base_weight.mean(dim=(1,2,3))
+    estimate = alpha.sqrt()*noisy - (1-alpha).sqrt()*predicted
+    residual = estimate[:,:2]-clean[:,:2]
+    gradient = (nn.functional.smooth_l1_loss(residual[...,1:,:],residual[...,:-1,:],reduction=&quot;none&quot;).mean(dim=(1,2,3))
+              + nn.functional.smooth_l1_loss(residual[...,:,1:],residual[...,:,:-1],reduction=&quot;none&quot;).mean(dim=(1,2,3)))
+    far_shore = abs(clean[:,1])&gt;.125
+    sign_conflict = (torch.relu(estimate[:,0]*estimate[:,1])*far_shore).mean(dim=(1,2))
+    return mse + auxiliary*(gradient + .5*sign_conflict), mse
+
+
+@torch.no_grad()
+def evaluate(model, dataset, cumulative, device, batch_size, mixed, seed):
+    generator = torch.Generator(device=device).manual_seed(seed)
+    model.eval()
+    values = []
+    for start in range(0,len(dataset.rows),batch_size):
+        clean, spatial, profile = dataset.batch(range(start,min(start+batch_size,len(dataset.rows))),device)
+        with torch.autocast(device_type=device.type,dtype=torch.bfloat16,enabled=mixed):
+            total, mse = losses(model,clean,spatial,profile,cumulative,generator)
+        values.extend(torch.stack([total,mse],dim=1).cpu().tolist())
+    means = np.average(values,axis=0,weights=dataset.weights)
+    return dict(validation_loss=float(means[0]),validation_velocity_mse=float(means[1]))
+
+
+def atomic_checkpoint(path, state):
+    path = Path(path)
+    temporary = path.with_suffix(&quot;.pt.tmp&quot;)
+    torch.save(state, temporary)
+    temporary.replace(path)
+
+
+@torch.no_grad()
+def sample_terrain(model, profile, spatial, cumulative, seed, steps=100, guidance=1.5, mixed=False):
+    device = next(model.parameters()).device
+    generator = np.random.default_rng(seed)
+    tensor = torch.from_numpy(generator.standard_normal((1,3,*spatial.shape[-2:]),dtype=np.float32)).to(device)
+    water_index = water_flag_index(profile)
+    null = torch.zeros_like(profile);null[:,water_index] = profile[:,water_index]
+    timesteps = np.linspace(len(cumulative)-1,0,min(steps,len(cumulative)),dtype=int)
+    for i,step in enumerate(timesteps):
+        t = torch.full((1,),int(step),device=device,dtype=torch.long)
+        with torch.autocast(device_type=device.type,dtype=torch.bfloat16,enabled=mixed):
+            prediction = model(tensor,t,spatial,profile).float()
+            if guidance != 1:
+                base = model(tensor,t,spatial,null).float()
+                prediction = base + guidance*(prediction-base)
+        alpha = cumulative[step]
+        clean = (alpha.sqrt()*tensor-(1-alpha).sqrt()*prediction).clamp(-1,1)
+        epsilon = alpha.sqrt()*prediction + (1-alpha).sqrt()*tensor
+        previous = cumulative[timesteps[i+1]] if i+1&lt;len(timesteps) else torch.ones((),device=device)
+        tensor = previous.sqrt()*clean+(1-previous).sqrt()*epsilon
+    return tensor[0].cpu().numpy()
+
+
+def native_geometry(vertices):
+    tl,tr,bl,br = vertices[:-1,:-1],vertices[:-1,1:],vertices[1:,:-1],vertices[1:,1:]
+    height = (tl+tr+bl+br)*.25
+    depth = (np.maximum(-tl,0)+np.maximum(-tr,0)+np.maximum(-bl,0)+np.maximum(-br,0))*.25
+    flat = (abs(tl-tr)&lt;.75)&amp;(abs(bl-br)&lt;.75)&amp;(abs(tl-bl)&lt;.75)&amp;(abs(tr-br)&lt;.75)
+    return height,depth,flat&amp;(depth&lt;=0)
+
+
+def project_joint(physical):
+    height,sdf,depth = physical
+    # Both learned fields participate. Preserve raw predictions for all quality comparisons.
+    wet = sdf&gt;0
+    base = np.where(wet,-.5*(np.maximum(-height,0)+np.maximum(depth,.05)),np.maximum(height,.05))
+    coast_weight = np.exp(-(abs(sdf)/24)**2)
+    projected = coast_weight*(-sdf*.25)+(1-coast_weight)*base
+    return projected.astype(np.float32)
+
+
+def components(mask):
+    seen = np.zeros_like(mask,bool);sizes=[];h,w=mask.shape
+    for z,x in zip(*np.nonzero(mask)):
+        if seen[z,x]:continue
+        queue=deque([(int(x),int(z))]);seen[z,x]=True;size=0
+        while queue:
+            cx,cz=queue.popleft();size+=1
+            for nx,nz in [(cx-1,cz),(cx+1,cz),(cx,cz-1),(cx,cz+1)]:
+                if 0&lt;=nx&lt;w and 0&lt;=nz&lt;h and mask[nz,nx] and not seen[nz,nx]:
+                    seen[nz,nx]=True;queue.append((nx,nz))
+        sizes.append(size)
+    return sizes
+
+
+def terrain_image(height, wet, spawns, title):
+    grey=(45+175*(height-height.min())/max(float(np.ptp(height)),.01)).astype(np.uint8)
+    pixels=np.repeat(grey[...,None],3,axis=2);pixels[wet]=[35,112,180]
+    image=Image.fromarray(pixels).resize((320,320),Image.Resampling.NEAREST)
+    draw=ImageDraw.Draw(image)
+    for p in spawns:
+        x,z=p['x']*320/512,p['z']*320/512
+        draw.ellipse((x-3,z-3,x+3,z+3),fill='#ff647c',outline='black')
+    draw.rectangle((0,0,320,19),fill='black');draw.text((5,4),title,fill='white')
+    return image
+
+
+@torch.no_grad()
+def gallery(model, normalization, cumulative, out, step, mixed=False, seeds=(101,202,303,404), sample_steps=100):
+    out=Path(out);out.mkdir(parents=True,exist_ok=True)
+    device=next(model.parameters()).device;model.eval();results=[];pictures=[];projected_pictures=[]
+    controls=normalization['original_controls'];names=list(controls)
+    values=[controls[name]['presets']['medium'] for name in names]
+    encoded=[((np.log1p(v) if controls[n]['log1p'] else v)-controls[n]['mean'])/controls[n]['std'] for n,v in zip(names,values)]
+    relief=float(np.expm1(normalization['geometry_mean'][1]))
+    for seed in seeds:
+        spawns=[dict(x=96.,z=96.),dict(x=416.,z=416.)]
+        spatial=torch.from_numpy(spawn_fields(spawns,128)[None]).to(device)
+        for fraction in [0.,.2,.4]:
+            geometry=(np.array([fraction,np.log1p(relief)])-normalization['geometry_mean'])/normalization['geometry_std']
+            profile=torch.tensor([encoded+[1.]*5+[1.]+geometry.tolist()],device=device,dtype=torch.float32)
+            encoded_map=sample_terrain(model,profile,spatial,cumulative,seed,sample_steps,mixed=mixed)
+            physical=decode(encoded_map,normalization)
+            raw=physical.copy()
+            physical=(physical+physical[...,::-1,::-1])*.5
+            h,sdf,depth=physical;wet=sdf&gt;0
+            projected=project_joint(physical)
+            vertices=np.asarray(Image.fromarray(projected).resize((513,513),Image.Resampling.BILINEAR)).copy()
+            raw_vertices=np.asarray(Image.fromarray(h).resize((513,513),Image.Resampling.BILINEAR)).copy()
+            _,native_depth,land=native_geometry(vertices)
+            _,_,raw_land=native_geometry(raw_vertices)
+            sizes=components(wet)
+            name=f'seed{seed}_water{int(fraction*100):02d}'
+            far=abs(sdf)&gt;8
+            metrics=dict(name=name,step=step,seed=seed,requested_water_fraction=fraction,
+                predicted_water_fraction=float(wet.mean()),raw_unsymmetrized_water_fraction=float((raw[1]&gt;0).mean()),
+                height_water_agreement=float(((h&lt;0)==wet).mean()),
+                far_shore_height_water_agreement=float((((h&lt;0)==wet)[far]).mean()) if far.any() else None,
+                water_bodies=len(sizes),tiny_water_bodies=sum(s&lt;4 for s in sizes),
+                shoreline_world_length=float((np.count_nonzero(wet[1:]!=wet[:-1])+np.count_nonzero(wet[:,1:]!=wet[:,:-1]))*4),
+                raw_land_passable_percent=float(raw_land.mean()*100),joint_land_passable_percent=float(land.mean()*100),
+                raw_spawn_land_connected=spawn_connection(raw_land,spawns),
+                joint_spawn_land_connected=spawn_connection(land,spawns),
+                joint_water_fraction=float((native_depth&gt;0).mean()),
+                joint_height_correction_mae=float(np.abs(projected-h).mean()),
+                depth_height_mae=float(np.abs(depth-np.maximum(-h,0)).mean()))
+            np.savez_compressed(out/(name+'.npz'),encoded=encoded_map,raw=raw,symmetric=physical,
+                                joint_height_vertices=vertices,spawns=np.array([[p['x'],p['z']] for p in spawns]))
+            results.append(metrics)
+            pictures.append(terrain_image(h,wet,spawns,f'seed {seed} | requested water {fraction:.0%}'))
+            projected_pictures.append(terrain_image(projected,sdf&gt;0,spawns,f'Joint projection | {fraction:.0%}'))
+    for filename,images in [('raw_height_water.png',pictures),('joint_projection.png',projected_pictures)]:
+        canvas=Image.new('RGB',(960,320*len(seeds)))
+        for index,image in enumerate(images):canvas.paste(image,((index%3)*320,(index//3)*320))
+        canvas.save(out/filename)
+    write_json(out/'metrics.json',results)
+    print(f&quot;gallery step={step} water_means=&quot;+str([round(float(np.mean([r['predicted_water_fraction'] for r in results if r['requested_water_fraction']==f])),3) for f in [0.,.2,.4]]),flush=True)
+    return results
+
+
+def train(args, *, dataset_type=TerrainDataset, gallery_fn=gallery, spatial_channels=2, profile_dim=13, extra_sources=()):
+    if not torch.cuda.is_available():raise RuntimeError('This longer run requires CUDA')
+    torch.set_num_threads(4);torch.manual_seed(args.seed)
+    torch.use_deterministic_algorithms(False);torch.backends.cudnn.benchmark=True
+    torch.set_float32_matmul_precision('high')
+    device=torch.device('cuda');mixed=not args.fp32 and torch.cuda.is_bf16_supported()
+    root,out=args.dataset.resolve(),args.out.resolve();out.mkdir(parents=True,exist_ok=True)
+    print('Loading terrain tensors into RAM...',flush=True)
+    data=dataset_type(root,'train');validation=dataset_type(root,'validation')
+    normalization=read_json(root/'normalization.json')
+    model=ProfileUNet(3,spatial_channels,profile_dim=profile_dim,base=args.base_channels,embedding=256,attention=True).to(device)
+    ema=copy.deepcopy(model).eval();ema.requires_grad_(False)
+    optimizer=torch.optim.AdamW(model.parameters(),lr=args.learning_rate,weight_decay=.01)
+    cumulative=schedule(1000,device)
+    config={k:str(v) if isinstance(v,Path) else v for k,v in vars(args).items() if k!='resume'}
+    config.update(schema=normalization.get('training_schema','terrain_joint_training_v1'),dataset=str(root),mixed_bfloat16=mixed,
+        train_manifest_sha256=file_hash(root/'train.jsonl'),validation_manifest_sha256=file_hash(root/'validation.jsonl'),
+        normalization_sha256=file_hash(root/'normalization.json'),code_sha256=file_hash(__file__),
+        network_code_sha256=file_hash(Path(__file__).with_name('conditional_diffusion.py')),
+        torch=torch.__version__,numpy=np.__version__,device=torch.cuda.get_device_name(),
+        train_maps=len(data.rows),validation_maps=len(validation.rows),test_used=False,
+        spatial_channels=spatial_channels,extra_code_sha256={str(p):file_hash(p) for p in extra_sources})
+    if profile_dim != 13:config['profile_dim']=profile_dim
+    if (out/'config.json').exists() and read_json(out/'config.json')!=config:raise ValueError('Run configuration differs; choose a new directory')
+    write_json(out/'config.json',config)
+    snapshot=out/'code_snapshot';snapshot.mkdir(exist_ok=True)
+    for path in [Path(__file__),Path(__file__).with_name('conditional_diffusion.py'),Path(__file__).parents[1]/'tensors/terrain_joint.py',*extra_sources]:
+        shutil.copy2(path,snapshot/path.name)
+    start,best,history=0,float('inf'),[]
+    if args.resume:
+        state=torch.load(out/'last.pt',map_location=device,weights_only=False)
+        model.load_state_dict(state['model']);ema.load_state_dict(state['ema']);optimizer.load_state_dict(state['optimizer'])
+        start,best,history=state['step'],state['best_validation'],state['history']
+        if start&gt;=args.max_steps and (out/'summary.json').exists():return read_json(out/'summary.json')
+    elif (out/'last.pt').exists():raise ValueError('Checkpoint exists; use --resume')
+    initial=evaluate(ema,validation,cumulative,device,args.batch_size,mixed,args.seed+1)
+    print(f&quot;parameters={sum(p.numel() for p in model.parameters())} train={len(data.rows)} val={len(validation.rows)} bf16={mixed} initial={initial}&quot;,flush=True)
+    began=time.perf_counter();recent=[]
+    for step in range(start+1,args.max_steps+1):
+        rng=np.random.default_rng(np.random.SeedSequence([args.seed,step]))
+        indices=rng.choice(len(data.rows),args.batch_size,p=data.weights)
+        clean,spatial,profile=data.batch(indices,device,rng)
+        warm=min(1.,step/500)
+        decay=.1+.9*.5*(1+math.cos(math.pi*max(0,step-500)/max(args.max_steps-500,1)))
+        optimizer.param_groups[0]['lr']=args.learning_rate*warm*decay
+        model.train();optimizer.zero_grad(set_to_none=True)
+        generator=torch.Generator(device=device).manual_seed(args.seed*1000003+step)
+        with torch.autocast('cuda',dtype=torch.bfloat16,enabled=mixed):
+            loss,_=losses(model,clean,spatial,profile,cumulative,generator,training=True)
+            loss=loss.mean()
+        if not torch.isfinite(loss):raise ValueError(f'Nonfinite loss at {step}')
+        loss.backward();nn.utils.clip_grad_norm_(model.parameters(),1.);optimizer.step()
+        with torch.no_grad():
+            momentum=min(.999,(1+step)/(10+step))
+            for target,source in zip(ema.parameters(),model.parameters()):target.lerp_(source,1-momentum)
+        recent.append(float(loss.detach()))
+        if step%100==0:
+            elapsed=time.perf_counter()-began
+            progress=dict(status='training',step=step,max_steps=args.max_steps,seconds=elapsed,
+                steps_per_second=(step-start)/elapsed,estimated_remaining_seconds=(args.max_steps-step)*elapsed/(step-start),
+                training_loss=float(np.mean(recent)),gpu_memory_mb=torch.cuda.max_memory_allocated()/1024**2)
+            write_json(out/'progress.json',progress)
+            print(f&quot;step={step}/{args.max_steps} loss={np.mean(recent):.5f} elapsed={elapsed:.0f}s eta={progress['estimated_remaining_seconds']:.0f}s&quot;,flush=True)
+        pause_file=getattr(args,'pause_file',None)
+        pause_requested=bool(pause_file and Path(pause_file).exists() and step%100==0)
+        if step%args.eval_every==0 or step==args.max_steps or pause_requested:
+            metrics=evaluate(ema,validation,cumulative,device,args.batch_size,mixed,args.seed+1)
+            history.append(dict(step=step,train_loss=float(np.mean(recent)),**metrics));recent=[]
+            improved=metrics['validation_loss']&lt;best;best=min(best,metrics['validation_loss'])
+            state=dict(model=model.state_dict(),ema=ema.state_dict(),optimizer=optimizer.state_dict(),step=step,
+                best_validation=best,history=history,config=config,normalization=normalization)
+            atomic_checkpoint(out/'last.pt',state)
+            if improved:atomic_checkpoint(out/'best.pt',state)
+            write_json(out/'losses.json',history)
+            print(f'EMA validation step={step}: {metrics}',flush=True)
+        if not args.no_samples and not pause_requested and (step%args.sample_every==0 or step==args.max_steps):
+            gallery_fn(ema,normalization,cumulative,out/'samples'/f'step_{step:06d}',step,mixed,
+                    seeds=(101,202) if step&lt;args.max_steps else (101,202,303,404))
+        if pause_requested:
+            paused=dict(status='paused',step=step,max_steps=args.max_steps,seconds=time.perf_counter()-began,
+                checkpoint=str(out/'last.pt'),test_used=False)
+            write_json(out/'progress.json',paused);print('Paused after saving checkpoint',flush=True)
+            return paused
+    summary=dict(status='completed',steps=args.max_steps,seconds=time.perf_counter()-began,
+        initial_validation=initial,best_validation=best,train_maps=len(data.rows),validation_maps=len(validation.rows),
+        parameters=sum(p.numel() for p in model.parameters()),gpu_memory_mb=torch.cuda.max_memory_allocated()/1024**2,test_used=False)
+    write_json(out/'summary.json',summary);write_json(out/'progress.json',summary)
+    return summary
+
+
+def main():
+    parser=argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--dataset',type=Path,required=True)
+    parser.add_argument('--out',type=Path,required=True)
+    parser.add_argument('--max-steps',type=int,default=12000)
+    parser.add_argument('--batch-size',type=int,default=16)
+    parser.add_argument('--base-channels',type=int,default=48)
+    parser.add_argument('--learning-rate',type=float,default=2e-4)
+    parser.add_argument('--eval-every',type=int,default=1000)
+    parser.add_argument('--sample-every',type=int,default=2000)
+    parser.add_argument('--seed',type=int,default=20261023)
+    parser.add_argument('--fp32',action='store_true')
+    parser.add_argument('--resume',action='store_true')
+    parser.add_argument('--no-samples',action='store_true',help='Disable galleries for a throughput benchmark')
+    args=parser.parse_args()
+    if min(args.max_steps,args.batch_size,args.base_channels,args.eval_every,args.sample_every)&lt;1:parser.error('Positive sizes and intervals required')
+    print(json.dumps(train(args),indent=2))
+    return 0
+
+
+if __name__=='__main__':raise SystemExit(main())
+</pre><script src="../docs/model-atlas/public-links.js" data-public-links></script></body></html>

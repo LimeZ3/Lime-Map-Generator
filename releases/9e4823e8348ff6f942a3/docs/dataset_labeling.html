@@ -1,0 +1,87 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>dataset_labeling.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="dataset-labeling">Dataset Labeling</h1>
+<p>SupCom maps should be treated as multi-label examples. Do not force each map into one exclusive folder such as <code>naval</code> or <code>land</code>; maps like Seton&#39;s Clutch legitimately combine naval, air, land, expansion, choke, and team-role structure.</p>
+<h2 id="recommended-data-layout">Recommended Data Layout</h2>
+<p>Keep raw maps immutable and outside Git:</p>
+<pre><code class="language-text">data/
+  raw/
+    faf_modsmaps_snapshot_YYYY-MM-DD/
+      maps/
+        setons_clutch_-_faf_version.v0004/
+        ...
+  manifests/
+    faf_modsmaps_inventory.json
+  labels/
+    map_labels.csv
+  interim/
+    parsed_lua/
+    scmap_headers/
+  processed/
+    tensor_v001/
+  exports/
+    generated_maps/
+</code></pre>
+<p>The live Steam/FAF folder can be inventoried directly, but copy snapshots into <code>data/raw/</code> before doing repeatable experiments. This prevents a future FAF update from silently changing the training set.</p>
+<h2 id="label-axes">Label Axes</h2>
+<p>Use several independent label columns. Empty values are allowed at first.</p>
+<h3 id="identity">Identity</h3>
+<ul>
+<li><code>map_dir</code></li>
+<li><code>canonical_name</code></li>
+<li><code>version</code></li>
+<li><code>duplicate_group</code></li>
+<li><code>quality_tier</code></li>
+</ul>
+<p>Use <code>duplicate_group</code> for twins, remakes, or version families. Example: all Seton&#39;s variants can share a duplicate group while keeping their exact versions separate.</p>
+<h3 id="technical-metadata">Technical Metadata</h3>
+<p>Most of these can eventually be extracted automatically:</p>
+<ul>
+<li><code>size_x</code></li>
+<li><code>size_z</code></li>
+<li><code>player_count</code></li>
+<li><code>has_scmap</code></li>
+<li><code>has_scenario_lua</code></li>
+<li><code>has_save_lua</code></li>
+<li><code>has_preview</code></li>
+</ul>
+<h3 id="gameplay-labels">Gameplay Labels</h3>
+<p>These are human labels and can be multi-select with <code>|</code> separators:</p>
+<ul>
+<li><code>primary_modes</code>: <code>land</code>, <code>naval</code>, <code>air</code>, <code>mixed</code></li>
+<li><code>secondary_modes</code>: <code>amphibious</code>, <code>transport</code>, <code>hover</code>, <code>turtle</code>, <code>raid</code>, <code>eco</code>, <code>teamgame</code>, <code>ffa</code></li>
+<li><code>pace</code>: <code>close_combat</code>, <code>standard</code>, <code>macro</code>, <code>slow_turtle</code></li>
+<li><code>lane_structure</code>: <code>open</code>, <code>laned</code>, <code>chokepoint</code>, <code>island</code>, <code>ponds</code>, <code>water_center</code>, <code>water_sides</code></li>
+<li><code>expansion_pattern</code>: <code>linear</code>, <code>radial</code>, <code>contested_mid</code>, <code>safe_back</code>, <code>island_expansions</code></li>
+</ul>
+<h3 id="strategic-structure">Strategic Structure</h3>
+<p>These labels are especially useful for models trained on pathing/resource layers:</p>
+<ul>
+<li><code>symmetry</code>: <code>mirror_x</code>, <code>mirror_z</code>, <code>rotational</code>, <code>radial</code>, <code>asymmetric</code></li>
+<li><code>team_layout</code>: <code>1v1</code>, <code>2v2</code>, <code>3v3</code>, <code>4v4</code>, <code>ffa</code>, <code>odd</code></li>
+<li><code>spawn_roles</code>: <code>front|air|navy|eco|flex</code></li>
+<li><code>mex_pattern</code>: <code>sparse</code>, <code>standard</code>, <code>rich</code>, <code>clustered</code>, <code>contested</code></li>
+<li><code>hydro_pattern</code>: <code>none</code>, <code>near_spawn</code>, <code>contested</code>, <code>many</code></li>
+<li><code>reclaim_pattern</code>: <code>low</code>, <code>standard</code>, <code>high</code>, <code>field</code>, <code>civilian_base</code></li>
+</ul>
+<h3 id="visual-and-biome-labels">Visual And Biome Labels</h3>
+<p>The look of the map matters, but not as the main label for the first structure-learning model.</p>
+<p>Visual style should be separate because it mostly affects texture, decals, props, and biome priors. Gameplay structure is more about height, water, ramps, chokepoints, resources, spawn placement, and pathability.</p>
+<ul>
+<li><code>biome</code>: <code>earth</code>, <code>desert</code>, <code>ice</code>, <code>lava</code>, <code>alien</code>, <code>urban</code>, <code>moon</code>, <code>mixed</code></li>
+<li><code>visual_style</code>: <code>natural</code>, <code>gpg_classic</code>, <code>faf_rework</code>, <code>high_detail</code>, <code>minimal</code>, <code>themed</code></li>
+<li><code>readability</code>: <code>clear</code>, <code>busy</code>, <code>confusing</code></li>
+</ul>
+<p>For early experiments, train on structure first. Later, biome/style can become conditioning metadata: &quot;generate a Seton&#39;s-like mixed 4v4 layout, but with ice biome textures.&quot;</p>
+<h2 id="suggested-human-workflow">Suggested Human Workflow</h2>
+<ol>
+<li>Run inventory against a map snapshot.</li>
+<li>Generate or update <code>data/labels/map_labels.csv</code>.</li>
+<li>Use the label CSV as an internal seed/admin table, not as the public community workflow.</li>
+<li>Collect public labels through the crowd labeling app described in <a href="crowd_labeling_app_spec.md">crowd_labeling_app_spec.md</a>.</li>
+<li>Store individual answers first, then aggregate into soft labels.</li>
+<li>Use <code>duplicate_group</code> to mark map families before training splits.</li>
+</ol>
+<h2 id="seton39s-clutch-example">Seton&#39;s Clutch Example</h2>
+<pre><code class="language-csv">map_dir,canonical_name,quality_tier,duplicate_group,primary_modes,secondary_modes,pace,lane_structure,expansion_pattern,symmetry,team_layout,spawn_roles,mex_pattern,hydro_pattern,reclaim_pattern,biome,visual_style,readability,notes
+setons_clutch_-_faf_version.v0004,Setons Clutch - FAF version,S,setons_clutch,mixed,naval|air|land|teamgame,macro,laned|water_center,linear|contested_mid,rotational,4v4,front|air|navy|eco|flex,standard,near_spawn,high,earth,faf_rework,clear,popular mixed team map with navy air and land roles
+</code></pre>
+<script src="model-atlas/public-links.js" data-public-links></script></body></html>

@@ -1,0 +1,142 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>calculate_map_symmetry.py | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="../docs/model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1>calculate_map_symmetry.py</h1><p class="meta">Saved public evidence snapshot: src/supmapai/tools/calculate_map_symmetry.py</p><pre>&quot;&quot;&quot;Calculate experimental terrain symmetry sidecars from pinned native arrays.&quot;&quot;&quot;
+import argparse
+from concurrent.futures import ProcessPoolExecutor,as_completed
+from collections import Counter
+import io,json,math,time,traceback
+from pathlib import Path
+
+import numpy as np
+from PIL import Image,ImageDraw
+
+from supmapai.extract.terrain_symmetry import calculate,encode,Settings
+from supmapai.strategy.pipeline_contract import dump,file_hash,digest,lease
+from supmapai.tools.dataset_review import load_cohort
+from supmapai.tools.relabel_terrain_dataset import read,atomic_bytes
+
+ROOT=Path(__file__).resolve().parents[3]
+
+
+def normalize_bounds(value):
+    bounds=[value[k] for k in ['x0','z0','x1','z1']] if isinstance(value,dict) else list(value)
+    if len(bounds)!=4 or not np.isfinite(bounds).all():raise ValueError('Invalid saved playable bounds')
+    return list(map(float,bounds))
+
+
+def worker(out,row,contract):
+    out=Path(out);folder=out/'maps'/row['key'];folder.mkdir(parents=True,exist_ok=True)
+    with lease(folder/'worker.lock'):
+        try:
+            path=Path(row['native_source'])
+            if file_hash(path)!=row['native_source_sha256']:raise ValueError('Native source archive changed')
+            meta=read(path.with_suffix('.json'))
+            if meta['key']!=row['key'] or meta['family']!=row.get('original_family',row['family']) or meta['split']!=row.get('original_split',row['split']):raise ValueError('Native metadata identity mismatch')
+            extraction=Path(meta['job_path'])/'extraction'/row['key']
+            record=read(extraction/'record.json');markers=read(extraction/'markers.json')
+            with np.load(path) as a:height=a['height_vertices'].copy()
+            bounds=normalize_bounds(record['playable_bounds'])
+            t=time.perf_counter()
+            result=calculate(height,bounds=bounds,spawns=markers['spawns'],mexes=meta['mexes'],settings=Settings(**contract['settings']))
+            result.update(key=row['key'],name=Path(meta['source_scmap']).parent.name,split=row['split'],family=row['family'],
+                native_source_sha256=row['native_source_sha256'],source_metadata_sha256=file_hash(path.with_suffix('.json')),
+                markers_sha256=file_hash(extraction/'markers.json'),configuration=markers.get('configuration'),
+                existing_selected_spawns=row['spawns'],seconds=time.perf_counter()-t,
+                implementation_status='experimental_sidecar; not a selected model input; source targets/splits unchanged')
+            vector=encode(result,contract['settings']['max_order'])
+            dump(folder/'result.json',result)
+            stream=io.BytesIO();np.savez_compressed(stream,condition=vector,
+                transform_matrices=np.asarray([x['matrix'] for x in result['transforms']],np.float32).reshape(-1,3,3),
+                condition_valid=np.asarray(result['model_condition_valid']))
+            atomic_bytes(folder/'symmetry.npz',stream.getvalue())
+            preview(folder,height,result)
+            dump(folder/'complete.json',dict(contract=digest(contract),outputs={n:file_hash(folder/n) for n in ['result.json','symmetry.npz','preview.png']}))
+            return 'complete'
+        except Exception as exc:
+            dump(folder/'failure.json',dict(error=str(exc),traceback=traceback.format_exc()))
+            return 'failed'
+
+
+def preview(folder,height,result):
+    q=np.quantile(height,[.02,.98]);gray=np.clip((height-q[0])/max(q[1]-q[0],1e-6),0,1)
+    image=Image.fromarray((gray*200+25).astype(np.uint8)).convert('RGB').resize((384,384),Image.Resampling.BILINEAR)
+    draw=ImageDraw.Draw(image);w=height.shape[1]-1;h=height.shape[0]-1
+    scale=lambda x,z:(x/w*383,z/h*383)
+    for transform in result.get('transforms',[]):
+        if transform['kind']!='reflection':continue
+        c=result['center'];a=math.radians(transform['angle_degrees']);radius=max(w,h)*2
+        u=[math.cos(a)*radius,math.sin(a)*radius]
+        draw.line([scale(c[0]-u[0],c[1]-u[1]),scale(c[0]+u[0],c[1]+u[1])],fill=(255,190,70),width=2)
+    c=scale(*result['center']);draw.ellipse((c[0]-4,c[1]-4,c[0]+4,c[1]+4),fill=(70,220,255))
+    canvas=Image.new('RGB',(384,432),(25,30,38));canvas.paste(image,(0,48));d=ImageDraw.Draw(canvas)
+    d.text((5,4),result.get('name',result['classification'])[:52],fill='white')
+    d.text((5,23),f&quot;{result['classification']} | order {result.get('rotation_order','?')} | valid {result['model_condition_valid']}&quot;,fill='white')
+    stream=io.BytesIO();canvas.save(stream,format='PNG');atomic_bytes(folder/'preview.png',stream.getvalue())
+
+
+def refresh(out,rows,state,started):
+    packed=[];failed=[]
+    for row in rows:
+        folder=out/'maps'/row['key']
+        if (folder/'complete.json').exists():
+            r=read(folder/'result.json')
+            packed.append(dict(key=r['key'],name=r['name'],classification=r['classification'],order=r.get('rotation_order'),
+                valid=r['model_condition_valid'],center=r['center'],angle=r.get('reference_axis_degrees'),seconds=r['seconds'],
+                result='maps/'+r['key']+'/result.json',tensor='maps/'+r['key']+'/symmetry.npz'))
+        elif (folder/'failure.json').exists():failed.append(dict(key=row['key'],**read(folder/'failure.json')))
+    status=dict(state=state,total=len(rows),complete=len(packed),failed=len(failed),pending=len(rows)-len(packed)-len(failed),
+        seconds=time.time()-started,heartbeat=time.time(),classes=dict(Counter(r['classification'] for r in packed)),
+        experimental_condition_valid=sum(r['valid'] for r in packed),training_started=False)
+    dump(out/'status.json',status);dump(out/'results.json',packed);dump(out/'failures.json',failed)
+    import html
+    page='&lt;!doctype html&gt;&lt;meta charset=&quot;utf-8&quot;&gt;&lt;title&gt;Terrain symmetry pilot&lt;/title&gt;&lt;style&gt;body{background:#171c23;color:#eee;font:16px system-ui;margin:25px}.grid{display:flex;flex-wrap:wrap;gap:18px}article{width:384px;background:#252c36}img{width:100%}p{padding:8px}a{color:#9de}&lt;/style&gt;&lt;h1&gt;Experimental terrain-first symmetry&lt;/h1&gt;&lt;p&gt;Native physical height; all candidates tested. Lines are fitted reflection axes. Cyan is the fitted center. Validity also requires preserved domain; angled/radial overlap may remain provisional. Not a trained input release.&lt;/p&gt;&lt;div class=&quot;grid&quot;&gt;'
+    for r in packed:page+=f'&lt;article&gt;&lt;img src=&quot;maps/{r[&quot;key&quot;]}/preview.png&quot;&gt;&lt;p&gt;{html.escape(r[&quot;name&quot;])}&lt;br&gt;&lt;a href=&quot;{r[&quot;result&quot;]}&quot;&gt;Numeric evidence&lt;/a&gt;&lt;/p&gt;&lt;/article&gt;'
+    atomic_bytes(out/'index.html',(page+'&lt;/div&gt;').encode());return status
+
+
+def run(args):
+    source,identity,all_rows=load_cohort(args.source)
+    rng=np.random.default_rng(args.seed)
+    indices=sorted(rng.choice(len(all_rows),min(args.limit or len(all_rows),len(all_rows)),replace=False).tolist())
+    rows=[all_rows[i] for i in indices];out=args.out.resolve();out.mkdir(parents=True,exist_ok=True)
+    settings=Settings()
+    code=[Path(__file__),ROOT/'src/supmapai/extract/terrain_symmetry.py']
+    contract=dict(schema='terrain_symmetry_sidecar_v1',source_release_sha256=identity,source=str(source),settings=settings.__dict__,
+        keys=[r['key'] for r in rows],seed=args.seed,code={str(p.relative_to(ROOT)):file_hash(p) for p in code},
+        condition_layout='family4 + order1..max_order onehot + center2 + periodic_phase2 + four availability flags',
+        condition_width=4+settings.max_order+2+2+4,status='experimental_not_a_selected_training_release',test_used=False)
+    if (out/'contract.json').exists() and read(out/'contract.json')!=contract:raise ValueError('Changed experimental contract; choose a new output version')
+    with lease(out/'controller.lock'):
+        dump(out/'contract.json',contract);started=time.time()
+        for name in contract['code']:
+            dest=out/'code_snapshot'/name;dest.parent.mkdir(parents=True,exist_ok=True);dest.write_bytes((ROOT/name).read_bytes())
+        pending=[]
+        for row in rows:
+            folder=out/'maps'/row['key']
+            if (folder/'failure.json').exists():continue
+            if (folder/'complete.json').exists():
+                done=read(folder/'complete.json')
+                if done['contract']!=digest(contract) or any(file_hash(folder/n)!=h for n,h in done['outputs'].items()):raise ValueError('Changed sealed symmetry result')
+            else:pending.append(row)
+        refresh(out,rows,'running',started)
+        with ProcessPoolExecutor(max_workers=args.workers) as pool:
+            futures=[pool.submit(worker,str(out),r,contract) for r in pending]
+            for index,f in enumerate(as_completed(futures),1):
+                f.result()
+                if len(rows)&lt;=24 or index%25==0 or index==len(futures):
+                    state=refresh(out,rows,'running',started);print(f'{state[&quot;complete&quot;]}/{len(rows)} failed={state[&quot;failed&quot;]}',flush=True)
+        status=refresh(out,rows,'complete',started)
+        if status['failed']:status=refresh(out,rows,'complete_with_failures',started)
+        dump(out/'audit.json',dict(state='passed' if not status['failed'] else 'needs_attention',source_release_sha256=identity,
+            source_targets_unchanged=True,role='Experimental symmetry sidecars; no old tensors/profiles replaced',samples=len(rows),test_used=False))
+        print(json.dumps(status,indent=2))
+
+
+def main():
+    p=argparse.ArgumentParser(description=__doc__);p.add_argument('--source',type=Path,default=ROOT/'data/tensors/terrain_full256_controls_v3')
+    p.add_argument('--out',type=Path,required=True);p.add_argument('--limit',type=int,default=24);p.add_argument('--seed',type=int,default=20261025)
+    p.add_argument('--workers',type=int,choices=[1,2],default=2);a=p.parse_args()
+    if a.limit&lt;0:p.error('Nonnegative limit required')
+    run(a)
+
+
+if __name__=='__main__':main()
+</pre><script src="../docs/model-atlas/public-links.js" data-public-links></script></body></html>
