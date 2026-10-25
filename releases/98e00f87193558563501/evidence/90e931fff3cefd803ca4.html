@@ -1,0 +1,41 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>terrain_water.py | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="../docs/model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1>terrain_water.py</h1><p class="meta">Saved public evidence snapshot: src/supmapai/export/terrain_water.py</p><pre>&quot;&quot;&quot;Versioned final decoder preserving learned water area through symmetry.&quot;&quot;&quot;
+import numpy as np
+from PIL import Image
+
+from supmapai.export.terrain_smoothing import cell_heights, smooth_native
+from supmapai.ml.terrain_symmetry import average, transform, water_aware
+from supmapai.ml.train_joint_terrain import project_joint
+
+VERSION = 'learned_water_budget_v2'
+
+
+def finish_terrain(raw, refined=None, *, mode='rotate180', water_enabled=True,
+                   native_size=512, smoothing='light'):
+    raw = np.asarray(raw, np.float32)
+    physical = np.asarray(refined if refined is not None else raw, np.float32)
+    if raw.shape != physical.shape or raw.ndim != 3 or raw.shape[0] != 3 or not np.isfinite(raw).all() or not np.isfinite(physical).all():
+        raise ValueError('Aligned finite joint terrain fields required')
+    if raw.shape[-2] != raw.shape[-1]:
+        raise ValueError('Square full-map terrain required')
+    target = int((raw[1] &gt; 0).sum()) if water_enabled else 0
+    corrected = water_aware(physical, mode, target_count=target)
+    surface = project_joint(corrected)
+    if not water_enabled:
+        surface = np.maximum(surface, .05)
+    vertices = np.asarray(Image.fromarray(surface).resize((native_size+1, native_size+1), Image.Resampling.BILINEAR)).copy()
+    vertices = average(vertices, mode)
+    vertices, smoothed = smooth_native(vertices, smoothing, mode)
+    vertices = np.rint(vertices*128)/128
+    if not np.array_equal(vertices, transform(vertices, mode)):
+        raise ValueError('Final water decoder lost symmetry')
+    actual = float((cell_heights(vertices) &lt; 0).mean()) if water_enabled else 0.
+    report = dict(schema=VERSION, target_basis='raw_model_sdf_sign_not_requested_percentage',
+        water_enabled=bool(water_enabled), learned_water_fraction=target/raw[1].size,
+        averaged_water_fraction=float((average(raw,mode)[1]&gt;0).mean()),
+        refined_water_fraction=float((physical[1]&gt;0).mean()),
+        corrected_field_water_fraction=float((corrected[1]&gt;0).mean()),
+        native_water_fraction=actual, native_area_error=actual-target/raw[1].size,
+        smoothing=smoothed, symmetry_max_error=0.,
+        limitation='Area preservation does not preserve every original shoreline or guarantee connectivity')
+    return vertices, corrected, report
+</pre><script src="../docs/model-atlas/public-links.js" data-public-links></script></body></html>

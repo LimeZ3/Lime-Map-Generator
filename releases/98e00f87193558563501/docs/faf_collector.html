@@ -1,0 +1,157 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>faf_collector.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="faf-metadata-collector-pilot">FAF metadata collector pilot</h1>
+<h2 id="working-library-selection-2026-10-08">Working library selection (2026-10-08)</h2>
+<p>Use <code>exports/maps_visible.csv</code> for the working map catalog: one row per parent,
+with the latest version explicitly marked <code>hidden=false</code>. Hidden maps are excluded
+even when ranked or popular. Missing visibility/latest-version data is also excluded;
+never fall back to an older visible version. Preserve parent all-time plays.
+The full <code>maps.csv</code>, version history and raw snapshot are archival sources, not the
+working selection. Local matching reports describe the full archive, not visibility
+eligibility. Regenerate exports offline with <code>faf_vault_all --export-only --output</code>
+and the snapshot directory. This selection contains 9,284 maps: 7,452 ranked and
+1,832 unranked; 5,524 hidden maps and three missing-latest entries are excluded.</p>
+<h2 id="entire-vault-collection-2026-10-08">Entire vault collection (2026-10-08)</h2>
+<p>The user expanded the scope to every accessible map in the FAF vault, including maps absent from the local library. Use:</p>
+<pre><code class="language-powershell">$env:PYTHONPATH = &#39;src&#39;
+.venv-codex/Scripts/python.exe -m supmapai.tools.faf_vault_all --output data/raw/faf_api/entire_vault_20261008 --max-requests 2000 --run
+</code></pre>
+<p>This is a serial, five-second-paced crawl of <code>map</code>, <code>mapVersion</code>, and <code>mapVersionReview</code>. No local-folder, visibility, ranked, map-generator, or date filter restricts its scope. FAF&#39;s access controls still determine which records are readable. No game/replay endpoints or map archive downloads are used.</p>
+<p>Three discovery queries establish each collection&#39;s record count and highest ID. Subsequent requests advance by ID up to that ceiling, avoiding shifting page offsets and excluding new uploads beyond the initial fence. Each resource has its own discovery timestamp, so this is not a transactional database snapshot. Edits/deletions during collection remain possible. Totals are requested only during discovery. The client stops on HTTP errors, throttling, 30-second network timeouts, oversized responses or response latency over 15 seconds. It does not retry automatically. A supplied Retry-After cooldown is persisted.</p>
+<p>The larger request budget replaces the old 20-request calibration cap for this explicitly authorized whole-vault crawl; it does not increase concurrency or request rate. The first count queries print an estimated number of pages and pacing duration. If the token expires, the run pauses and exports its partial results; the same command resumes after browser login. Credentials remain in memory only.</p>
+<p><code>manifest.json</code> records per-resource progress and run history. <code>pages/</code> retains raw requests/responses. <code>vault.sqlite3</code> indexes primary and included resources by <code>(type, id)</code>; it is the resumable working database. Keep it together with the manifest and cached pages. <code>exports/</code> is generated at completion or a controlled pause and contains:</p>
+<ul>
+<li><code>maps.csv</code>: one row per parent map, lifetime parent plays plus latest-version metadata/status.</li>
+<li><code>versions.csv</code>: every collected version, including exact-version ranked status, dimensions, slots, description, dates, review summaries and parent/version play counters.</li>
+<li><code>map.jsonl</code>, <code>mapVersion.jsonl</code>, <code>mapVersionReview.jsonl</code>: original primary JSON:API resources and their relationship linkage.</li>
+<li><code>local_library_matches.json</code> / <code>.csv</code>: links back to the local catalog. These remain provisional until the version catalog is complete.</li>
+<li><code>summary.json</code>: discovery totals, collected counts, per-resource completeness and local-library coverage.</li>
+</ul>
+<p>The previous folder-targeted commands remain usable for their own cached snapshots, but the whole-vault crawl uses a new directory to keep scope and provenance clear. Some previously sampled records will be fetched again as part of this consistent catalog pass. Raw content and SQLite data remain in the Git-ignored raw-data directory.</p>
+<p>Live discovery on 2026-10-08 returned 14,811 parent maps, 32,213 versions and 6,900 reviews. Highest-ID fences are 15,313, 33,034 and 7,883 respectively. This is approximately 544 requests including discovery, or 45–50 minutes at the configured pace. These are discovery totals; completion is determined separately in the manifest and export summary.</p>
+<p>After completion, verify the saved catalog offline:</p>
+<pre><code class="language-powershell">$env:PYTHONPATH = &#39;src&#39;
+.venv-codex/Scripts/python.exe -m supmapai.tools.faf_vault_audit data/raw/faf_api/entire_vault_20261008
+</code></pre>
+<p>The audit writes <code>exports/audit.json</code>, checking saved/discovered counts, resource links, required version fields and ranked coverage. It also reports differences between FAF&#39;s parent counters/summaries and sums from versions/raw reviews; it does not silently replace the source values.</p>
+<h2 id="current-direction-map-vault-only-2026-10-07">Current direction: map vault only (2026-10-07)</h2>
+<p>The user replaced replay-history collection with the vault&#39;s all-time play counter. All game-history plans and calibration commands below are historical notes. Use the new vault-only entry point:</p>
+<pre><code class="language-powershell">$env:PYTHONPATH = &#39;src&#39;
+.venv-codex/Scripts/python.exe -m supmapai.tools.faf_vault --output data/raw/faf_api/library_calibration_20261006 --max-requests 20 --run
+</code></pre>
+<p>This reuses cached vault pages and performs only map-version lookup and map-review requests. It never requests games, featured modes or replays. Omit <code>--run</code> to regenerate exports from cached vault responses without login or network access. The snapshot&#39;s older folder name and original calibration metadata remain for provenance; new manifest runs are labelled <code>map_vault_only</code>. The old replay records are retained but excluded from the vault exports.</p>
+<p><code>vault_exports/maps.json</code> and <code>maps.csv</code> contain one row per library map, including pending rows with null API values:</p>
+<table>
+<thead>
+<tr>
+<th>Field group</th>
+<th>Exported information</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Identity</td>
+<td>Local ID/folder, exact FAF version ID, parent map ID, version number, display name, latest-version relationship ID</td>
+</tr>
+<tr>
+<td>Usage</td>
+<td>Parent <code>all_time_plays</code>, exact-version <code>version_all_time_plays</code></td>
+</tr>
+<tr>
+<td>Competitive status</td>
+<td>Exact-version <code>ranked</code> and <code>hidden</code>; parent <code>recommended</code></td>
+</tr>
+<tr>
+<td>Size and slots</td>
+<td>Raw API width/height and maximum players</td>
+</tr>
+<tr>
+<td>Dates</td>
+<td>Parent and exact-version creation/upload dates and update timestamps separately</td>
+</tr>
+<tr>
+<td>Community ratings</td>
+<td>Parent and version average, count, score sum, lower bound, positive/negative components</td>
+</tr>
+<tr>
+<td>Other metadata</td>
+<td>Description, map/battle type, author ID, licence ID, download URL and small/large preview URLs</td>
+</tr>
+</tbody></table>
+<p>Dimensions remain in API map units (e.g. 512 corresponds to the conventional 10 km map dimension), rather than silently being labelled kilometres. A parent creation date and a version upload date are different events. <code>recommended</code>, <code>ranked</code> and community stars are independent signals.</p>
+<p>Author names and licence details are available through additional relationships in the API source, but the current lookup includes only their IDs. Missing metadata/rating summaries remain null. Community text and star ratings remain in <code>vault_exports/reviews.json</code>; <code>summary.json</code> records matching, ranked/unranked counts and review completeness. CSV neutralizes spreadsheet formula prefixes in text; JSON preserves original text.</p>
+<p>Ranked status is attached to a version, not to the entire parent map forever. <code>ranked=false</code> means the version is not enabled for ranked play; it does not identify the reason. FAF&#39;s <a href="https://forum.faforever.com/topic/3048/on-the-upcoming-removal-of-a-map-uploaders-power-to-unrank-a-map/8">creative-team explanation</a> discusses author choice at upload and balance, functionality or exploitation reasons. Use the flag as a competitive-dataset eligibility filter, not as automatic ground truth that the map is technically broken. Likewise, <code>ranked=true</code> is not an independent guarantee of quality.</p>
+<p>The primary usage signal is now FAF&#39;s unfiltered all-time parent counter. It is not restricted to two-human/five-minute games, and it must not be summed repeatedly across local versions of the same map. Exact-version usage is retained for comparison. Unranked maps are collected rather than discarded, so the downstream dataset can apply a transparent filter.</p>
+<p>Both legacy replay entry points reject <code>--run</code> after this change. Their parsing/helpers remain available for the recorded calibration and tests. Nineteen offline tests passed when the vault entry point was introduced.</p>
+<p>First vault-only continuation on 2026-10-07 used 20 requests (18 folder batches and two review pages). Vault-only coverage now contains 1,396 matched maps: 1,271 ranked and 125 unranked. Four queried folders were unmatched and 4,647 remain pending. There are 254 matched entries with an available parent average rating, plus 298 downloaded review records, 127 with text. These are partial collection counts, not whole-library totals. No game requests were made in this continuation. Differences from the previous calibration&#39;s match count arise because these exports use only vault responses, excluding incidental matches from game metadata.</p>
+<p>Run from the MapGen repository root with Python 3.11 or 3.12. No additional packages are required. This is a bounded pilot collector, not a validated full-history exporter.</p>
+<pre><code class="language-powershell">$env:PYTHONPATH = &#39;src&#39;
+.venv-codex/Scripts/python.exe -m supmapai.tools.faf_collect --start 2026-10-05 --end 2026-10-06 --output data/raw/faf_api/pilot_20261006
+</code></pre>
+<p>Without <code>--run</code>, this only prints the plan. Dates refer to game start time in UTC, inclusive start and exclusive end. Map/version/review collection is not date-filtered. Change dates and output directory for another pilot.</p>
+<p>To sign in through FAF and sample one page from each resource:</p>
+<pre><code class="language-powershell">.venv-codex/Scripts/python.exe -m supmapai.tools.faf_collect --start 2026-10-05 --end 2026-10-06 --output data/raw/faf_api/pilot_20261006 --max-requests 4 --run --login
+</code></pre>
+<p>The browser flow uses Authorization Code + PKCE, validates state on a loopback listener, and requests <code>openid public_profile</code>. It uses the public native-client ID found in the Rust client&#39;s source. This is not a newly registered MapGen OAuth application or an endorsement from FAF; deployment acceptance and allowed scopes must be verified. An authorized alternative client ID can be supplied using <code>--oauth-client-id</code> or <code>FAF_OAUTH_CLIENT_ID</code>. Login expires after three minutes. Tokens and callback codes are not written to files or logs, and refresh tokens are not requested or persisted. Complete login in FAF&#39;s browser page, not in chat.</p>
+<p>Alternatively, provide a valid access token through the hidden local <code>--prompt-token</code> prompt or the process environment variable <code>FAF_ACCESS_TOKEN</code>. Do not put a token in a command argument, source file, screenshot or chat message.</p>
+<p>Repeat the same command and output directory to resume. A different query plan requires a new directory. Login is required again for each browser-authenticated run. Exit code 2 means paused or incomplete, including the normal request-budget stop; exit code 0 means all four collections reached terminal pages. An expired login stops collection and does not initiate automatic retries.</p>
+<h2 id="limits-and-outputs">Limits and outputs</h2>
+<ul>
+<li>One outstanding API request, at least five seconds after each completed response.</li>
+<li>Default maximum 20 API requests per invocation; hard ceiling 20. Authentication exchange is separate.</li>
+<li>Game windows of at most seven days; page size at most 100. No automatic recurring job.</li>
+<li>Stop on HTTP errors, including 401, 403 and 429. Persist Retry-After cooldown across restarts when supplied. No automatic retry loop.</li>
+<li>Thirty-second network timeout, 20 MB response cap, fixed HTTPS API origin, no HTTP redirects carrying credentials.</li>
+<li>Atomic page/manifest writes and a per-snapshot lock. Do not run multiple snapshots concurrently; pacing is per process, not shared across processes. A hard-killed process can leave a stale lock; check that no collector is running before removing it.</li>
+</ul>
+<p><code>data/raw/faf_api/&lt;snapshot&gt;/</code> contains:</p>
+<ul>
+<li><code>manifest.json</code>: exact plan, per-resource progress, run request counts and stop reason.</li>
+<li><code>pages/</code>: cached raw JSON:API pages with request URL and retrieval time.</li>
+<li><code>exports/map.json</code>, <code>mapVersion.json</code>, <code>mapVersionReview.json</code>, <code>game.json</code>: primary resources deduplicated by ID.</li>
+<li><code>exports/included_resources.json</code>: relationship resources, including rating summaries.</li>
+<li><code>exports/game_classifications.json</code>: each observed game&#39;s classification and map IDs.</li>
+<li><code>exports/summary.json</code>: qualifying counts by map version and parent map, coverage and completeness flags.</li>
+</ul>
+<p>All these files are under the repository&#39;s ignored raw-data directory. No replay binaries are fetched. The review output contains community text and reviewer relationship IDs; treat publication separately from local collection.</p>
+<h2 id="meaning-of-counts">Meaning of counts</h2>
+<p>The rule is at least two distinct human player IDs and <code>replayTicks &gt;= 3000</code>, corresponding to five simulation minutes. AI participants do not count. Missing AI flags, player identity, included participant records or tick data produce an unknown classification. No ranked-only, mod, victory-condition or opposing-team restriction is imposed.</p>
+<p>This first implementation assumes <code>playerStats</code> linkage lists actual participants completely. Confirm that assumption, AI fields and spectator handling against known live games before using counts for analysis. The server duration filter means missing-tick games are not sampled; the summary cannot measure the fraction of all games missing duration.</p>
+<p>Each resource has its own <code>complete</code> flag. A budget-limited sample must never be presented as total map usage. Empty collections terminate paging instead of assuming that a requested page size was honored. Overlapping pages stop the run; offset pagination and mutable metadata still cannot guarantee a transactional snapshot. Refreshes should use a new directory rather than treating cached old pages as fresh. Historical updates and deletions require later reconciliation.</p>
+<p>The original <code>faf_collect</code> pilot does not match local maps. The <code>faf_library</code> calibration described below adds local-map matching and restricted featured-mod fields. Automatic review-summary reconciliation, broad historical backfill and exact historical rating analysis remain unimplemented.</p>
+<h2 id="verification">Verification</h2>
+<pre><code class="language-powershell">$env:PYTHONPATH = &#39;src&#39;
+.venv-codex/Scripts/python.exe -m unittest discover -s tests -p test_faf_collect.py
+</code></pre>
+<p>The tests use fixtures/fake network responses and make no FAF requests. For source research and operational rationale, see <a href="faf_community_metadata_research.md">FAF community metadata research</a>. No published FAF request-rate allowance was established; these are project safeguards, not a guarantee against service restrictions.</p>
+<h2 id="live-pilot-2026-10-06">Live pilot, 2026-10-06</h2>
+<p>Browser PKCE authentication and all four collection endpoints succeeded. The initial token exchange failed when using Python&#39;s default HTTP headers; adding the same honest collector User-Agent used for metadata requests resolved the problem. No token was persisted.</p>
+<p>The run made exactly four metadata requests, receiving 100 primary records from each endpoint. The 100 reviews included 36 nonempty text bodies. Map/version responses included play counts and rating-summary resources. The 100 sampled games were within the requested October 5 UTC window, from 00:00:03 to 02:40:34, with replay ticks from 3,188 to 104,739.</p>
+<p>Classification: 46 qualified, 53 had fewer than two distinct humans, and one had unknown participant data. Thirty-six of the 100 games had no map-version linkage; fourteen qualifying games could not be attributed to a vault map, leaving 32 attributable qualifying games. Do not guess their map from the game title or assume they were generated maps. Qualifying totals and map-attributable totals therefore differ.</p>
+<p>All four collection-completeness flags are false, as expected for a one-page-per-resource sample. No throttling occurred in these four requests; that does not establish a service rate allowance. The snapshot is <code>data/raw/faf_api/pilot_20261006</code> (ignored by Git). No larger crawl was run.</p>
+<h2 id="library-calibration">Library calibration</h2>
+<p><code>faf_library</code> uses the annotation app&#39;s 6,047-map catalog as its explicit collection scope. The separate extraction CSV has 6,053 rows; it is not the input to this run. A catalog hash is stored to prevent resuming against a changed library.</p>
+<pre><code class="language-powershell">$env:PYTHONPATH = &#39;src&#39;
+.venv-codex/Scripts/python.exe -m supmapai.tools.faf_library --start 2026-09-29 --output data/raw/faf_api/library_calibration_20261006 --max-requests 20 --run
+</code></pre>
+<p>Omit <code>--run</code> to preview the plan. The directory name identifies the planned snapshot; actual capture timestamps are in the cached responses and manifest.</p>
+<p>Within the same 20-request budget, the calibration reads the featured-mode list, one game page plus candidate totals for each of seven days, folder lookup batches of 50, and review batches for matched parent map IDs. It prioritizes the catalog&#39;s priority maps for folder lookup. Games must have featured mode <code>faf</code> and at least 3,000 replay ticks; distinct human participants are counted locally. Each day&#39;s sample is the first page in ascending game-ID order, not a random sample. Its qualifying fraction must not be generalized to the whole week.</p>
+<p>The matching report distinguishes exact matches, case-normalized matches, ambiguous matches, queried-but-unmatched folders, and pending folders. Versions included in game or review results may provide additional matches before their dedicated lookup batch is reached. A match does not guarantee that its rating summary has been collected yet.</p>
+<p>The cached calibration samples do not advance to further game pages when this command is resumed. Resume continues folder lookups and review extraction. The week-wide totals measure candidate records before the two-human filter; they are used only for an initial request-volume estimate. A full game-history collector is still a separate next stage.</p>
+<p>Outputs under <code>exports/</code> include <code>coverage.json</code>, <code>library_matches.csv</code>, <code>library_matches.json</code>, <code>ratings.json</code>, <code>reviews.json</code>, and <code>game_classifications.json</code>. Ratings preserve both version and parent summaries. Missing summaries remain null; absent counts are not confirmed zero. Review batches have individual completion state in the manifest, and the full-library review collection is not complete until all matching and review work has finished.</p>
+<p>The historical <code>ladder1v1</code> featured-mode identifier exists in the live catalog. This calibration includes only <code>faf</code>; establishing whether older standard ranked games use <code>ladder1v1</code> remains necessary before historical backfill. Standard featured mode also does not prove absence of additional simulation mods.</p>
+<h3 id="calibration-results-captured-2026-10-07">Calibration results captured 2026-10-07</h3>
+<p>The initial run used its 20-request budget. Sparse field selection for only <code>featuredMod</code> unexpectedly omitted game and participant attributes/relationships. An explicit field list for each included resource type corrected this. A separate repair run fetched just the seven daily pages (seven requests, the same five-second pacing). Original raw pages remain available, and exports prefer the repaired page for each day without counting both.</p>
+<p>Results from these 27 requests:</p>
+<ul>
+<li>500 folders queried directly in ten batches; additional versions included with game/review data brought matches to 602 of 6,047 library entries (552 exact and 50 case-normalized). Another 5,445 remain pending; pending does not mean absent from FAF.</li>
+<li>144 reviews downloaded for matched maps, including 62 with text. Review batch 0 is complete; batch 1 still has additional pages. This is not complete review coverage.</li>
+<li>700 game records sampled, one ascending-ID page per day: 383 qualifying, 310 under two humans, seven with unknown participant data.</li>
+<li>FAF reported 14,366 candidate games across the week before applying the human-participant rule. Full retrieval would take 146 pages with the observed daily pagination.</li>
+<li>Extrapolating this single week&#39;s candidate volume gives about 749,085 records/year, or a lower bound of 7,491 100-record page requests. Five-second spacing alone is approximately 10.4 hours; allow roughly 11 hours including responses and page rounding. This is a planning estimate for all standard FAF games, not a prediction for our library or a count of qualifying matches.</li>
+<li>Median response time was about 0.14 seconds in the first run and 0.125 seconds in the repair. Neither run encountered a throttling response. Both library matching and week-wide game collection remain incomplete.</li>
+</ul>
+<p>Next: finish the remaining 111 folder lookup batches and review pages in bounded runs, establish the historical standard-mode allowlist, then compare the same seven-day volume filtered to matched parent map IDs. Use that measured reduction to decide the historical collection schedule. Do not infer annual qualifying counts from the first-page samples.</p>
+<p>To repair old sparse-field game samples without doing any additional map/review work:</p>
+<pre><code class="language-powershell">$env:PYTHONPATH = &#39;src&#39;
+.venv-codex/Scripts/python.exe -m supmapai.tools.faf_library --start 2026-09-29 --output data/raw/faf_api/library_calibration_20261006 --max-requests 7 --repair-game-fields --run
+</code></pre>
+<p>Already repaired pages are cached and reused. Future normal runs also request the explicit game/participant fields.</p>
+<script src="model-atlas/public-links.js" data-public-links></script></body></html>

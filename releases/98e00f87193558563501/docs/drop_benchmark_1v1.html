@@ -1,0 +1,81 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>drop_benchmark_1v1.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="four-map-blind-drop-impact-comparison">Four-map blind drop-impact comparison</h1>
+<blockquote>
+<p>Scope clarification after this report: the user confirmed that air raids include torpedo aircraft against underwater mexes. Underwater sites are valid in the generic air-raid metric; representative gunship economics are retained. The weapon-specific caveat below is historical, not a coverage blocker for the combined collection run.</p>
+</blockquote>
+<p>15 October 2026. Local preview: <a href="http://127.0.0.1:5177/drop_benchmark_1v1/index.html">http://127.0.0.1:5177/drop_benchmark_1v1/index.html</a></p>
+<p>The scoring protocol was written before inspecting these four maps. No player rankings were supplied or used. These are geographic opportunity estimates for slot 1 versus its approximately 180-degree mirrored slot (slot 2 on all four), default adaptive options, two active players. They are not observations of army placement or combat results.</p>
+<table>
+<thead>
+<tr>
+<th>Map version</th>
+<th align="right">Active mexes</th>
+<th align="right">Expansion</th>
+<th align="right">Offensive</th>
+<th align="right">Air exposure (upper estimate)</th>
+<th align="right">Combined drops</th>
+<th align="right">Route strength</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Adaptive Maridia v0005</td>
+<td align="right">108</td>
+<td align="right">2.77 (48/108; 12 destinations)</td>
+<td align="right">2.85 (50/108; 16 destinations)</td>
+<td align="right">4.04 (82/108; 33 destinations)</td>
+<td align="right">3.00 (54/108; 18 destinations)</td>
+<td align="right">25.0%</td>
+</tr>
+<tr>
+<td>Adaptive Point of Reason v0002</td>
+<td align="right">90</td>
+<td align="right">3.08 (47/90; 12 destinations)</td>
+<td align="right">2.68 (38/90; 14 destinations)</td>
+<td align="right">3.22 (50/90; 18 destinations)</td>
+<td align="right">3.49 (56/90; 19 destinations)</td>
+<td align="right">25.0%</td>
+</tr>
+<tr>
+<td>Adaptive Hilly Plateau v0003</td>
+<td align="right">52</td>
+<td align="right">1.00 (0/52; 0 destinations)</td>
+<td align="right">1.00 (0/52; 0 destinations)</td>
+<td align="right">1.00 (0/52; 0 destinations)</td>
+<td align="right">1.00 (0/52; 0 destinations)</td>
+<td align="right">93.8%</td>
+</tr>
+<tr>
+<td>Adaptive Canis River v0002</td>
+<td align="right">40</td>
+<td align="right">1.00 (0/40; 0 destinations)</td>
+<td align="right">1.00 (0/40; 0 destinations)</td>
+<td align="right">1.00 (0/40; 0 destinations)</td>
+<td align="right">1.00 (0/40; 0 destinations)</td>
+<td align="right">83.1%</td>
+</tr>
+</tbody></table>
+<p>All scores are 1-5. Affected mexes and destination groups are deduplicated across both attacker directions. An expansion destination may also be an offensive destination; the combined score uses their union. Hydros and reclaim are exported but do not inflate the mex-share score.</p>
+<h2 id="settings-and-score">Settings and score</h2>
+<p>Use medium as the common primary preset, base strength 1, and route strength = clamp(land-connected mex share * straight/shortest land distance, .25, 1). Maridia and Point of Reason have no ordinary land connection between the selected bases in the current navigation grid. Their route response has no source, so changing the route-strength multiplier alone does not create a defending land army. Hilly and Canis have all active mexes on their connecting land component and directness .938/.831 respectively. These weights describe land coverage and directness; they do not determine actual naval-versus-land army investment.</p>
+<p>The primary medium screen retains a 96-unit base buffer, minimum two mexes per target patch (inaccessible-pocket exceptions), 22-second-equivalent ground-response window, 12 seconds enemy-air flight, 35 seconds net engineer travel saved after 40 seconds transport production, and early-income recovery of one transport mass cost. Physical travel times remain unchanged by response strength.</p>
+<p>Impact = 1 + 4 * affected_mex_share * (.75 + .25 * (1 - exp(-destinations/3))). The 75/25 weighting and destination scale of 3 are provisional design choices, not fitted coefficients. One of 100 mexes in one destination gives about 1.03/5; broad economic exposure dominates destination count. Scores are not normalized relative to these four maps.</p>
+<h2 id="ranking-stability">Ranking stability</h2>
+<p>Each map received the same 18 scenarios: strict/medium/permissive, route .25/.5/1, base .5/1. These are counterfactual settings, not confidence intervals.</p>
+<ul>
+<li>Expansion: Point of Reason beats Maridia in 12/18 cases; Maridia wins 6/18. Both beat Hilly and Canis in all 18.</li>
+<li>Offensive: Maridia beats Point of Reason in 12/18, but loses 6/18. That order is less secure than the primary score suggests.</li>
+<li>Air exposure: Maridia beats Point of Reason in all 18; Point of Reason beats both small maps in all 18. Water-target eligibility remains unresolved below.</li>
+<li>Combined drops: Point of Reason beats all three other maps in all 18.</li>
+<li>Hilly and Canis tie under the primary preset. In 12/18 scenarios they still tie; remaining cases favor Hilly for expansion and Canis for offensive/air opportunity. Neither deserves a firm overall rank above the other yet.</li>
+</ul>
+<h2 id="why-the-low-primary-scores">Why the low primary scores?</h2>
+<p>Hilly and Canis have shorter travel distances, strong connecting land-route coverage, and predominantly single-mex patches at the current 32-unit clustering radius. Their larger main-base patches fail the proximity/response screens. On Hilly, 86/94 side-area evaluations fail the two-mex test and 92/94 fail the response-window test (overlapping causes). A 1 means no destination clears every primary screen; it does not mean a transport or gunship can never be useful. Under permissive settings and weaker defenses, offensive/air scenario scores reach roughly 3.3-3.4. We should validate patch size and defense thresholds against player feedback before treating this floor as a gameplay label.</p>
+<h2 id="air-score-limitation">Air-score limitation</h2>
+<p>Maridia&#39;s primary air exposure counts 82 mexes, including 32 underwater sites; Point of Reason counts 50, including 12 underwater sites. Water mexes remain in the existing air opportunity evaluation, which has not checked unit weapon targetability at their actual depth. The representative UEF gunship blueprint has AboveWaterTargetsOnly=true. Therefore 4.04/3.22 are exposure upper estimates and should not yet be used as confirmed gunship-impact labels. The land-target portions are 50/108 and 38/90 respectively; their shares still favor Maridia, but that alone is not a full rescreened weapon-aware score. Engineer expansion drops onto water remain supported.</p>
+<p>Air superiority also includes transports, interceptors, bombers and naval protection. This metric captures one geographic incentive for air control, not the entire strategic value of air. Actual AA, radar, upgrades, firing geometry and naval support remain outside this calculation.</p>
+<h2 id="extraction-and-validation">Extraction and validation</h2>
+<p>Added support for Point of Reason&#39;s six-slot legacy branch, Hilly&#39;s inline SpawnWithArmy/LaneMass/Mexside marker attributes with Lua branch order retained, and Canis&#39; non-monotonic middle-resource rule and single-mex mode. Empty land-route results now retain resources and a complete analysis schema instead of crashing. These fixes change resource extraction support, not scoring thresholds.</p>
+<p>66 targeted tests passed, covering scoring, adaptive resource branches, water engineer movement, navigation and calibration. Output checks confirm score bounds/formula, unique resource denominators, 18 aligned scenarios, primary flags and PNG overlays including combined unions. The local viewer supports map/category/attacker switching and inspection of rejected areas.</p>
+<p>Artifacts: primary_scores.csv, sensitivity.csv, rankings.json, validation.json; each map also has opportunities.json, automatic_layers.npz, area_metrics.csv, calibration_metrics.csv and reusable PNG overlays. Reproduce using PYTHONPATH=src and .venv-codex/Scripts/python.exe -m supmapai.tools.benchmark_drop_maps. Cached routes/extraction are reused unless source/configuration hashes change.</p>
+<h2 id="next-calibration-decision">Next calibration decision</h2>
+<p>Compare these blind rankings with the user&#39;s experience first. Keep base strength fixed unless there is evidence to change it; static terrain cannot establish actual base defense investment. Tune a small number of global thresholds or a defined map-feature-to-parameter rule on reference maps, then evaluate on separate held-out maps. Do not choose a per-map preset to make every known opinion match. Agreement on four familiar maps is useful evidence, but insufficient to validate the general model.</p>
+<script src="model-atlas/public-links.js" data-public-links></script></body></html>

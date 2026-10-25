@@ -1,0 +1,230 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>terrain_symmetry_detection.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="terrain-first-symmetry-extraction-experimental-25-october-2026">Terrain-first symmetry extraction — experimental, 25 October 2026</h1>
+<p>The owner confirmed that editor symmetry selection does not survive ordinary map
+export. Explicit symmetry metadata searching is skipped. The detector compares
+native physical terrain against transformed samples; entities are independent
+corroborating evidence, not substitutes for terrain.</p>
+<h2 id="completed-calculation">Completed calculation</h2>
+<p>Authoritative run: <code>data/processed/terrain_symmetry_collection_v2</code>.
+All <strong>1,310</strong> maps in the original Full256 V3 audit collection completed in
+<strong>72.9 seconds</strong>, two CPU workers, zero extraction failures. No maps were
+downloaded, no training started and no existing profile, checkpoint, scenario,
+curation decision or split changed.</p>
+<table>
+<thead>
+<tr>
+<th>Detected terrain class</th>
+<th align="right">Maps</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Rotation without accepted reflection</td>
+<td align="right">1,010</td>
+</tr>
+<tr>
+<td>Rotation plus reflection axes</td>
+<td align="right">168</td>
+</tr>
+<tr>
+<td>Mirror only</td>
+<td align="right">14</td>
+</tr>
+<tr>
+<td>No accepted match within the search</td>
+<td align="right">118</td>
+</tr>
+</tbody></table>
+<p><strong>1,282</strong> meet the experimental whole-domain geometry gates; <strong>28</strong> are
+provisional. Passing a gate is not owner approval or ground-truth certification.
+68 existing selected pairs do not match any accepted transform. These are review
+candidates, not proof every pair is wrong. On 354 maps, at least one accepted
+terrain transform fails to match all source starts or all pinned default mexes.
+Terrain and entity symmetry must remain separate facts.</p>
+<p>The run includes the original audit population rather than replacing it with the
+curated 1,117-map subset. <strong>Selection bias:</strong> this population inherited a prior
+half-map compatibility filter, which excluded 548 earlier candidates using
+encoded height, water and opposing-start thresholds. The high half-turn share
+cannot be generalized to the FAF vault. Review that inherited selection in
+EXTRACT-06b; no excluded maps were restored automatically.</p>
+<h2 id="method">Method</h2>
+<ol>
+<li>Verify each pinned native NPZ hash, metadata identity and original family/split.
+Read native physical <code>height_vertices</code>, playable bounds, all source start
+markers and the already resolved configuration&#39;s mexes. These maps have
+513×513 native vertices; no enforced-symmetry or preview image is used.</li>
+<li>Sample a regular 40×40 equal-area grid at cell centers. Scan reflection axes
+every 3 degrees from 0 to 180. Refine promising local minima in angle and
+perpendicular offset. Check rotational orders 2 through 16; refine centers
+within ±2.5% of the domain extent. This is bounded discovery, not every
+possible rotation center or local symmetry.</li>
+<li>Verify candidates on an independent denser 161×161 grid with bilinear native
+height samples. Rotation acceptance requires <strong>every nonidentity power</strong> of
+that order to pass, not merely the sector generator. A combined rotation and
+reflection class must verify the whole generated reflection set.</li>
+<li>Fit error is height RMSE divided by robust relief (95th minus 5th height
+percentiles), weighted to keep featureless backgrounds from dominating.
+Candidate limits: weighted normalized RMSE ≤0.055, normalized absolute-error
+p95 ≤0.12, continuous domain overlap ≥72%. These are experimental tolerances,
+<strong>not calibrated probabilities</strong>. Retain residuals and all tested candidates.</li>
+<li>A whole-domain conditioning candidate additionally requires ≥99.5% domain
+overlap for every selected transform and no unrepresented accepted mirror.
+Continuous rectangle intersection avoids a sample-grid endpoint artifact.
+Negligible terrain variation produces <strong>unknown</strong>, not all symmetry types.</li>
+<li>Transform original start/default-mex positions and measure nearest-source
+agreement at 3 world-unit tolerance, including unique-target counts. Record
+every non-self source-slot correspondence. Do not rename/move slots or force
+a single opposing base when multiple valid mates exist.</li>
+</ol>
+<p>Angles are measured from +world-x toward +world-z, in physical coordinates.
+Mirrors have an axis; rotations have a center and order. One arbitrary class ID
+would lose these distinctions. For mirror-only maps, the canonical center is the
+projection of the domain center onto the fitted axis.</p>
+<h2 id="saved-data-and-model-role">Saved data and model role</h2>
+<p>Each map has <code>result.json</code> (descriptor, expanded transforms, fit errors, separate
+entity evidence and source pins), <code>symmetry.npz</code>, <code>preview.png</code>, and a hash seal.
+<code>conditions.npz</code> holds keys, <strong>condition <code>(1310, 28)</code></strong>, availability and cohort
+identity. A per-map condition is:</p>
+<table>
+<thead>
+<tr>
+<th>Indices</th>
+<th>Representation</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>0–3</td>
+<td>One-hot: none, reflection, rotation, rotation_with_reflection</td>
+</tr>
+<tr>
+<td>4–19</td>
+<td>Rotational order 1–16, one-hot; 1 is identity rotation only</td>
+</tr>
+<tr>
+<td>20–21</td>
+<td>Center normalized to −1…1 within the playable domain</td>
+</tr>
+<tr>
+<td>22–23</td>
+<td><code>[cos(2*n*theta), sin(2*n*theta)]</code> for the mirror-axis set</td>
+</tr>
+<tr>
+<td>24–27</td>
+<td>Availability of family, order, center and mirror orientation</td>
+</tr>
+</tbody></table>
+<p>Unknown/provisional conditions are zero-filled with availability false. A
+bounded “no match” result has an explicit none category, not the unknown vector.
+Expanded transform arrays have shape <code>(T, 3, 3)</code>, world affine matrices.</p>
+<p>This is an <strong>experimental sidecar</strong>, visible in each atlas map&#39;s derived-data
+section. The selected models still consume their existing inputs; the current
+21-value profile was not expanded. A new compatible loader/checkpoint release,
+scientific review and augmentation transforms are required before training use.</p>
+<h2 id="validation-and-remaining-limits">Validation and remaining limits</h2>
+<p>Ten tests cover source-pinned extraction, flat unknowns, asymmetric noise, a
+half-turn without mirrors, multiple mirror axes, angled/offset axes including
+angle wraparound, three-sector structure and partial-domain coverage. Independent
+collection validation checks all seals, implementation snapshots, native/metadata/
+marker hashes, source identity/splits, finite vectors, encoding, NPZ shapes and
+rigid-transform fixed centers. It passed for all 1,310 maps; see <code>integrity.json</code>.</p>
+<ul>
+<li>Sampling can miss small asymmetric features. This is approximate terrain
+similarity, not a pixel-perfect certificate; fine-grid agreement is evidence.</li>
+<li>Robust normalization and thresholds still need review against diverse maps.
+Uniform terrain cannot identify author intent; entity evidence may help later.</li>
+<li>Orders above 16, strongly offset centers and exhaustive local symmetry are
+outside this search. <code>11097_21654</code> reaches the order ceiling; don&#39;t call its
+fitted order a proven global maximum. Near-radial terrain can fit many orders.</li>
+<li>Arbitrary-angle mirrors and radial rotations may only agree on the overlap of
+a rectangular domain. Corners are not silently discarded from a full-map
+label. Resolving a meaningful radial playable-domain mask is future work.</li>
+<li>Height agreement does not certify slope, textures, water enablement, reclaim,
+starts or every adaptive setting. Current checks cover starts/default mexes;
+no whole-dataset props or settings-variant symmetry is certified.</li>
+<li>Source-start matching is a candidate relation, not an automatic 1v1 selection
+policy. EXTRACT-01 still needs selection rules and downstream scenario repair.</li>
+<li>A requested model condition encourages symmetry; exact enforcement/validation
+remains a separate operation. The new fields are not yet trained conditions.</li>
+</ul>
+<h2 id="reproduce">Reproduce</h2>
+<pre><code class="language-powershell">$env:PYTHONPATH=&#39;src&#39;
+.venv-codex/Scripts/python.exe -m unittest discover -s tests -p test_terrain_symmetry_detection.py -v
+.venv-codex/Scripts/python.exe -m supmapai.tools.calculate_map_symmetry --out data/processed/terrain_symmetry_collection_v2 --limit 0 --workers 2
+.venv-codex/Scripts/python.exe tools/finalize_terrain_symmetry.py --run data/processed/terrain_symmetry_collection_v2
+</code></pre>
+<p>Resume requires the same pinned contract; changed method/settings require a new
+output version. Earlier debugging pilots and collection v1 are preserved and
+superseded by v2. The finalizer publishes only a small cohort-matched atlas
+sidecar; it does not alter source tensors or membership.</p>
+<p>Implementation: <a href="../src/supmapai/extract/terrain_symmetry.py">detector</a>,
+<a href="../src/supmapai/tools/calculate_map_symmetry.py">collector</a>,
+<a href="../tools/finalize_terrain_symmetry.py">validator/exporter</a>,
+<a href="../tests/test_terrain_symmetry_detection.py">tests</a>.</p>
+<h2 id="human-readable-labels-and-geometry-masks">Human-readable labels and geometry masks</h2>
+<p><code>data/processed/terrain_symmetry_assets_v2</code> contains named descriptors, a
+512x512 transparent RGBA <code>symmetry_mask.png</code>, a terrain-backed annotated
+<code>symmetry_diagram.png</code>, and categorical <code>symmetry_regions.npz</code> for every map.
+These are explanatory geometry assets, not battle-path or resource-influence
+labels, and are not added to selected training inputs. Source detections are
+unchanged. Ten presentation tests cover geometry and the gradient transform
+semantics; the full asset/seal/shape audit remains separate from scientific review.</p>
+<p>Names distinguish single mirror, half-turn rotation, half-turn plus two mirror
+axes, fourfold rotation, and fourfold rotation plus four mirror axes. The last
+class partitions into eight fundamental wedges. A full square boundary admits
+at most fourfold rotation and four mirror axes; higher-order radial terrain
+patterns remain named and provisional instead of being clamped to that class.
+This catalog is not one ordinal quality scale; a mirror and a half-turn are
+different constraints of the same group size.</p>
+<p>For a reflection that exchanges the selected bases, its axis is the perpendicular
+bisector of their joining segment. The diagram&#39;s colored axes are measured terrain
+axes. On mirror-only maps, a cyan dashed line shows the selected pair&#39;s bisector
+as a hypothesis; it does not rotate or move the measured axis. A/B are recorded
+scenario bases, with original source names retained in <code>descriptor.json</code>.</p>
+<p><code>symmetry_catalog.csv</code> lists every map. <code>no_symmetry_match.csv</code> lists all 118
+unmatched cases with saved vault status, popularity, current membership and
+review reasons. All 118 have saved vault ranked=True; 94 are in the current
+curated release. These are significant review candidates, not proof of actual
+asymmetry. No threshold was loosened to manufacture a match. The broader
+<code>review_required.csv</code> has 209 maps, combining no-match, provisional geometry,
+tested-order ceiling and selected-pair mismatch reasons. Flags do not change
+curation or automatically exclude/approve training examples.</p>
+<p>The source preview crop supplies the diagram&#39;s grayscale terrain context;
+region geometry comes from saved world-coordinate transforms. Diagrams are
+display assets. Numeric labels and original heights retain their own shapes.</p>
+<h3 id="extract-13-implications-proposed-repair-not-completed">EXTRACT-13 implications: proposed repair, not completed</h3>
+<p>Use the measured transform and valid domain rather than a universal half-map
+reflection. A rotational counterpart must be rotated, not reflected. Select the
+subgroup that preserves the actual selected 1v1 pair: a map&#39;s global symmetry
+may send that pair to other source slots. Existing one-direction correspondence
+checks do not certify scenario invariance. Multiple mates and roles still need
+EXTRACT-01 policy.</p>
+<p>Path fragments must meet at shared, passable contact positions with continuous
+geometry and correct resource ownership. Transforming independently optimized
+fragments does not guarantee this. Therefore detected symmetry is a prerequisite
+for the EXTRACT-13 repair, not evidence the abrupt-end problem is already fixed.</p>
+<p>Reproduce the presentation using <code>PYTHONPATH=src</code>:</p>
+<pre><code class="language-powershell">.venv-codex/Scripts/python.exe tools/render_symmetry_assets.py --source data/processed/terrain_symmetry_collection_v2 --out data/processed/terrain_symmetry_assets_v2
+.venv-codex/Scripts/python.exe tools/audit_symmetry_assets.py
+node tools/test_atlas_symmetry.mjs
+</code></pre>
+<p>Run rendering after the detection finalizer if regenerating the atlas sidecar;
+the rendering step adds its presentation fields and PNGs without rerunning
+symmetry discovery. <a href="model-atlas/symmetry-assets-receipt.json">Asset receipt</a>.</p>
+<h3 id="directional-gradients-26-october-2026">Directional gradients — 26 October 2026</h3>
+<p>The owner&#39;s reference replaces flat sector fills with a bright-to-dark pattern
+whose direction follows each transform. A mirror repeats the same tangential
+gradient on both sides; a half-turn reverses its world-space direction on the
+opposite side. Higher-order rotation repeats a rotated seed. Reflection groups
+fold that seed into mirrored wedges and introduce cyan, amber and violet in
+addition to red. Axis-line accent colors identify individual measured axes.</p>
+<p>The unannotated color field itself respects the detected group. Tests check
+mirror agreement, half-turn agreement with opposite gradient directions,
+fourfold rotation without an invented mirror, and two/four-axis reflection
+groups. Annotated axis colors and source-base labels are explanatory marks and
+are not themselves claimed to be a group-invariant field.</p>
+<p>Each map additionally has <code>symmetry_gradient.png</code>: the pure RGB pattern without
+terrain or annotations. <code>symmetry_mask.png</code> is the pure transparent RGBA overlay;
+the annotated diagram composites it over terrain. Unsupported transform overlap
+has reduced overlay opacity. Unmatched maps receive no invented gradient.
+Old flat assets remain archived in <code>terrain_symmetry_assets_v1</code>. Labels, detected
+transforms, review flags and training profiles were not recalculated or changed.</p>
+<p><img src="model-atlas/generated/symmetry-gradient-key.png" alt="Synthetic visual key, generated by the same renderer"></p>
+<script src="model-atlas/public-links.js" data-public-links></script></body></html>
