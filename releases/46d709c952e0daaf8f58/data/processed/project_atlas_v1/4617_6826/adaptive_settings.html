@@ -1,0 +1,453 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>adaptive_settings.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="../../../../docs/model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="map-settings">Map settings</h1>
+<p>Active slots: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]</p>
+<p>Each alternative changes one option while keeping all other settings fixed. Counts are initial deposits; runtime growth is not simulated.
+Descriptions below come from the map author. Calculated counts follow the inspected script.</p>
+<h2 id="dynamic-spawn-of-mexes-automex">dynamic spawn of mexes (<code>automex</code>)</h2>
+<p>Enable the mex spawn algorithm to adjust the map to the player count</p>
+<p>Effect support: <code>supported_static_resource_rule</code></p>
+<table>
+<thead>
+<tr>
+<th>Choice</th>
+<th align="right">Key</th>
+<th>Default / selected</th>
+<th align="right">Initial mexes</th>
+<th align="right">Initial hydros</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>enabled</td>
+<td align="right">1</td>
+<td>default, selected</td>
+<td align="right">110</td>
+<td align="right">20</td>
+</tr>
+<tr>
+<td>disabled canis 4v4 mexes</td>
+<td align="right">2</td>
+<td></td>
+<td align="right">74</td>
+<td align="right">14</td>
+</tr>
+<tr>
+<td>disabled canis 7v7 mexes</td>
+<td align="right">3</td>
+<td></td>
+<td align="right">110</td>
+<td align="right">20</td>
+</tr>
+<tr>
+<td>enabled - crazyrush</td>
+<td align="right">6</td>
+<td></td>
+<td align="right">110</td>
+<td align="right">20</td>
+</tr>
+<tr>
+<td>enabled - 1 mex crazyrush</td>
+<td align="right">7</td>
+<td></td>
+<td align="right">14</td>
+<td align="right">20</td>
+</tr>
+</tbody></table>
+<ul>
+<li><strong>enabled</strong>: map adjust automatically for the playercount</li>
+<li><strong>disabled canis 4v4 mexes</strong>: Map will not adjust for players and will spawn the mexes of the four main base players and their expansions. The map will look similar to canis 4v4.</li>
+<li><strong>disabled canis 7v7 mexes</strong>: Map will not adjust for players and will spawn the all mexes</li>
+<li><strong>enabled - crazyrush</strong>: Map will adjust for players and will spawn mexes and hydros for each player. The mexes show the same behavior as crazyrush mex and multiply after an extractor has been build on them.</li>
+<li><strong>enabled - 1 mex crazyrush</strong>: Map will adjust for players and will spawn ONE mex per player and hydros for each player. The mexes show the same behavior as crazyrush mex and multiply after an extractor has been build on them.</li>
+</ul>
+<h2 id="additional-hydros-hydroplus">additional hydros (<code>hydroplus</code>)</h2>
+<p>additional hydros on side hills</p>
+<p>Effect support: <code>unresolved_or_no_populated_table</code></p>
+<table>
+<thead>
+<tr>
+<th>Choice</th>
+<th align="right">Key</th>
+<th>Default / selected</th>
+<th align="right">Initial mexes</th>
+<th align="right">Initial hydros</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>enabled</td>
+<td align="right">1</td>
+<td>default, selected</td>
+<td align="right">110</td>
+<td align="right">20</td>
+</tr>
+<tr>
+<td>disabled</td>
+<td align="right">2</td>
+<td></td>
+<td align="right">110</td>
+<td align="right">20</td>
+</tr>
+</tbody></table>
+<ul>
+<li><strong>enabled</strong>: Spawn an additional hydro on the side hills</li>
+<li><strong>disabled</strong>: Dont spawn an additional hydro on the side hill</li>
+</ul>
+<h2 id="reclaim---starting-ress-optional_start">reclaim - starting ress. (<code>optional_start</code>)</h2>
+<p>add groups of wrecks close to the starting locations of the players.</p>
+<p>Effect support: <code>unresolved_or_no_populated_table</code></p>
+<table>
+<thead>
+<tr>
+<th>Choice</th>
+<th align="right">Key</th>
+<th>Default / selected</th>
+<th align="right">Initial mexes</th>
+<th align="right">Initial hydros</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>no reclaim</td>
+<td align="right">1</td>
+<td>default, selected</td>
+<td align="right">110</td>
+<td align="right">20</td>
+</tr>
+<tr>
+<td>some reclaim</td>
+<td align="right">2</td>
+<td></td>
+<td align="right">110</td>
+<td align="right">20</td>
+</tr>
+<tr>
+<td>more reclaim</td>
+<td align="right">3</td>
+<td></td>
+<td align="right">110</td>
+<td align="right">20</td>
+</tr>
+<tr>
+<td>a lot of reclaim</td>
+<td align="right">4</td>
+<td></td>
+<td align="right">110</td>
+<td align="right">20</td>
+</tr>
+</tbody></table>
+<ul>
+<li><strong>no reclaim</strong>: Do not add additional reclaim close to the starting locations.</li>
+<li><strong>some reclaim</strong>: Add some t1 units close to the starting area.</li>
+<li><strong>more reclaim</strong>: Add additional t2 units to the starting area.</li>
+<li><strong>a lot of reclaim</strong>: Add an additional group of wrecks to the middle area and some t3 units to the sides of the starting area.</li>
+</ul>
+<h2 id="reclaim---middle-optional_reclaim_middle">reclaim - middle (<code>optional_reclaim_middle</code>)</h2>
+<p>add groups of wrecks to the middle of the map</p>
+<p>Effect support: <code>unresolved_or_no_populated_table</code></p>
+<table>
+<thead>
+<tr>
+<th>Choice</th>
+<th align="right">Key</th>
+<th>Default / selected</th>
+<th align="right">Initial mexes</th>
+<th align="right">Initial hydros</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>no reclaim</td>
+<td align="right">1</td>
+<td>default, selected</td>
+<td align="right">110</td>
+<td align="right">20</td>
+</tr>
+<tr>
+<td>some reclaim</td>
+<td align="right">2</td>
+<td></td>
+<td align="right">110</td>
+<td align="right">20</td>
+</tr>
+<tr>
+<td>more reclaim</td>
+<td align="right">3</td>
+<td></td>
+<td align="right">110</td>
+<td align="right">20</td>
+</tr>
+<tr>
+<td>a lot of reclaim</td>
+<td align="right">4</td>
+<td></td>
+<td align="right">110</td>
+<td align="right">20</td>
+</tr>
+<tr>
+<td>Tempest wreck</td>
+<td align="right">5</td>
+<td></td>
+<td align="right">110</td>
+<td align="right">20</td>
+</tr>
+</tbody></table>
+<ul>
+<li><strong>no reclaim</strong>: Do not add additional reclaim in the middle of the map.</li>
+<li><strong>some reclaim</strong>: Add a group of 4 frigates to the river.</li>
+<li><strong>more reclaim</strong>: Add a group of 2 destroyers and 2 frigates to the river.</li>
+<li><strong>a lot of reclaim</strong>: Add a battleship and some frigates to the river.</li>
+<li><strong>Tempest wreck</strong>: Add a tempest to the middle.</li>
+</ul>
+<h2 id="reclaim---side-optional_reclaim_side">reclaim - side (<code>optional_reclaim_side</code>)</h2>
+<p>add wrecks to the side of the map</p>
+<p>Effect support: <code>unresolved_or_no_populated_table</code></p>
+<table>
+<thead>
+<tr>
+<th>Choice</th>
+<th align="right">Key</th>
+<th>Default / selected</th>
+<th align="right">Initial mexes</th>
+<th align="right">Initial hydros</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>no reclaim</td>
+<td align="right">1</td>
+<td>default, selected</td>
+<td align="right">110</td>
+<td align="right">20</td>
+</tr>
+<tr>
+<td>stratbomberwreck</td>
+<td align="right">2</td>
+<td></td>
+<td align="right">110</td>
+<td align="right">20</td>
+</tr>
+</tbody></table>
+<ul>
+<li><strong>no reclaim</strong>: Do not add additional reclaim on the sides.</li>
+<li><strong>stratbomberwreck</strong>: Add a wreck (2k mass) to the side expansion.</li>
+</ul>
+<h2 id="civilians-optional_civilian_base">civilians (<code>optional_civilian_base</code>)</h2>
+<p>Civilians with different levels of defences in the middle next to the river.</p>
+<p>Effect support: <code>unresolved_or_no_populated_table</code></p>
+<table>
+<thead>
+<tr>
+<th>Choice</th>
+<th align="right">Key</th>
+<th>Default / selected</th>
+<th align="right">Initial mexes</th>
+<th align="right">Initial hydros</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>no civilians</td>
+<td align="right">1</td>
+<td>default, selected</td>
+<td align="right">110</td>
+<td align="right">20</td>
+</tr>
+<tr>
+<td>base - no walls</td>
+<td align="right">2</td>
+<td></td>
+<td align="right">110</td>
+<td align="right">20</td>
+</tr>
+<tr>
+<td>base - no defences</td>
+<td align="right">3</td>
+<td></td>
+<td align="right">110</td>
+<td align="right">20</td>
+</tr>
+<tr>
+<td>base - t1 defences</td>
+<td align="right">4</td>
+<td></td>
+<td align="right">110</td>
+<td align="right">20</td>
+</tr>
+<tr>
+<td>base - t2 defences</td>
+<td align="right">5</td>
+<td></td>
+<td align="right">110</td>
+<td align="right">20</td>
+</tr>
+</tbody></table>
+<ul>
+<li><strong>no civilians</strong>: Do not add civilians.</li>
+<li><strong>base - no walls</strong>: Add a civilian base without walls and no defences.</li>
+<li><strong>base - no defences</strong>: Add a civilian base with walls and no defences.</li>
+<li><strong>base - t1 defences</strong>: Add a civilian base with walls and t1 defences.</li>
+<li><strong>base - t2 defences</strong>: Add a civilian base with walls and t2 defences.</li>
+</ul>
+<h2 id="change-natural-reclaim-naturalreclaimmodifier">change natural reclaim (<code>naturalReclaimModifier</code>)</h2>
+<p>Changes the amount of mass and energy in rocks and trees on the map.</p>
+<p>Effect support: <code>natural_reclaim_multiplier</code></p>
+<table>
+<thead>
+<tr>
+<th>Choice</th>
+<th align="right">Key</th>
+<th>Default / selected</th>
+<th align="right">Initial mexes</th>
+<th align="right">Initial hydros</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>3 times higher</td>
+<td align="right">3</td>
+<td></td>
+<td align="right">110</td>
+<td align="right">20</td>
+</tr>
+<tr>
+<td>2 times higher</td>
+<td align="right">2</td>
+<td></td>
+<td align="right">110</td>
+<td align="right">20</td>
+</tr>
+<tr>
+<td>1.5 times higher</td>
+<td align="right">1.5</td>
+<td></td>
+<td align="right">110</td>
+<td align="right">20</td>
+</tr>
+<tr>
+<td>1.25 times higher</td>
+<td align="right">1.25</td>
+<td></td>
+<td align="right">110</td>
+<td align="right">20</td>
+</tr>
+<tr>
+<td>disabled</td>
+<td align="right">1</td>
+<td>default, selected</td>
+<td align="right">110</td>
+<td align="right">20</td>
+</tr>
+<tr>
+<td>0.8 times lower</td>
+<td align="right">0.8</td>
+<td></td>
+<td align="right">110</td>
+<td align="right">20</td>
+</tr>
+<tr>
+<td>0.6 times lower</td>
+<td align="right">0.6</td>
+<td></td>
+<td align="right">110</td>
+<td align="right">20</td>
+</tr>
+<tr>
+<td>0.4 times lower</td>
+<td align="right">0.4</td>
+<td></td>
+<td align="right">110</td>
+<td align="right">20</td>
+</tr>
+<tr>
+<td>0.2 times lower</td>
+<td align="right">0.2</td>
+<td></td>
+<td align="right">110</td>
+<td align="right">20</td>
+</tr>
+</tbody></table>
+<ul>
+<li><strong>3 times higher</strong>: Enhances the reclaim by a factor of 3.</li>
+<li><strong>2 times higher</strong>: Enhances the reclaim by a factor of 2.</li>
+<li><strong>1.5 times higher</strong>: Enhances the reclaim by a factor of 1.5.</li>
+<li><strong>1.25 times higher</strong>: Enhances the reclaim by a factor of 1.25.</li>
+<li><strong>disabled</strong>: Doesnt change the reclaim values.</li>
+<li><strong>0.8 times lower</strong>: Removes 20 percent of the mass in rocks.</li>
+<li><strong>0.6 times lower</strong>: Removes 40 percent of the mass in rocks.</li>
+<li><strong>0.4 times lower</strong>: Removes 60 percent the mass in rocks.</li>
+<li><strong>0.2 times lower</strong>: Removes 80 percent the mass in rocks.</li>
+</ul>
+<h2 id="regrowing-trees-tree">regrowing trees (<code>tree</code>)</h2>
+<p>Regrow reclaimed trees slowly when there are still other trees around. If there are more trees close, they regrow faster. This requires a good cpu!</p>
+<p>Effect support: <code>runtime_growth_not_simulated</code></p>
+<table>
+<thead>
+<tr>
+<th>Choice</th>
+<th align="right">Key</th>
+<th>Default / selected</th>
+<th align="right">Initial mexes</th>
+<th align="right">Initial hydros</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>disabled</td>
+<td align="right">1</td>
+<td>default, selected</td>
+<td align="right">110</td>
+<td align="right">20</td>
+</tr>
+<tr>
+<td>enabled - faster</td>
+<td align="right">2</td>
+<td></td>
+<td align="right">110</td>
+<td align="right">20</td>
+</tr>
+<tr>
+<td>enabled</td>
+<td align="right">3</td>
+<td></td>
+<td align="right">110</td>
+<td align="right">20</td>
+</tr>
+<tr>
+<td>enabled - slower</td>
+<td align="right">4</td>
+<td></td>
+<td align="right">110</td>
+<td align="right">20</td>
+</tr>
+</tbody></table>
+<ul>
+<li><strong>disabled</strong>: Dont regrow trees.</li>
+<li><strong>enabled - faster</strong>: Regrow trees faster.</li>
+<li><strong>enabled</strong>: Regrow trees.</li>
+<li><strong>enabled - slower</strong>: Regrow trees slower.</li>
+</ul>
+<h2 id="mirror-spots-mirrormex">mirror spots (<code>mirrormex</code>)</h2>
+<p>Only spawn ressources when mirror spots are taken</p>
+<p>Effect support: <code>supported_static_resource_rule</code></p>
+<table>
+<thead>
+<tr>
+<th>Choice</th>
+<th align="right">Key</th>
+<th>Default / selected</th>
+<th align="right">Initial mexes</th>
+<th align="right">Initial hydros</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>disabled</td>
+<td align="right">1</td>
+<td>default, selected</td>
+<td align="right">110</td>
+<td align="right">20</td>
+</tr>
+<tr>
+<td>enabled</td>
+<td align="right">2</td>
+<td></td>
+<td align="right">110</td>
+<td align="right">20</td>
+</tr>
+</tbody></table>
+<ul>
+<li><strong>disabled</strong>: Always spawn mex/hydro when spot is taken (for both players)</li>
+<li><strong>enabled</strong>: only spawn mex/hydro when opposing spot is also taken</li>
+</ul>
+<script src="../../../../docs/model-atlas/public-links.js" data-public-links></script></body></html>

@@ -1,0 +1,62 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>future_work.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="future-work">Future work</h1>
+<p>Current strategy status, interpretation and prioritized integration work are in
+<a href="map_strategy_overview.md">the map-strategy overview</a>, reviewed 19 October 2026.
+Completed experiments remain in their reports; a future-work item is not a claim
+that those reports already use the newest model.</p>
+<h2 id="adaptive-map-settings-beyond-mvp">Adaptive map settings beyond MVP</h2>
+<p>Preserve the extracted option catalog and audited rules as research work.
+Defer questionnaire settings controls, alternate-setting render libraries,
+and diffusion-model conditioning on adaptive options. Adaptive Diversity is
+the reference example: configurable mexes/hydros, wrecks, civilian groups,
+natural reclaim multipliers, tree regrowth and Crazyrush.</p>
+<p>For the general annotation preview library, render lobby defaults with all
+recorded player slots assumed open. The separate 1v1 strategy analysis resolves
+defaults for its two selected active slots; do not interchange those resource sets.
+Show numbered spawns and supported script-declared resource links.
+Record unsupported activation rules and uncertain reclaim explicitly.
+Do not generate a Cartesian product of adaptive configurations.</p>
+<p>Future training work should preserve independent entities, resource ownership,
+option dependencies and both appearance and resource value. Validate additional
+script families against in-game behavior before treating them as training labels.</p>
+<h2 id="reclaim-collection-calibration">Reclaim collection calibration</h2>
+<p>The operating policy is now fixed at <strong>1s per entity and three map-relative
+groups</strong>. Preserve historical delay profiles as research; do not resume sweeps or
+automatic group-count selection for routine computation. The old 0.5s comparison
+reference is not the operating default or a measured value. Compare
+equal-total-mass groups within one engineer&#39;s reach to minimize movement, and
+measure sparse-object travel separately. Engineer routing, coordination and
+depletion schedules remain outside the current static frontier model. See
+<a href="reclaim_collection_effort.md">collection effort methodology</a>.</p>
+<h2 id="resource-economy-and-strategy-integration">Resource economy and strategy integration</h2>
+<p>Historical pilot: an 11-map fixed-policy reclaim inventory/tier export and a shared
+300s engineer schedule including mex construction, income after completion,
+construction mass and a separate energy ledger. See the
+<a href="resource_economy_pilot.md">economic pilot</a>. This attributes value to saved front
+layouts; it has not replaced route-fit weights or collection-wide drop scoring.</p>
+<p>The <a href="strategy_pipeline.md">versioned mass-first pipeline</a> now connects that schedule
+to front placement and contact-based drop/air response. Energy is deliberately
+deferred at the user&#39;s request. Collection-wide regeneration and validation remain
+separate from implementing the pipeline.</p>
+<p>Next work, in order:</p>
+<ol>
+<li>Run the desired library selection through the new pipeline and inspect exclusions
+after the recorded benchmark/cache checks. Preserve the three balance settings, response
+strengths, explicit contact budgets and1s/three-tier operating policy.</li>
+<li>When energy work resumes, audit pinned joint mass/energy reclaim timing and prop multipliers. Include
+energy-only targets and hydros in an explicit shared-work economic context;
+avoid double handling charges or a universal mass:energy exchange rate.</li>
+<li>Validate finite-window work/travel, starting economy and response-budget
+assumptions. Determine a contact saturation policy without treating every
+contact as an independent full-map route or fitting counts to known maps.</li>
+<li>Extend latest fronts to hover/amphibious and relate naval support to economic
+exposure. Reduced UEF naval profiles are coded; archived outputs are T1-only.</li>
+<li>Refresh exact-version community comparisons with blind, exact-slot 1v1 reviews;
+keep team configurations and suggested responses identifiable.</li>
+</ol>
+<p>Known scope limitations include scripted wall collision in original Loki v3,
+dynamic hazards, conservative symmetry exclusions and unsupported adaptive scripts.
+Biome/texture semantics, tech-stage combat, richer adaptive settings and team-game
+economy/control models remain later milestones. The detailed
+<a href="map_strategy_overview.md">overview</a> records evidence, exclusions and acceptance
+criteria for these gaps.</p>
+<script src="model-atlas/public-links.js" data-public-links></script></body></html>

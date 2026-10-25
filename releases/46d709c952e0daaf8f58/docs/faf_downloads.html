@@ -1,0 +1,68 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>faf_downloads.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="latest-version-map-collection">Latest-version map collection</h1>
+<p>Recovery update: missing archives (HTTP 404) and archive-validation failures are
+recorded per map and do not stop the queue. Transport failures still pause after three
+consecutive errors, and HTTP 401/403/429/503 pauses immediately. Resume processes pending
+maps only; add <code>--retry-failed</code> for a deliberate retry pass. <code>skipped</code> records remain in
+the CSV for later review and are never retried automatically. Farce in the Forest
+(map 4364) was deferred by the user.</p>
+<p>The October 11 download scope includes hidden and visible maps, ranked and unranked,
+using the latest-version references in the October 8 vault snapshot. Older versions
+are not downloaded. Existing local collections remain untouched.</p>
+<p>The authoritative downstream catalog is
+<code>data/raw/faf_maps/latest_20261008/map_catalog.csv</code>. It contains one row per vault map
+(14,811 rows), including three maps without latest-version references. The initial
+disk check found 6,009 latest versions already present and 8,799 requiring download.
+The local roots checked are <code>C:/Program Files (x86)/Steam/steamapps/common/FAF_modsmaps/Allmaps</code>
+and its sibling <code>maps</code>. Nested folders are checked too. Folder identity plus <code>.scmap</code>
+and scenario-file presence establish existing-map matches; these are not hash-verified.</p>
+<h2 id="catalog-fields">Catalog fields</h2>
+<ul>
+<li><code>map_id</code>, <code>version_id</code>, <code>folder_name</code>: identifiers for joins, not display names.</li>
+<li><code>display_name</code>, <code>description</code>, <code>width</code>, <code>height</code>, <code>max_players</code>, <code>version</code>,
+<code>map_type</code>, <code>battle_type</code>: grouping and extraction inputs.</li>
+<li><code>hidden</code>, <code>ranked</code>, <code>recommended</code>, play counters, upload/update dates, ratings,
+review counts, author and license IDs: preserved vault metadata.</li>
+<li><code>download_url</code>, <code>thumbnail_small</code>, <code>thumbnail_large</code>: original source URLs.</li>
+<li><code>local_relation</code>: latest present, different version present, or no known local version.</li>
+<li><code>download_status</code>: <code>existing_local</code>, <code>pending</code>, <code>downloaded</code>, <code>failed</code>, or
+<code>missing_latest_reference</code>. Downstream jobs should select existing_local/downloaded.</li>
+<li><code>local_path</code>: actual map directory; never assume the map is directly under one root.</li>
+<li><code>scmap_paths</code>, <code>scenario_paths</code>, <code>save_paths</code>, <code>script_paths</code>, <code>preview_paths</code>:
+JSON arrays inside CSV cells. Preview paths list candidate local image files,
+which can include textures; semantic preview selection happens downstream.</li>
+<li><code>archive_path</code>, <code>archive_bytes</code>, <code>archive_sha256</code>, <code>completed_at</code>: verified-download
+provenance. Blank for pre-existing maps that have not been archive-verified.</li>
+<li><code>attempts</code>, <code>error</code>, <code>snapshot</code>: progress and provenance.</li>
+</ul>
+<p>CSV is UTF-8 with BOM, standard quoting and spreadsheet-formula escaping. Parse arrays
+as JSON after parsing the CSV. The original raw API JSON remains in the vault snapshot.
+Review text remains in that snapshot&#39;s <code>exports/mapVersionReview.jsonl</code>, joined by
+version relationship; it is not duplicated in each catalog row.</p>
+<p><code>progress.json</code> summarizes counts and bytes. Per-map <code>results/*.json</code> is checkpointed
+after every attempt; the CSV is refreshed every 25 attempts and on normal exit/pause.
+<code>archives/</code> retains ZIPs and <code>maps/&lt;map_id&gt;_&lt;version_id&gt;/</code> contains extracted files.
+Downloads run serially with a one-second gap, without map-database queries. HTTP
+401/403/429/503 or three consecutive failures pause the run. There are no immediate
+automatic retries. A later explicit resume can retry failed entries up to three total
+attempts. Respect server cooldowns before resuming a throttled run.</p>
+<p>Archives are size-limited, CRC-checked while extracting, checked for unsafe paths and
+symlinks, and installed via a staging directory. Existing installations are never
+overwritten. The process pauses with less than 15 GiB free. It uses no FAF credentials.</p>
+<h2 id="prepare-or-resume">Prepare or resume</h2>
+<p>For a live status display, double-click <code>scripts/Watch-FAF-Downloads.cmd</code>.
+It refreshes every five seconds and checks whether the downloader process exists,
+the saved run state, counts, last logged map and log activity age. More than five
+minutes without a completed-map log is flagged for inspection, not declared a failure.
+Closing this monitor does not stop downloads. The launcher sets PowerShell execution
+policy only for its own process; it does not change the machine&#39;s policy.</p>
+<p>One-time status: <code>powershell -NoProfile -ExecutionPolicy Bypass -File scripts/faf-download-status.ps1</code>.</p>
+<pre><code class="language-powershell">$env:PYTHONPATH=&#39;src&#39;
+.venv-codex/Scripts/python.exe -u -m supmapai.tools.faf_download --snapshot data/raw/faf_api/entire_vault_20261008 --output data/raw/faf_maps/latest_20261008 --local-root &#39;C:/Program Files (x86)/Steam/steamapps/common/FAF_modsmaps/Allmaps&#39; --local-root &#39;C:/Program Files (x86)/Steam/steamapps/common/FAF_modsmaps/maps&#39; --run
+</code></pre>
+<p>Omit <code>--run</code> to refresh the catalog without network access. A <code>.download.lock</code> prevents
+two runs from writing simultaneously. After an abrupt termination, verify its recorded
+PID is no longer running before removing the lock and resuming. Completed results are
+reused; an incomplete <code>.part</code> file restarts from zero. Keep the PC awake for long runs.</p>
+<p>The earlier <code>maps_visible.csv</code> is a visibility-filtered analysis export only; it does
+not define this broader download scope.</p>
+<script src="model-atlas/public-links.js" data-public-links></script></body></html>

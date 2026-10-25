@@ -1,0 +1,451 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>joint_diffusion.py | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="../docs/model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1>joint_diffusion.py</h1><p class="meta">Saved public evidence snapshot: src/supmapai/ml/joint_diffusion.py</p><pre>&quot;&quot;&quot;All-source-layer conditional diffusion: one network, no spatial conditions.&quot;&quot;&quot;
+
+from __future__ import annotations
+
+import argparse
+import copy
+from collections import deque
+import json
+import math
+from pathlib import Path
+import shutil
+import time
+
+import numpy as np
+from PIL import Image, ImageDraw
+import torch
+from torch import nn
+
+from supmapai.ml.conditional_diffusion import schedule
+from supmapai.ml.multiscale_terrain import MultiscaleTerrainUNet
+from supmapai.strategy.pipeline_contract import lease
+from supmapai.tensors.joint_sources import CHANNELS, RATINGS, SCHEMA, decode, verify_release
+from supmapai.tensors.strategy_dataset import file_hash, read_json, read_rows
+from supmapai.tools.windows_io import atomic_checkpoint, write_json
+
+
+class RatingEmbedding(nn.Module):
+    def __init__(self, width, drop):
+        super().__init__()
+        self.net=nn.Sequential(nn.Linear(12,width),nn.SiLU(),nn.Linear(width,width))
+        self.null=nn.Parameter(torch.zeros(1,width))
+        self.drop=drop
+
+    def forward(self, ratings):
+        if ratings is None:
+            return self.null
+        result=self.net(ratings)
+        if self.training and self.drop:
+            keep=torch.rand((len(ratings),1),device=ratings.device)&gt;=self.drop
+            result=torch.where(keep,result,self.null)
+        return result
+
+
+class JointUNet(MultiscaleTerrainUNet):
+    def __init__(self,base=128,dropout=.1,checkpointing=False):
+        super().__init__(base=base,profile_dim=12,embedding=384,dropout=dropout,
+                         activation_checkpointing=checkpointing)
+        self.input=nn.Conv2d(13,base,3,padding=1)
+        self.output[-1]=nn.Conv2d(base,13,3,padding=1)
+        self.profile=RatingEmbedding(384,.1 if dropout else 0.)
+
+    def forward(self,noisy,timesteps,ratings):
+        empty=noisy.new_empty((len(noisy),0,*noisy.shape[-2:]))
+        return super().forward(noisy,timesteps,empty,ratings)
+
+
+class JointDataset:
+    def __init__(self,root,split,limit=None):
+        self.root=Path(root)
+        verify_release(self.root)
+        self.norm=read_json(self.root/&quot;normalization.json&quot;)
+        self.rows=read_rows(self.root/(split+&quot;.jsonl&quot;))
+        if limit:
+            # Exercise rare positive layers in the implementation test, not the full run.
+            rng=np.random.default_rng(20261025)
+            selected=[]
+            for name in (&quot;civilians&quot;,&quot;wreck_mass&quot;):
+                candidates=[i for i,r in enumerate(self.rows) if r[&quot;totals&quot;][name]&gt;0]
+                selected.extend(rng.permutation(candidates)[:max(2,limit//4)].tolist())
+            selected=list(dict.fromkeys(selected))
+            selected.extend(i for i in rng.permutation(len(self.rows)).tolist() if i not in selected)
+            self.rows=[self.rows[i] for i in selected[:limit]]
+        targets,profiles=[],[]
+        for i,row in enumerate(self.rows):
+            path=self.root/row[&quot;archive&quot;]
+            if file_hash(path)!=row[&quot;sha256&quot;]:
+                raise ValueError(&quot;Joint training archive changed: &quot;+row[&quot;key&quot;])
+            with np.load(path,allow_pickle=False) as data:
+                x=data[&quot;target&quot;]
+                p=data[&quot;ratings&quot;]
+            if x.shape!=(13,256,256) or p.shape!=(12,) or not np.isfinite(x).all():
+                raise ValueError(&quot;Invalid joint training packet&quot;)
+            targets.append(x.astype(np.float16))
+            profiles.append(p)
+            if (i+1)%100==0:
+                print(f'cached {split} {i+1}/{len(self.rows)}',flush=True)
+        self.targets=np.stack(targets)
+        self.profiles=np.stack(profiles).astype(np.float32)
+        if not len(self.rows):
+            raise ValueError(&quot;Empty joint dataset split&quot;)
+
+    def batch(self,indices,device,rng=None):
+        target=self.targets[np.asarray(indices)].copy()
+        profiles=self.profiles[np.asarray(indices)].copy()
+        if rng is not None:
+            rotation=int(rng.integers(4))
+            target=np.rot90(target,rotation,axes=(-2,-1))
+            if rng.random()&lt;.5:
+                target=target[...,::-1]
+            target=target.copy()
+            if rng.random()&lt;.5:
+                target[:,[2,3]]=target[:,[3,2]]
+        return (torch.from_numpy(np.ascontiguousarray(target)).to(device=device,dtype=torch.float32),
+                torch.from_numpy(profiles).to(device))
+
+
+def loss_terms(model,clean,ratings,cumulative,generator,timestep=None):
+    t=(torch.randint(len(cumulative),(len(clean),),device=clean.device,generator=generator)
+       if timestep is None else torch.full((len(clean),),timestep,device=clean.device,dtype=torch.long))
+    alpha=cumulative[t,None,None,None]
+    noise=torch.randn(clean.shape,device=clean.device,generator=generator)
+    noisy=alpha.sqrt()*clean+(1-alpha).sqrt()*noise
+    prediction=model(noisy,t,ratings).float()
+    velocity=alpha.sqrt()*noise-(1-alpha).sqrt()*clean
+    # Target-dependent emphasis, not supplied masks or analytical spatial layers.
+    weights=torch.ones_like(clean)
+    weights[:,2:10]=1+12*((clean[:,2:10]+1)*.5).clamp(0,1)
+    error=(prediction-velocity).square()
+    per_channel=(error*weights).mean((2,3))/weights.mean((2,3))
+    estimate=alpha.sqrt()*noisy-(1-alpha).sqrt()*prediction
+    reconstruction=(estimate-clean).square().mean((2,3))
+    return per_channel,reconstruction
+
+
+@torch.no_grad()
+def validate(model,data,cumulative,batch_size,seed=61025):
+    model.eval()
+    gen=torch.Generator(device=&quot;cuda&quot;).manual_seed(seed)
+    values,recon=[],[]
+    for start in range(0,len(data.rows),batch_size):
+        clean,ratings=data.batch(range(start,min(start+batch_size,len(data.rows))),&quot;cuda&quot;)
+        with torch.autocast(&quot;cuda&quot;,dtype=torch.bfloat16):
+            loss,mse=loss_terms(model,clean,ratings,cumulative,gen,timestep=500)
+        values.extend(loss.cpu().tolist())
+        recon.extend(mse.cpu().tolist())
+    by_channel=np.mean(values,axis=0)
+    return dict(validation_loss=float(by_channel.mean()),
+        channel_velocity_loss=dict(zip(CHANNELS,by_channel.tolist(),strict=True)),
+        channel_reconstruction_mse=dict(zip(CHANNELS,np.mean(recon,axis=0).tolist(),strict=True)),
+        meaning=&quot;Fixed timestep 500 denoising of held-out noised sources; not fresh generation&quot;)
+
+
+@torch.no_grad()
+def sample(model,ratings,norm,seed=303,steps=64,guidance=1.5,size=256):
+    model.eval()
+    device=next(model.parameters()).device
+    rng=np.random.default_rng(seed)
+    x=torch.from_numpy(rng.standard_normal((len(ratings),13,size,size),dtype=np.float32)).to(device)
+    cumulative=schedule(1000,device)
+    times=np.linspace(999,0,steps,dtype=int)
+    lower=np.asarray(norm[&quot;sampling_min&quot;],np.float32)
+    upper=np.asarray(norm[&quot;sampling_max&quot;],np.float32)
+    span=np.maximum(upper-lower,.1)
+    lower[0]-=.2*span[0]
+    upper[:10]+=.2*span[:10]
+    low=torch.as_tensor(lower,device=device)[None,:,None,None]
+    high=torch.as_tensor(upper,device=device)[None,:,None,None]
+    for i,step in enumerate(times):
+        t=torch.full((len(x),),int(step),device=device,dtype=torch.long)
+        with torch.autocast(device.type,dtype=torch.bfloat16,enabled=device.type==&quot;cuda&quot;):
+            velocity=model(x,t,ratings).float()
+            if guidance!=1:
+                baseline=model(x,t,None).float()
+                velocity=baseline+guidance*(velocity-baseline)
+        alpha=cumulative[step]
+        raw=alpha.sqrt()*x-(1-alpha).sqrt()*velocity
+        # Numerical sampling bounds only; retain the final unbounded estimate separately.
+        clean=raw.maximum(low).minimum(high)
+        epsilon=alpha.sqrt()*velocity+(1-alpha).sqrt()*x
+        previous=cumulative[times[i+1]] if i+1&lt;len(times) else torch.ones((),device=device)
+        x=previous.sqrt()*clean+(1-previous).sqrt()*epsilon
+    return raw.cpu().numpy(),x.cpu().numpy()
+
+
+def layer_strip(encoded,norm,title):
+    size=144
+    canvas=Image.new(&quot;RGB&quot;,(11*size,188),&quot;#f0f2f0&quot;)
+    draw=ImageDraw.Draw(canvas)
+    draw.text((5,4),title,fill=&quot;#15251b&quot;)
+    physical=decode(encoded,norm)
+    names=CHANNELS[:10]+[&quot;surface RGB&quot;]
+    colors=[(210,210,210),(40,135,245),(65,145,255),(245,135,55),(240,190,45),
+            (40,220,225),(70,205,90),(205,145,65),(175,105,220),(240,100,180)]
+    for i,name in enumerate(names):
+        if i==10:
+            rgb=np.moveaxis(physical[10:13],0,-1).clip(0,1)
+        else:
+            strength=((encoded[i]+1)/2).clip(0,1)
+            if i==0:
+                lo,hi=norm[&quot;sampling_min&quot;][0],norm[&quot;sampling_max&quot;][0]
+                strength=((encoded[0]-lo)/max(hi-lo,1e-4)).clip(0,1)
+            rgb=strength[...,None]*np.asarray(colors[i])/255.
+        tile=Image.fromarray(np.uint8(rgb*255)).resize((size-4,size-4),Image.Resampling.LANCZOS)
+        canvas.paste(tile,(i*size+2,42))
+        draw.text((i*size+4,25),name,fill=&quot;#15251b&quot;)
+    return canvas
+
+
+@torch.no_grad()
+def gallery(model,data,out,step,norm,batch_size=2,full_sweep=False):
+    folder=Path(out)/&quot;samples&quot;/f&quot;step_{step:07d}&quot;
+    folder.mkdir(parents=True,exist_ok=True)
+    typical=np.median(data.profiles,axis=0).astype(np.float32)
+    requests=[(&quot;seed303_typical&quot;,303,typical.copy()),(&quot;seed404_typical&quot;,404,typical.copy())]
+    sweep=range(12) if full_sweep else [7]
+    for i in sweep:
+        for score in (1,5):
+            profile=typical.copy();profile[i]=(score-3)/2
+            requests.append((RATINGS[i]+&quot;_&quot;+str(score),303,profile))
+    strips=[]
+    source_indices=list(dict.fromkeys([next((i for i,r in enumerate(data.rows) if r[&quot;totals&quot;][name]&gt;0),0)
+                                      for name in (&quot;civilians&quot;,&quot;wreck_mass&quot;)]))
+    for i in source_indices:
+        strips.append(layer_strip(data.targets[i].astype(np.float32),norm,&quot;SOURCE training example &quot;+data.rows[i][&quot;key&quot;]))
+    metrics=[]
+    for start in range(0,len(requests),batch_size):
+        group=requests[start:start+batch_size]
+        # Same initial noise for every setting of a given seed, independent of batch position.
+        for name,seed,profile in group:
+            ratings=torch.from_numpy(profile[None]).cuda()
+            raw,bounded=sample(model,ratings,norm,seed,steps=48,guidance=1.5)
+            physical=decode(raw[0],norm)
+            np.savez_compressed(folder/(name+&quot;.npz&quot;),raw_encoded=raw[0],sampler_bounded=bounded[0],
+                physical=physical,ratings=(profile*2+3),seed=seed)
+            strip=layer_strip(raw[0],norm,&quot;GENERATED &quot;+name+&quot; | raw final estimate; no gameplay repair&quot;)
+            strip.save(folder/(name+&quot;.png&quot;))
+            strips.append(strip)
+            metrics.append(dict(name=name,seed=seed,ratings=(profile*2+3).tolist(),
+                totals={CHANNELS[j]:float(physical[j].sum()) for j in range(2,10)},
+                negative_quantity_fraction=float((physical[1:10]&lt;-1e-5).mean()),
+                water_fraction=float((physical[1]&gt;.05).mean()),
+                height_depth_sign_agreement=float(((physical[0]&lt;0)==(physical[1]&gt;.05)).mean())))
+    combined=Image.new(&quot;RGB&quot;,(strips[0].width,sum(s.height for s in strips)))
+    y=0
+    for strip in strips:
+        combined.paste(strip,(0,y));y+=strip.height
+    combined.save(folder/&quot;layers.png&quot;)
+    shutil.copyfile(folder/&quot;layers.png&quot;,Path(out)/&quot;latest_layers.png&quot;)
+    write_json(folder/&quot;metrics.json&quot;,metrics)
+    write_json(Path(out)/&quot;latest_samples.json&quot;,dict(step=step,folder=str(folder),samples=metrics))
+    return str(folder)
+
+
+def setup(seed):
+    if not torch.cuda.is_available():
+        raise RuntimeError(&quot;CUDA required; refusing silent CPU training&quot;)
+    torch.set_num_threads(4)
+    torch.manual_seed(seed)
+    torch.backends.cudnn.benchmark=False
+    torch.set_float32_matmul_precision(&quot;high&quot;)
+    torch.cuda.reset_peak_memory_stats()
+
+
+def probe(args):
+    setup(args.seed)
+    model=JointUNet(args.base).cuda()
+    ema=copy.deepcopy(model).eval().requires_grad_(False)
+    optimizer=torch.optim.AdamW(model.parameters(),lr=1e-4)
+    clean=torch.zeros(args.micro_batch,13,256,256,device=&quot;cuda&quot;)
+    ratings=torch.zeros(args.micro_batch,12,device=&quot;cuda&quot;)
+    cumulative=schedule(1000,&quot;cuda&quot;)
+    durations=[]
+    for i in range(8):
+        torch.cuda.synchronize();began=time.monotonic()
+        optimizer.zero_grad(set_to_none=True)
+        with torch.autocast(&quot;cuda&quot;,dtype=torch.bfloat16):
+            losses,_=loss_terms(model,clean,ratings,cumulative,torch.Generator(device=&quot;cuda&quot;).manual_seed(i))
+            loss=losses.mean()
+        loss.backward()
+        norm=nn.utils.clip_grad_norm_(model.parameters(),1.)
+        if not torch.isfinite(loss) or not torch.isfinite(norm):
+            raise ValueError(&quot;Nonfinite probe loss/gradient&quot;)
+        optimizer.step()
+        for a,b in zip(ema.parameters(),model.parameters(),strict=True):
+            a.lerp_(b.detach(),.01)
+        torch.cuda.synchronize();durations.append(time.monotonic()-began)
+    result=dict(status=&quot;passed&quot;,base=args.base,micro_batch=args.micro_batch,
+        parameters=sum(p.numel() for p in model.parameters()),
+        peak_allocated_mb=torch.cuda.max_memory_allocated()/1024**2,
+        peak_reserved_mb=torch.cuda.max_memory_reserved()/1024**2,
+        seconds_per_microstep=float(np.median(durations[2:])),
+        maps_per_second=args.micro_batch/float(np.median(durations[2:])))
+    write_json(args.out,result)
+    print(json.dumps(result),flush=True)
+
+
+def train(args):
+    setup(args.seed)
+    out=args.out.resolve();out.mkdir(parents=True,exist_ok=True)
+    with lease(out/&quot;training.lock&quot;):
+        data=JointDataset(args.dataset,&quot;train&quot;,args.overfit)
+        validation=data if args.overfit else JointDataset(args.dataset,&quot;validation&quot;)
+        norm=data.norm
+        model=JointUNet(args.base,dropout=0. if args.overfit else .1).cuda()
+        ema=copy.deepcopy(model).eval().requires_grad_(False)
+        optimizer=torch.optim.AdamW(model.parameters(),lr=args.learning_rate,weight_decay=0. if args.overfit else .01)
+        cumulative=schedule(1000,&quot;cuda&quot;)
+        code=[Path(__file__),Path(__file__).with_name(&quot;multiscale_terrain.py&quot;),
+              Path(__file__).parents[1]/&quot;tensors/joint_sources.py&quot;]
+        config=dict(schema=&quot;joint_source_diffusion_v1&quot;,dataset=str(args.dataset.resolve()),
+            release_sha256=file_hash(args.dataset/&quot;release_manifest.json&quot;),base=args.base,
+            target_channels=CHANNELS,targets=13,spatial_channels=0,profile_dim=12,ratings=RATINGS,
+            micro_batch=args.micro_batch,effective_batch=args.batch_size,seed=args.seed,
+            parameters=sum(p.numel() for p in model.parameters()),train_maps=len(data.rows),
+            validation_maps=len(validation.rows),overfit=args.overfit,learning_rate=args.learning_rate,
+            code={str(p):file_hash(p) for p in code},test_used=False,
+            precision=&quot;bfloat16 compute; float32 parameters/optimizer; CPU source cache float16&quot;,
+            objective=&quot;Equal channel mean of foreground-weighted velocity MSE; no geometry/placement auxiliary losses&quot;,
+            sampling=&quot;DDIM 48 steps, CFG 1.5; training-range numerical bounds inside sampler; unbounded final estimate saved&quot;,
+            schedule=&quot;500-step LR warmup then constant LR for resumable pilot; no pilot-end decay&quot;)
+        old=read_json(out/&quot;config.json&quot;) if (out/&quot;config.json&quot;).exists() else None
+        if old and old!=config:
+            raise ValueError(&quot;Run contract differs; choose a new run&quot;)
+        write_json(out/&quot;config.json&quot;,config)
+        write_json(out/&quot;training_receipt.json&quot;,dict(config=config,dataset_audit=read_json(args.dataset/&quot;audit.json&quot;),
+            generation_inputs=dict(noise=[13,256,256],timestep=&quot;scalar&quot;,ratings=[12],spatial_conditions=[]),
+            supervised_targets=CHANNELS,source_contract=read_json(args.dataset/&quot;contract.json&quot;),
+            masks=&quot;No input, target validity, spatial eligibility, or loss-exclusion masks&quot;,
+            augmentation=&quot;Aligned full-stack rotations/reflections and start-channel exchange&quot;,
+            postprocessing=&quot;No gameplay repair, symmetry projection, marker decoding, count caps or asset composition&quot;))
+        snapshot=out/&quot;code_snapshot&quot;;snapshot.mkdir(exist_ok=True)
+        for p in code:
+            shutil.copyfile(p,snapshot/p.name)
+        step,elapsed_before,best,history=0,0.,float(&quot;inf&quot;),[]
+        if args.resume:
+            saved=torch.load(out/&quot;last.pt&quot;,map_location=&quot;cuda&quot;,weights_only=False)
+            if saved[&quot;config&quot;]!=config:
+                raise ValueError(&quot;Checkpoint contract mismatch&quot;)
+            model.load_state_dict(saved[&quot;model&quot;]);ema.load_state_dict(saved[&quot;ema&quot;])
+            optimizer.load_state_dict(saved[&quot;optimizer&quot;])
+            step,elapsed_before,best,history=(saved[k] for k in (&quot;step&quot;,&quot;elapsed_seconds&quot;,&quot;best_validation&quot;,&quot;history&quot;))
+            torch.set_rng_state(saved[&quot;torch_rng&quot;].cpu());torch.cuda.set_rng_state(saved[&quot;cuda_rng&quot;].cpu())
+            del saved
+        elif (out/&quot;last.pt&quot;).exists():
+            raise ValueError(&quot;Existing checkpoint requires --resume&quot;)
+        began=time.monotonic();recent=deque(maxlen=100)
+        initial=validate(ema,validation,cumulative,args.micro_batch)
+        if not (out/&quot;initial_validation.json&quot;).exists():write_json(out/&quot;initial_validation.json&quot;,initial)
+        last_eval,last_gallery,last_save=0.,0.,0.
+        print(json.dumps(dict(parameters=config[&quot;parameters&quot;],initial=initial,train=len(data.rows),validation=len(validation.rows))),flush=True)
+
+        def elapsed():return elapsed_before+time.monotonic()-began
+
+        def progress(status,**extra):
+            p=dict(status=status,step=step,elapsed_seconds=elapsed(),session_seconds=time.monotonic()-began,
+                session_budget_seconds=args.seconds,parameters=config[&quot;parameters&quot;],train_maps=len(data.rows),
+                validation_maps=len(validation.rows),training_loss=float(np.mean(recent)) if recent else None,
+                best_validation=best if math.isfinite(best) else None,
+                peak_allocated_mb=torch.cuda.max_memory_allocated()/1024**2,
+                peak_reserved_mb=torch.cuda.max_memory_reserved()/1024**2,
+                maps_presented=step*args.batch_size,equivalent_epochs=step*args.batch_size/len(data.rows),
+                seconds_per_update=(time.monotonic()-began)/max(1,step-start_step),updated_unix=time.time(),**extra)
+            write_json(out/&quot;progress.json&quot;,p)
+            return p
+
+        def save(metrics=None):
+            nonlocal best
+            improved=metrics is not None and metrics[&quot;validation_loss&quot;]&lt;best
+            if metrics:
+                best=min(best,metrics[&quot;validation_loss&quot;])
+                history.append(dict(step=step,elapsed_seconds=elapsed(),**metrics))
+                write_json(out/&quot;history.json&quot;,history)
+            atomic_checkpoint(out/&quot;last.pt&quot;,dict(model=model.state_dict(),ema=ema.state_dict(),
+                optimizer=optimizer.state_dict(),config=config,normalization=norm,step=step,
+                elapsed_seconds=elapsed(),best_validation=best,history=history,
+                torch_rng=torch.get_rng_state(),cuda_rng=torch.cuda.get_rng_state()))
+            if improved:
+                atomic_checkpoint(out/&quot;best.pt&quot;,dict(ema=ema.state_dict(),config=config,normalization=norm,
+                    step=step,elapsed_seconds=elapsed(),metrics=metrics))
+
+        start_step=step
+        save(initial)
+        reason=&quot;review_time_budget&quot;
+        while time.monotonic()-began&lt;args.seconds:
+            if (out/&quot;pause.request&quot;).exists():reason=&quot;pause_requested&quot;;break
+            if args.deadline and time.time()&gt;args.deadline-120:break
+            step+=1
+            rng=np.random.default_rng(np.random.SeedSequence([args.seed,step]))
+            generator=torch.Generator(device=&quot;cuda&quot;).manual_seed(args.seed*1000003+step)
+            indices=rng.integers(len(data.rows),size=args.batch_size)
+            optimizer.param_groups[0][&quot;lr&quot;]=args.learning_rate*min(1.,step/(50 if args.overfit else 500))
+            model.train();optimizer.zero_grad(set_to_none=True)
+            loss_sum=0.
+            for offset in range(0,args.batch_size,args.micro_batch):
+                clean,ratings=data.batch(indices[offset:offset+args.micro_batch],&quot;cuda&quot;,None if args.overfit else rng)
+                with torch.autocast(&quot;cuda&quot;,dtype=torch.bfloat16):
+                    losses,_=loss_terms(model,clean,ratings,cumulative,generator)
+                    loss=losses.mean()*len(clean)/args.batch_size
+                if not torch.isfinite(loss):raise ValueError(&quot;Nonfinite joint loss&quot;)
+                loss.backward();loss_sum+=float(loss.detach())
+            grad=nn.utils.clip_grad_norm_(model.parameters(),1.)
+            if not torch.isfinite(grad):raise ValueError(&quot;Nonfinite joint gradient&quot;)
+            optimizer.step()
+            with torch.no_grad():
+                decay=min(.999,(1+step)/(10+step))
+                for a,b in zip(ema.parameters(),model.parameters(),strict=True):a.lerp_(b.detach(),1-decay)
+            recent.append(loss_sum)
+            if step%10==0:progress(&quot;training&quot;)
+            if step%50==0:print(f'step={step} loss={np.mean(recent):.5f} session={time.monotonic()-began:.0f}s',flush=True)
+            since=time.monotonic()-began
+            if since-last_save&gt;=120:
+                save();last_save=since
+            if since-last_eval&gt;=args.validate_seconds:
+                metrics=validate(ema,validation,cumulative,args.micro_batch)
+                save(metrics);last_eval=time.monotonic()-began
+                print('validation='+json.dumps(metrics),flush=True)
+            if not args.overfit and since-last_gallery&gt;=args.gallery_seconds:
+                progress(&quot;sampling&quot;)
+                gallery(ema,data,out,step,norm,batch_size=args.micro_batch)
+                last_gallery=time.monotonic()-began
+        progress(&quot;finalizing&quot;)
+        metrics=validate(ema,validation,cumulative,args.micro_batch);save(metrics)
+        if not args.overfit:
+            gallery(ema,data,out,step,norm,batch_size=args.micro_batch,full_sweep=False)
+        else:
+            initial_saved=read_json(out/&quot;initial_validation.json&quot;)
+            ratios={n:metrics[&quot;channel_velocity_loss&quot;][n]/initial_saved[&quot;channel_velocity_loss&quot;][n] for n in CHANNELS}
+            passed=metrics[&quot;validation_loss&quot;]&lt;initial_saved[&quot;validation_loss&quot;]*.8 and all(r&lt;1 for r in ratios.values())
+            write_json(out/&quot;sanity_result.json&quot;,dict(status=&quot;passed&quot; if passed else &quot;failed&quot;,
+                channel_loss_ratio=ratios,initial=initial_saved,final=metrics,
+                meaning=&quot;Training-subset denoising implementation check; not generalization evidence&quot;))
+            if not passed:raise RuntimeError(&quot;Tiny-data learning check failed; inspect per-channel losses&quot;)
+        result=progress(&quot;paused_for_review&quot;,reason=reason,**metrics)
+        write_json(out/&quot;summary.json&quot;,result)
+        print(json.dumps(result),flush=True)
+
+
+def main():
+    parser=argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(&quot;mode&quot;,choices=(&quot;probe&quot;,&quot;train&quot;))
+    parser.add_argument(&quot;--dataset&quot;,type=Path,default=Path(&quot;data/tensors/joint_sources_curated_256_v1&quot;))
+    parser.add_argument(&quot;--out&quot;,type=Path,required=True)
+    parser.add_argument(&quot;--base&quot;,type=int,default=128)
+    parser.add_argument(&quot;--micro-batch&quot;,type=int,default=4)
+    parser.add_argument(&quot;--batch-size&quot;,type=int,default=16)
+    parser.add_argument(&quot;--seconds&quot;,type=float,default=2400)
+    parser.add_argument(&quot;--deadline&quot;,type=float,default=0)
+    parser.add_argument(&quot;--overfit&quot;,type=int)
+    parser.add_argument(&quot;--learning-rate&quot;,type=float,default=2e-4)
+    parser.add_argument(&quot;--seed&quot;,type=int,default=20261025)
+    parser.add_argument(&quot;--validate-seconds&quot;,type=float,default=300)
+    parser.add_argument(&quot;--gallery-seconds&quot;,type=float,default=600)
+    parser.add_argument(&quot;--resume&quot;,action=&quot;store_true&quot;)
+    args=parser.parse_args()
+    if args.batch_size%args.micro_batch:raise ValueError(&quot;Microbatch must divide effective batch&quot;)
+    if args.mode==&quot;probe&quot;:probe(args)
+    else:train(args)
+
+
+if __name__==&quot;__main__&quot;:main()
+</pre><script src="../docs/model-atlas/public-links.js" data-public-links></script></body></html>
