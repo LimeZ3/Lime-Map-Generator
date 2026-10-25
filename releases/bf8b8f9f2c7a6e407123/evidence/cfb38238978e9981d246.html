@@ -1,0 +1,342 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>atlas_layers.py | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="../docs/model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1>atlas_layers.py</h1><p class="meta">Saved public evidence snapshot: src/supmapai/tools/atlas_layers.py</p><pre>&quot;&quot;&quot;Five-map, source-backed atlas comparisons. No training or hosted deployment.&quot;&quot;&quot;
+from pathlib import Path
+import argparse
+import csv
+import json
+import shutil
+from collections import Counter
+
+import numpy as np
+from PIL import Image, ImageDraw, ImageFont
+
+from supmapai.tensors.strategy_dataset import file_hash, pool
+
+ROOT = Path(__file__).resolve().parents[3]
+CACHE = ROOT/'data/processed/project_atlas_v1'
+PAGE = ROOT/'docs/model-atlas'
+KEYS = ('8553_17709','4617_6826','9675_18616','8070_26498','10838_21065')
+NAMES = ('Setons FAF','Adaptive Canis','Adaptive Tabula Rasa','DualGap Adaptive','The Drunken Beetles Dance')
+PINNED_BP = ROOT/'data/processed/layers_v2_setons_faf_source_smoke'
+GAME = Path('C:/Program Files (x86)/Steam/steamapps/common/Supreme Commander Forged Alliance/gamedata')
+
+
+def read(path):
+    return json.loads(Path(path).read_text(encoding='utf-8-sig'))
+
+
+def prepare():
+    &quot;&quot;&quot;Explicit local extraction; only official missing vault thumbnails use network.&quot;&quot;&quot;
+    from supmapai.tools.extract_layers_v2 import extract, load_resource_icons, vault_comparison
+    from supmapai.tensors.map_textures import MaterialAssets, extract_texture_tensor
+    CACHE.mkdir(parents=True, exist_ok=True)
+    with (ROOT/'data/raw/faf_maps/latest_20261008/map_catalog.csv').open(encoding='utf-8-sig',newline='') as f:
+        rows = {r['map_id']+'_'+r['version_id']:r for r in csv.DictReader(f)}
+    bp, wp = read(PINNED_BP/'blueprint_index.json'), read(PINNED_BP/'wreck_value_profile.json')
+    icons = load_resource_icons(GAME, CACHE)
+    assets = MaterialAssets(GAME)
+    manifest = []
+    try:
+        for key in KEYS:
+            row, folder = rows[key], CACHE/key
+            if not (folder/'record.json').exists():
+                extract(row,CACHE,False,bp,icons,wp,include_settings=True)
+            record = read(folder/'record.json')
+            for path, sha in record['source_files'].items():
+                if file_hash(Path(path)) != sha:
+                    raise ValueError('Map source changed; rebuild into a new cache: '+key)
+            if not (folder/'textures.npz').exists():
+                scmap = next(Path(p) for p in record['source_files'] if p.endswith('.scmap'))
+                arrays,meta,_ = extract_texture_tensor(scmap,assets,grid=256)
+                np.savez_compressed(folder/'textures.npz',**arrays)
+                (folder/'textures.json').write_text(json.dumps(meta,indent=2),encoding='utf-8')
+            if not (folder/'vault_preview.png').exists():
+                cached = next((p for p in (ROOT/'data/processed').glob('*/'+key+'/vault_preview.png') if p.parent!=folder),None)
+                if cached:
+                    shutil.copyfile(cached,folder/'vault_preview.png')
+                elif vault_comparison(row,folder,True)['status'] != 'cached':
+                    raise ValueError('Official vault preview unavailable: '+key)
+            manifest.append({k:row[k] for k in ('map_id','version_id','display_name','folder_name','thumbnail_large','max_players','width','author_id','version_uploaded_at')})
+            print('Prepared atlas source',key,flush=True)
+    finally:
+        assets.close()
+    (CACHE/'maps.json').write_text(json.dumps(manifest,indent=2),encoding='utf-8')
+
+
+def href(path):
+    import os
+    return Path(os.path.relpath(path,PAGE)).as_posix()
+
+
+def raster(items, shape, value=None):
+    result = np.zeros(shape,np.float32)
+    for p in items:
+        x,z = int(p['x']),int(p['z'])
+        if 0&lt;=z&lt;shape[0] and 0&lt;=x&lt;shape[1]:
+            result[z,x] += float(p.get(value) or 0) if value else 1
+    return result
+
+
+def rgb(values, low, high, diverging=False):
+    t = np.clip((np.asarray(values,float)-low)/max(high-low,1e-12),0,1)
+    palette = np.array([[16,24,33],[33,100,114],[82,170,134],[243,219,123]],float)
+    if diverging:
+        palette = np.array([[62,120,218],[233,238,235],[229,125,53]],float)
+    s = t*(len(palette)-1);i = np.minimum(s.astype(int),len(palette)-2);f = (s-i)[...,None]
+    return np.uint8(palette[i]*(1-f)+palette[i+1]*f)
+
+
+def figure(path, pixels, title, legend, foot, points=(), extent=1024):
+    font = ImageFont.truetype('C:/Windows/Fonts/segoeui.ttf',16)
+    small = ImageFont.truetype('C:/Windows/Fonts/segoeui.ttf',13)
+    image = Image.new('RGB',(512,600),'#ffffff')
+    tile = Image.fromarray(np.uint8(pixels)).resize((512,512),Image.Resampling.NEAREST)
+    image.paste(tile,(0,32));d = ImageDraw.Draw(image)
+    d.text((10,6),title,fill='#20362a',font=font)
+    for p, colour, label in points:
+        x,z = p['x']/extent*512,p['z']/extent*512+32
+        d.ellipse((x-4,z-4,x+4,z+4),fill=colour,outline='black')
+        if label:d.text((x+5,z-8),label,fill='white',stroke_width=1,stroke_fill='black',font=small)
+    d.text((10,550),legend,fill='#233b32',font=small)
+    d.text((10,574),foot,fill='#5d6963',font=small)
+    image.save(path)
+
+
+def overlay_canvas():
+    return Image.new('RGBA',(1024,1024),(0,0,0,0))
+
+
+def draw_points(image, points, extent, color, *, labels=False, radius=6):
+    draw=ImageDraw.Draw(image);font=ImageFont.truetype('C:/Windows/Fonts/segoeui.ttf',24)
+    for point in points:
+        x,z=point['x']/extent*1024,point['z']/extent*1024
+        draw.ellipse((x-radius,z-radius,x+radius,z+radius),fill=color,outline='black',width=2)
+        if labels:
+            label=str(point.get('slot',point.get('name','').replace('ARMY_','')))
+            draw.text((x+radius+3,z-14),label,font=font,fill='white',stroke_width=2,stroke_fill='black')
+
+
+def mask_image(mask, color):
+    rgba=np.zeros((*mask.shape,4),np.uint8);rgba[mask]=[*color,255]
+    return Image.fromarray(rgba).resize((1024,1024),Image.Resampling.NEAREST)
+
+
+def build():
+    &quot;&quot;&quot;Render saved observations only. Source NPZ/JSON, models and extraction are never rewritten.&quot;&quot;&quot;
+    import gzip
+    out=PAGE/'generated/comparisons';out.mkdir(parents=True,exist_ok=True)
+    previous=read(PAGE/'generated/comparisons.json')
+    old=previous['sections'];manifest=read(CACHE/'maps.json');collected=[]
+    colors=[(95,184,255),(255,171,75),(164,126,255),(96,226,169),(255,108,153),(249,226,99)]
+    for key,name,row in zip(KEYS,NAMES,manifest,strict=True):
+        folder=CACHE/key;record=read(folder/'record.json');markers=read(folder/'markers.json');entities=read(folder/'entities.json')
+        for path,sha in record['source_files'].items():
+            if file_hash(Path(path))!=sha:raise ValueError('Source map no longer matches cache: '+key)
+        with np.load(folder/'atlas-diagnostics.npz') as a:arrays={n:a[n].copy() for n in a.files}
+        natural=[e for e in entities if e['kind'] in ('tree','rock','boulder','reclaim')]
+        # Display aggregation from existing entity values; no extraction or scientific inputs change.
+        energy=raster(natural,arrays['terrain'].shape,'energy')
+        fields={'natural_energy':pool(energy,energy.shape[0]//4,total=True),
+                'natural_mass':pool(arrays['natural'],energy.shape[0]//4,total=True),
+                'wrecks':pool(arrays['wrecks'],energy.shape[0]//4,total=True)}
+        collected.append(dict(key=key,name=name,row=row,folder=folder,record=record,markers=markers,entities=entities,
+            arrays=arrays,fields=fields,natural=natural,extent=arrays['terrain'].shape[0]))
+    maximum={f:max(float(c['fields'][f].max()) for c in collected) for f in ('natural_energy','natural_mass','wrecks')}
+    order=('terrain','water','starts','markers','natural_energy','natural_mass','wrecks','civilians','appearance','scenario',
+           'pathing','air_expansion','air_offensive','air_raids','battle_paths','resource_zones','contested_resources','access','gameplay')
+    sections={f:[] for f in order};maps=[]
+    for c in collected:
+        key,name,folder,extent=c['key'],c['name'],c['folder'],c['extent'];markers=c['markers'];arrays=c['arrays']
+        preview=out/(key+'-vault.png')
+        if not preview.exists():shutil.copyfile(folder/'vault_preview.png',preview)
+        maps.append(dict(key=key,name=name,full_name=c['row']['display_name'],version=c['row']['folder_name'],km=extent/51.2,
+            slots=len(markers['spawns']),attribution='Robustness · uploaded 2 July 2023' if key=='8070_26498' else '',
+            preview=href(preview),vault_url=c['row']['thumbnail_large'],source=href(folder/'record.json')))
+        history=ROOT/'data/processed/strategy_collection_1v1'/key
+        opportunities=read(history/'opportunities.json');sides=list(opportunities['sides']);side=sides[0];enemy=sides[1]
+        spawns=opportunities['spawns'];scenario=f'Historical 1v1: {side} vs {enemy}; medium preset'
+        for field in order:
+            if field in ('terrain','water','appearance'):
+                panel=next(dict(p) for p in old[field] if p['key']==key)
+                if field=='terrain':
+                    low=min(float(item['arrays']['terrain'].min()) for item in collected)
+                    high=max(float(item['arrays']['terrain'].max()) for item in collected)
+                    pixels=rgb(arrays['terrain'],low,high)
+                elif field=='water':
+                    high=max(float(item['arrays']['water'].max()) for item in collected)
+                    pixels=rgb(arrays['water'],0,high)
+                else:
+                    with np.load(folder/'textures.npz') as texture:
+                        pixels=np.uint8(np.moveaxis(texture['albedo_rgb'],0,-1).clip(0,1)*255)
+                path=out/(key+'-'+field+'-layer.png')
+                Image.fromarray(pixels).convert('RGBA').resize((1024,1024),Image.Resampling.NEAREST).save(path)
+                panel.update(image=href(path),context=href(preview),fill_opacity=1,
+                    context_note='Separate vault reference; background brightness and mask opacity are independently adjustable.')
+                sections[field].append(panel);continue
+            image=overlay_canvas();legend='';stats='';source=folder/'atlas-diagnostics.npz';array=field
+            note='Saved source observation. Dim vault preview is context only, never part of the tensor.';shape=None;state='available';extra=[];options=[];dependencies={};warnings=[];fill_opacity=None
+            if field=='starts':
+                draw_points(image,markers['spawns'],extent,'#ffde74',labels=True,radius=8)
+                source=folder/'markers.json';array='spawns';legend='Gold points: source army slots';stats=f&quot;{len(markers['spawns'])} numbered starts · all source slots&quot;
+            elif field=='markers':
+                draw_points(image,markers['mexes'],extent,'#72ffc0',radius=6);draw_points(image,markers['hydros'],extent,'#82c9ff',labels=False,radius=8)
+                source=folder/'markers.json';array='mexes + hydros';legend='Green: mex · Blue: hydro';stats=f&quot;{len(markers['mexes'])} mex / {len(markers['hydros'])} hydro locations&quot;
+                note+= ' Source/default settings are linked; unsupported runtime activation remains unresolved.'
+            elif field in ('natural_energy','natural_mass','wrecks'):
+                values=c['fields'][field];limit=maximum[field];rgba=np.zeros((*values.shape,4),np.uint8)
+                rgba[...,:3]=rgb(np.log1p(values),0,max(float(np.log1p(limit)),1))
+                rgba[...,3]=np.where(values&gt;0,255,0).astype(np.uint8)
+                image=Image.fromarray(rgba).resize((1024,1024),Image.Resampling.NEAREST)
+                units='energy' if field=='natural_energy' else 'mass';shape=list(values.shape)
+                legend=f'Known {units} / 4×4 world-unit tile · log scale 0–{limit:,.1f}'
+                items=c['natural'] if field!='wrecks' else [e for e in c['entities'] if e['kind']=='wreckage']
+                unknown=sum(e.get(units) is None for e in items)
+                stats=f&quot;Known {units} {values.sum():,.1f} · {len(items):,} identified entities · {unknown} unknown values&quot;
+                source=folder/'entities.json' if field=='natural_energy' else folder/'atlas-diagnostics.npz'
+                array='natural entities.energy → sum / 4×4 tile' if field=='natural_energy' else ('natural' if field=='natural_mass' else 'wrecks')+' → sum / 4×4 tile'
+                note+=' Natural mass includes all identified natural props; it is distinct from the model’s rock-only target. Wrecks exclude unresolved living/placed units.'
+            elif field=='civilians':
+                items=[e for e in c['entities'] if e['kind'] in ('civilian_unit','civilian_building')]
+                draw_points(image,items,extent,'#ffa7dd',radius=7)
+                source=folder/'entities.json';array='kind = civilian_unit / civilian_building';legend='Pink: identified civilian entities'
+                stats=f'{len(items)} identified civilian units / buildings';note+=' Zero identified records does not certify runtime absence.'
+            elif field=='scenario':
+                config=read(folder/'adaptive_options.json');byname={p['name']:p for p in markers['mexes']+markers['hydros']}
+                byslot={p['slot']:p for p in markers['spawns']};draw=ImageDraw.Draw(image);count=0
+                for edge in config['resource_connections']:
+                    a=byslot.get(edge['slot']);b=byname.get(edge['marker_name'])
+                    if a and b:
+                        color=colors[(edge['slot']-1)%len(colors)]
+                        draw.line([(a['x']/extent*1024,a['z']/extent*1024),(b['x']/extent*1024,b['z']/extent*1024)],fill=(*color,210),width=2)
+                        draw_points(image,[b],extent,color,radius=4);count+=1
+                draw_points(image,markers['spawns'],extent,'#ffde74',labels=True,radius=8)
+                source=folder/'adaptive_options.json';array='resource_connections';legend='Colored lines: script-declared spawn → resource links'
+                stats=f&quot;{count} located links / {len(config['resource_connections'])} saved · {len(config['selected_options'])} options&quot;
+                note+=' Lines show only recorded associations. Global prop modifiers do not imply slot ownership.'
+                if not count:state='partial';stats+=' · no supported saved connection edges'
+                options=[dict(key=k,value=v,effect=config['option_effect_status'].get(k,'unresolved')) for k,v in config['selected_options'].items()]
+                deps=[e for e in c['entities'] if e.get('adaptive_dependencies')]
+                for e in deps:
+                    for dep in e['adaptive_dependencies']:
+                        if dep not in ('scope','group','selected_group','runtime_regrowth'):dependencies[dep]=dependencies.get(dep,0)+1
+                stats+=f' · {len(deps):,} entity option-dependency records'
+                extra=[dict(title='Option → entity dependencies',href=href(folder/'entities.json')),
+                       dict(title='Options, alternatives &amp; support',href=href(folder/'adaptive_settings.md'))]
+            elif field.startswith('air_'):
+                mode={'air_expansion':'expansion','air_offensive':'offensive','air_raids':'air'}[field]
+                source=history/'automatic_layers.npz';fields=[f'medium_{slot}_{mode}' for slot in (side,enemy)];array=' + '.join(fields)
+                with np.load(source) as archive:masks=[archive[name].copy() for name in fields]
+                first,second=masks;rgba=np.zeros((*first.shape,4),np.uint8)
+                rgba[first]=[95,184,255,255];rgba[second]=[255,171,75,255];rgba[first&amp;second]=[201,143,247,255]
+                image=Image.fromarray(rgba).resize((1024,1024),Image.Resampling.NEAREST);shape=[2,*first.shape];fill_opacity=1
+                for spawn,color in zip(spawns,('#5fb8ff','#ffab4b')):draw_points(image,[spawn],extent,color,labels=True,radius=8)
+                slot_b=enemy.replace('ARMY_','')
+                legend=f'Blue: SLOT 1 · Orange: SLOT {slot_b} · Violet: overlap · opacity adjustable'
+                stats=f'SLOT 1: {100*first.mean():.2f}% · SLOT {slot_b}: {100*second.mean():.2f}% · {scenario}'
+                note='Masks are relative to the indicated source slot, not whole-map neutral influence. Both saved side masks are shown separately in blue/orange; overlap is violet. Historical medium preset; no side is inferred by rotating the other mask.'
+                extra=[dict(title='Scenario, gates &amp; rejection reasons',href=href(history/'opportunities.json'))]
+                if key=='8070_26498':
+                    state='known_issue';warnings.append('EXTRACTION TODO: archived opponent is SLOT 12, not SLOT 2. This air pairing/placement is wrong for the intended scenario. No saved slot-2 mask is substituted.')
+                    extra.append(dict(title='DualGap pair correction task',href='../map-extraction-todos.md#extract-01-dualgap-air-slot-pair'))
+            elif field=='battle_paths':
+                frontier=ROOT/'data/processed/frontier_map_comparison'/key/'result.json'
+                draw=ImageDraw.Draw(image);side_paths=[];counter_paths=[]
+                if frontier.exists():
+                    source=frontier;d=read(source);snapshot=next(s for s in d['snapshots'] if s['requested_routes']==3)
+                    routes=snapshot['routes'];array='snapshots[K3].routes: own_points + mirror_points / joined counterpart';sp=d.get('actual_spawns') or d['spawns']
+                    for route in routes:
+                        own=route.get('own_points',route['points']);side_paths.append(own)
+                        if route.get('mirror_points'):counter_paths.append(route['mirror_points'])
+                        elif len(route['points'])&gt;len(own):counter_paths.append(route['points'][len(own)-1:][::-1])
+                    legend='Blue: slot 1 approaches · Orange: slot 2 saved mirrored approaches'
+                    stats=f'{len(side_paths)} + {len(counter_paths)} saved approaches · {sp[0][&quot;name&quot;]} vs {sp[1][&quot;name&quot;]} · K3 land'
+                    note='Both sides are drawn from the saved geometry: own_points plus mirror_points, or the counterpart segment of an already joined reflected route. Separate rotational contacts remain separate; the atlas does not invent a crossing or calculate new routes.'
+                    extra=[dict(title='Original saved K3 display',href=href(frontier.parent/'K3_paths.png'))]
+                else:
+                    source=history/'routes.json';d=read(source);routes=d['layers']['land']['routes'];sp=d['spawns'];array='layers.land.routes'
+                    for route in routes:
+                        pts=route['points'];cut=max(1,len(pts)//2);side_paths.append(pts[:cut+1]);counter_paths.append(pts[cut:])
+                    legend='Blue/orange: slot 1 / slot 2 ends of historical full land routes'
+                    stats=f'{len(routes)} historical land paths · {sp[0][&quot;name&quot;]} vs {sp[1][&quot;name&quot;]} · newer frontier TODO'
+                    note='Historical complete paths are split into blue/orange display segments at their midpoint. This marks the endpoint sides, not independent side predictions or a new front fit.';state='partial'
+                for paths,color in ((side_paths,(95,184,255)),(counter_paths,(255,171,75))):
+                    for pts in paths:
+                        xy=[(x/extent*1024,z/extent*1024) for x,z in pts]
+                        if len(xy)&gt;1:draw.line(xy,fill=(*color,255),width=5)
+                for spawn,color in zip(sp,('#5fb8ff','#ffab4b')):draw_points(image,[spawn],extent,color,labels=True,radius=9)
+                warnings.append('EXTRACTION TODO: this comparison is LAND only. Hover and navy battle-path views are missing.')
+                extra.append(dict(title='Hover/navy and scenario work',href='../map-extraction-todos.md#extract-02-battle-path-movement-layers'))
+            elif field=='resource_zones':
+                fill_opacity=1;warnings.append('EXTRACTION TODO: zoning has visible errors and needs definition/implementation review; exact FAF-version coverage is also incomplete.')
+                extra.append(dict(title='Resource zoning correction task',href='../map-extraction-todos.md#extract-03-main-base-rear-forward-zoning'))
+                foldernew=ROOT/'data/processed/strategy_annotation_batch/v1.2.1/f1ae04e925f139a8/jobs'/key/'whole_economy'
+                source=foldernew/'layers.npz';array='ARMY_1_roles';legend='Blue: main-base · Teal: rear · Gold: forward / flank'
+                if source.exists():
+                    with np.load(source) as a:roles=a[array].copy()
+                    rgba=np.zeros((*roles.shape,4),np.uint8)
+                    for code,color in [(1,(99,184,255)),(2,(78,222,174)),(3,(245,194,96))]:rgba[roles==code]=[*color,255]
+                    image=Image.fromarray(rgba).resize((1024,1024),Image.Resampling.NEAREST);shape=list(roles.shape)
+                    d=json.loads(gzip.decompress((foldernew/'economy.json.gz').read_bytes()));own=[t for t in d['targets'] if t['side']=='ARMY_1' and t['kind']=='mex']
+                    draw_points(image,own,extent,'#ffffff',radius=5);draw_points(image,d['spawns'],extent,'#ffde74',labels=True,radius=8)
+                    stats='v1.2.1 · ARMY_1 · mex: '+ ' / '.join(f'{role} {sum(t[&quot;role&quot;]==role for t in own)}' for role in ('near_base','rear','forward_or_flank'))
+                    note='Saved whole-economy location codes and mex records. Forward/flank does not mean contestable or safe. Exact scenario and movement/access assumptions are retained.'
+                    extra.append(dict(title='Resource roles, access &amp; economy ledger',href=href(foldernew/'economy.json.gz')))
+                else:
+                    source=folder/'record.json';array='No matching saved whole-economy artifact';state='unavailable'
+                    draw=ImageDraw.Draw(image);font=ImageFont.truetype('C:/Windows/Fonts/segoeui.ttf',38)
+                    draw.text((60,430),'TODO: exact-version output',font=font,fill='white',stroke_width=2,stroke_fill='black')
+                    draw.text((60,490),'not found in checked runs',font=font,fill='white',stroke_width=2,stroke_fill='black')
+                    stats='TODO · whole-economy roles unavailable for this exact FAF version'
+                    note='No stock-map substitution and no new scientific computation. Empty coverage is explicitly unavailable, not a zero-valued tensor.'
+            elif field=='contested_resources':
+                fill_opacity=1;warnings.append('EXTRACTION TODO: define contestability consistently with main-base/rear/forward zoning and revise the implementation. Current categories are provisional.')
+                source=history/'opportunities.json';array=f'sides.{side}.regions[territory=contested]'
+                rows=opportunities['sides'][side]['regions'];ids=[int(r['area_id'][1:]) for r in rows if r['territory']=='contested']
+                with np.load(history/'opportunity_layers.npz') as a:areas=a['areas'].copy()
+                mask=np.isin(areas,ids);image=mask_image(mask,(247,188,82));shape=list(mask.shape)
+                regions=[r for r in opportunities['regions'] if int(r['id'][1:]) in ids]
+                pts=[r for r in regions];draw_points(image,pts,extent,'#ffe08d',radius=8);draw_points(image,spawns,extent,'#ffde74',labels=True,radius=7)
+                legend='Gold: resource regions classified contested by saved opportunity model'
+                stats=f'{len(regions)} contested regions · {sum(r[&quot;mexes&quot;] for r in regions)} mexes · {scenario}'
+                note='Historical travel/response-based territory classification, separate from main-base/rear/forward roles and not a learned player-behavior prediction.'
+                extra=[dict(title='Saved region grid',href=href(history/'opportunity_layers.npz')),dict(title='Contestability definition task',href='../map-extraction-todos.md#extract-04-contestability-and-resource-zones')]
+            elif field=='access':
+                fill_opacity=1
+                image=mask_image(arrays['access']&gt;0,(84,211,151));shape=list(arrays['access'].shape)
+                legend='Green: land body connected to the recorded atlas base-A seed'
+                stats=f'{100*arrays[&quot;access&quot;].mean():.1f}% of map walk-connected to A · no economic calculation'
+                note='Existing atlas walk-connectivity diagnostic. Original numeric field is retained; this view no longer claims to be an economic layer.'
+            elif field=='pathing':
+                values=arrays['pathing'];palette=np.array([[25,33,41],[71,136,206],[78,177,116]],np.uint8)
+                rgba=np.zeros((*values.shape,4),np.uint8);rgba[...,:3]=palette[values];rgba[...,3]=255
+                image=Image.fromarray(rgba).resize((1024,1024),Image.Resampling.NEAREST);shape=list(values.shape);fill_opacity=1
+                legend='Dark: blocked · Blue: amphibious · Green: land + amphibious · opacity adjustable'
+                stats=f'Land + amphibious {100*(values==2).mean():.1f}% · source movement classification unchanged'
+                array='pathing';note='Existing saved static movement categories, unchanged. Area opacity is controlled globally; this is not engine footprint verification.'
+            elif field=='gameplay':
+                values=arrays['gameplay'];palette=np.array([[49+(i*71)%170,69+(i*43)%150,72+(i*97)%160] for i in range(256)],np.uint8)
+                rgba=np.zeros((*values.shape,4),np.uint8);rgba[...,:3]=palette[values%256];rgba[...,3]=np.where(values&gt;0,255,0)
+                image=Image.fromarray(rgba).resize((1024,1024),Image.Resampling.NEAREST);shape=list(values.shape);fill_opacity=1
+                legend='Categorical walk-access bodies · distinct colors, opacity adjustable'
+                sizes=np.bincount(values.ravel())[1:];stats=f'{len(sizes)} land bodies · largest {100*max(sizes,default=0)/values.size:.1f}% of map'
+                array='gameplay';note='Accepted existing four-neighbor access-body labels are unchanged. Only area-fill opacity changes; colors repeat after 255.'
+            path=out/(key+'-'+field+'-layer.png');image.save(path)
+            sections[field].append(dict(key=key,name=name,image=href(path),context=href(preview),stats=stats,legend=legend,note=note,
+                source=href(source),array=array,shape=shape,source_sha256=file_hash(source),settings=href(folder/'adaptive_settings.md'),
+                record=href(folder/'record.json'),status=state,extra_links=extra,options=options,prop_dependencies=dependencies,warnings=warnings,fill_opacity=fill_opacity,context_note='Separate FAF vault context · brightness controlled in sidebar · not tensor · registration unverified'))
+    data=dict(schema='mapgen_atlas_comparisons_v2',draft=True,default_map=KEYS[0],maps=maps,sections=sections,
+        recipe='src/supmapai/tools/atlas_layers.py',recipe_sha256=file_hash(Path(__file__)),
+        background_policy='Separate vault context with global brightness slider (0–100, default 10); separate layer opacity slider (0–100, default 100).',
+        mask_fill_policy='Layer PNGs retain full base opacity; the global atlas slider sets displayed mask opacity from 0 to 100%, default 100%.',
+        scientific_sources='Read only: no extraction, model inference, array rewrites or route/label recomputation.',
+        blueprint_index_sha256=file_hash(PINNED_BP/'blueprint_index.json'),wreck_rules_sha256=file_hash(PINNED_BP/'wreck_value_profile.json'))
+    (PAGE/'generated/comparisons.json').write_text(json.dumps(data,indent=2),encoding='utf-8')
+    (PAGE/'generated/comparisons-data.js').write_text('window.MAPGEN_COMPARISONS = '+json.dumps(data).replace('&lt;','\\u003c')+';\n',encoding='utf-8')
+    print(json.dumps(dict(comparison_maps=len(maps),layer_rows=len(sections),unavailable=sum(p.get('status')=='unavailable' for row in sections.values() for p in row))))
+    return data
+
+
+if __name__=='__main__':
+    p=argparse.ArgumentParser(description=__doc__);p.add_argument('--prepare',action='store_true');args=p.parse_args()
+    if args.prepare:prepare()
+    build()
+</pre><script src="../docs/model-atlas/public-links.js" data-public-links></script></body></html>

@@ -1,0 +1,69 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>symmetric_merged_routes.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="symmetric-influence-and-merged-route-sections">Symmetric influence and merged route sections</h1>
+<p>Implemented for Thedion and Archsimkats Valley after the 14 October 2026 request.
+Existing raw routes are preserved in routes_before_normalization.json in each
+output folder. Reruns start from that snapshot, avoiding cumulative deformation.</p>
+<h2 id="symmetry-normalization">Symmetry normalization</h2>
+<p>Detect involutive transformations that exchange the selected spawns: 180-degree
+rotation, horizontal/vertical reflection, and diagonal reflections for square
+maps. Accept at most 5% passability mismatch, blocked-region IoU at least 0.65,
+and a spawn displacement at most two map units. Highly asymmetric layouts are
+not forced into symmetry simply because most of the map is open terrain.</p>
+<p>The influence grid is the intersection of the raw grid and its transformation:
+a cell remains blocked if either corresponding source cell blocks it. Source
+terrain is retained unchanged. This is an explicitly normalized influence model,
+not a claim that the game uses the same mask.</p>
+<p>Rerun corridor discovery on that grid. Close the route families under symmetry.
+Paired routes use precisely transformed polylines; a self-symmetric family uses
+a half-path to a fixed-axis cell or central edge and its reflected half. Thedion
+requires a one-unit adjustment of the second route endpoint to exchange the
+spawns exactly. Actual resource/spawn markers are retained at stored positions.</p>
+<p>Territory membership is closed under the same transformation and route-ID
+permutation. Corresponding routes have exactly equal allocated areas. Allocation
+uses integer membership-count histograms so mirrored summation order cannot
+introduce a numerical area difference.</p>
+<h2 id="merged-sections">Merged sections</h2>
+<p>For each route pair, locate monotone aligned runs no farther than eight units
+apart. The connecting segment must remain on passable terrain: close paths on
+opposite sides of a cliff are not merged. Require at least 12 units of run length.
+Use a canonical existing centerline and short valid connectors to snap the other
+route onto it. Remove loops, enforce symmetry again and validate final geometry.
+Two passes handle interactions between snapping and symmetric counterparts.</p>
+<p>Extract maximal exact shared-edge chains with stable IDs M1, M2, etc. Each
+section contains its polyline, length and participating route IDs. Each route
+records merged_section_ids and ordered merged_section_uses, including point-index
+intervals and direction. The final graph is rebuilt at shared-section endpoints,
+preserving a prior chokepoint&#39;s representative node when it moves within eight
+units. Route edge sequences reconstruct the complete final polylines exactly.</p>
+<p>The viewer draws each merged section once in pale gray, labels it and explicitly
+lists which sections each route uses. A checkbox toggles these labels/centerlines.
+Area sharing and physical section merging remain different concepts.</p>
+<h2 id="results">Results</h2>
+<p>Thedion retains three route families. Routes 1 and 2 are exact counterparts:
+both 627.0925 units long with 82,435.8333 allocated square units. Route 3 is
+self-symmetric, 695.0509 units long. M1 is used by routes 1/3; M2 by routes 2/3.
+Both merged sections are 79 units long.</p>
+<p>Archsimkats retains five land and seven amphibious/hover families. The paired
+outer routes now have identical mirrored geometry and exactly equal areas.
+There are six merged land sections and fourteen for each non-land layer.</p>
+<p>Locations and counts of actual mexes/hydros are not artificially symmetrized.
+Sites outside the normalized reachable grid remain explicitly unassigned.
+This avoids inventing resources to make a statistic symmetric.</p>
+<h2 id="validation-and-outputs">Validation and outputs</h2>
+<p>All 35 targeted route/navigation/metric tests pass. New tests cover approximate
+symmetry detection, rejection of asymmetric features, snapping nearby centerlines,
+no merging through walls, unchanged raw masks, exact symmetric geometry/areas,
+and preservation of chokepoints and their branch combinations after normalization.
+Both actual maps were additionally checked for exact partner geometry and area
+equality, membership-bitset symmetry and full graph-route reconstruction.</p>
+<p>normalized_masks.npz contains the normalized analysis grids. territories.npz
+contains their route memberships. routes.json records symmetry detection,
+normalization rules, original/normalized endpoints and the merged section graph.
+PNG overlays and width/resource statistics are recomputed from final geometry.</p>
+<pre><code>$env:PYTHONPATH=&#39;src&#39;
+.venv-codex/Scripts/python.exe -m supmapai.tools.enrich_corridor_metrics --output data/processed/navigation_corridors_thedion
+.venv-codex/Scripts/python.exe -m supmapai.tools.enrich_corridor_metrics --output data/processed/navigation_corridors
+</code></pre>
+<p>This retains the existing prototype limits: terrain-only passability, significant
+barrier thresholds and greedy corridor discovery. Normalized widths are geometric
+cross-sections, not verified unit-footprint or army-clearance guarantees.</p>
+<script src="model-atlas/public-links.js" data-public-links></script></body></html>

@@ -1,0 +1,119 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>resource_economy.py | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="../docs/model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1>resource_economy.py</h1><p class="meta">Saved public evidence snapshot: src/supmapai/strategy/resource_economy.py</p><pre>&quot;&quot;&quot;Fixed-horizon economic opportunity with one shared serial engineer.
+
+This is a deterministic, self-financing greedy schedule, not a game simulator
+or a claim of optimal play. Travel/energy stalls/upgrades are outside this pilot.
+Equal-resource tasks are exchangeable without travel: route credits average
+their ownership exactly, avoiding arbitrary asymmetric tie ordering.
+&quot;&quot;&quot;
+from copy import deepcopy
+import math
+import numpy as np
+from .reclaim_policy import ENTITY_DELAY_SECONDS,REFERENCE_MASS_RATE
+
+HORIZON_SECONDS=300.
+
+
+def empty_pool():
+    return dict(mex_income_rate=0.,mex_built=0.,mex_produced_mass=0.,mex_mass_cost=0.,
+        mex_energy_cost=0.,upkeep_energy=0.,reclaim_mass=0.,reclaim_energy=0.,reclaim_unknown_energy_targets=0.,
+        build_work=0.,reclaim_work=0.,tier_mass=[0.,0.,0.],tier_work=[0.,0.,0.],
+        mex_net_mass=0.,economic_mass=0.,energy_net=0.,economic_share=0.)
+
+
+def simulate(groups,mex,*,horizon=HORIZON_SECONDS,initial_mass=None):
+    &quot;&quot;&quot;Evaluate a single existing engineer, with mass paid before mex building.
+
+    Mex priority is incremental net horizon mass per occupied second, including
+    any financing wait. Reclaim priority is its attainable mass / occupied time.
+    Mass is credited at task completion (or the final partial reclaim); no
+    unfinished acquisition is credited. Energy is a demand/reward ledger only.
+    &quot;&quot;&quot;
+    fields=['mass_cost','energy_cost','build_seconds','upkeep_energy']
+    if any(not math.isfinite(mex[k]) or mex[k]&lt;0 for k in fields) or mex['build_seconds']&lt;=0 or horizon&lt;=0 or not math.isfinite(horizon):
+        raise ValueError('Invalid economic reference')
+    if initial_mass is None:initial_mass=mex['mass_cost']
+    if not math.isfinite(initial_mass) or initial_mass&lt;0:raise ValueError('Invalid working capital')
+    groups=deepcopy(groups);pools={}
+    for g in groups:
+        if g['kind'] not in {'mex','reclaim'} or not isinstance(g['count'],int) or g['count']&lt;=0:raise ValueError('Invalid task group')
+        if not g['owners'] or any(not math.isfinite(w) or w&lt;0 for w in g['owners'].values()) or not math.isclose(sum(g['owners'].values()),1,abs_tol=1e-8):
+            raise ValueError('Ownership must partition each physical task')
+        if not math.isfinite(g['value']) or g['value']&lt;=0:raise ValueError('Positive finite task value required')
+        if g['kind']=='reclaim' and (not math.isfinite(g['energy']) or g['energy']&lt;0 or not 0&lt;=g.get('unknown_energy_fraction',0)&lt;=1):
+            raise ValueError('Invalid companion energy')
+        g['remaining']=g['count']
+        for pool in g['owners']:
+            pools.setdefault(pool,empty_pool())
+    time=0.;balance=float(initial_mass);energy_balance=0.;energy_floor=0.;events=[];waiting=0.
+    def advance(duration):
+        nonlocal time,balance,energy_balance,energy_floor
+        for p in pools.values():
+            gain=p['mex_income_rate']*duration;p['mex_produced_mass']+=gain;balance+=gain
+            p['upkeep_energy']+=p['mex_built']*mex['upkeep_energy']*duration
+        energy_balance-=sum(p['mex_built']*mex['upkeep_energy'] for p in pools.values())*duration
+        energy_floor=min(energy_floor,energy_balance)
+        time+=duration
+    while time&lt;horizon-1e-9:
+        remaining=horizon-time;income=sum(p['mex_income_rate'] for p in pools.values());options=[]
+        for i,g in enumerate(groups):
+            if not g['remaining']:continue
+            if g['kind']=='mex':
+                wait=max(0.,mex['mass_cost']-balance)/income if income else (0. if balance+1e-9&gt;=mex['mass_cost'] else math.inf)
+                duration=wait+mex['build_seconds']
+                gain=g['value']*(remaining-duration)-mex['mass_cost']
+                if duration&lt;=remaining+1e-9 and gain&gt;1e-9:options.append((gain/duration,1,g['value'],i,wait,duration,None))
+            else:
+                duration=min(g['value']/REFERENCE_MASS_RATE+ENTITY_DELAY_SECONDS,remaining)
+                amount=min(g['value'],max(0.,duration-ENTITY_DELAY_SECONDS)*REFERENCE_MASS_RATE)
+                if amount&gt;1e-9:options.append((amount/duration,0,g['value'],i,0.,duration,amount))
+        if not options:break
+        # Stable resource-value grouping is independent of route labels.
+        score,_,_,index,wait,duration,amount=max(options)
+        g=groups[index]
+        if wait:
+            start=time;advance(wait);events.append(dict(kind='finance_wait',start=start,end=time));waiting+=wait
+        start=time
+        if g['kind']=='mex':
+            assert balance+1e-7&gt;=mex['mass_cost'];balance-=mex['mass_cost']
+            energy_balance-=mex['energy_cost'];energy_floor=min(energy_floor,energy_balance)
+            for pool,w in g['owners'].items():
+                p=pools[pool];p['mex_mass_cost']+=w*mex['mass_cost'];p['mex_energy_cost']+=w*mex['energy_cost'];p['build_work']+=w*mex['build_seconds']
+            advance(mex['build_seconds'])
+            for pool,w in g['owners'].items():
+                p=pools[pool];p['mex_income_rate']+=w*g['value'];p['mex_built']+=w
+            events.append(dict(kind='mex',group=g['id'],start=start,end=time,income=g['value'],mass_cost=mex['mass_cost'],owners=g['owners']))
+        else:
+            advance(duration);balance+=amount;fraction=amount/g['value']
+            energy_balance+=g['energy']*fraction
+            for pool,w in g['owners'].items():
+                p=pools[pool];p['reclaim_mass']+=w*amount;p['reclaim_energy']+=w*g['energy']*fraction
+                p['reclaim_work']+=w*duration;p['tier_mass'][g['tier']]+=w*amount;p['tier_work'][g['tier']]+=w*duration
+                p['reclaim_unknown_energy_targets']+=w*g.get('unknown_energy_fraction',0)*fraction
+            events.append(dict(kind='reclaim',group=g['id'],start=start,end=time,mass=amount,
+                partial=fraction&lt;1-1e-9,tier=g['tier'],owners=g['owners']))
+        g['remaining']-=1
+        assert balance&gt;=-1e-7 and time&lt;=horizon+1e-7
+    idle=horizon-time
+    if idle:advance(idle)
+    for p in pools.values():
+        p['mex_net_mass']=p['mex_produced_mass']-p['mex_mass_cost']
+        p['economic_mass']=p['mex_net_mass']+p['reclaim_mass']
+        p['energy_net']=p['reclaim_energy']-p['mex_energy_cost']-p['upkeep_energy']
+    def total(key):return float(sum(p[key] for p in pools.values()))
+    totals={key:total(key) for key in ['mex_built','mex_produced_mass','mex_mass_cost','mex_net_mass','reclaim_mass',
+        'economic_mass','mex_energy_cost','upkeep_energy','reclaim_energy','energy_net','build_work','reclaim_work','reclaim_unknown_energy_targets']}
+    for p in pools.values():p['economic_share']=p['economic_mass']/totals['economic_mass'] if totals['economic_mass'] else 0.
+    totals.update(initial_working_mass=float(initial_mass),final_mass_balance=balance,finance_wait=waiting,idle_seconds=idle,
+        reclaim_share=totals['reclaim_mass']/totals['economic_mass'] if totals['economic_mass']&gt;0 else None,
+        net_energy_deficit=max(0.,-totals['energy_net']),energy_buffer_required=max(0.,-energy_floor))
+    assert np.isclose(balance,initial_mass+totals['economic_mass'])
+    assert np.isclose(energy_balance,totals['energy_net'])
+    assert np.isclose(totals['build_work']+totals['reclaim_work']+waiting+idle,horizon)
+    return dict(horizon=horizon,pools=pools,totals=totals,events=events,
+        method='One serial reference engineer; self-financing greedy horizon-return schedule; exact expected ownership among equal-value tasks',
+        limitations=['No travel, enemy denial, upgrades, energy stalls, storage overflow or initial engineer cost',
+            'Initial mex-sized mass advance is disclosed and excluded from economic gain',
+            'Energy demand is supplied externally and ledgered, without a mass conversion',
+            'Mass-only reclaim-time hypothesis remains mass/25+1; companion energy does not change work in this pilot',
+            'Ownership fractions are expected attribution of serial physical tasks, not parallel engineers'])
+</pre><script src="../docs/model-atlas/public-links.js" data-public-links></script></body></html>
