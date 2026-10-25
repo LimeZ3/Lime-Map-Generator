@@ -1,0 +1,355 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>extract_strategic_features.py | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="../docs/model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1>extract_strategic_features.py</h1><p class="meta">Saved public evidence snapshot: src/supmapai/tools/extract_strategic_features.py</p><pre>&quot;&quot;&quot;Featured-map navigation and representative UEF naval range potential.
+
+The first stage exports potential firing geometry, not confirmed attacks or a
+gameplay score. Launch feasibility, match teams and ballistics remain separately
+labelled until engine/community validation. Existing questionnaire assets stay intact.
+&quot;&quot;&quot;
+import argparse
+import csv
+import hashlib
+import json
+import os
+import re
+import subprocess
+import time
+from pathlib import Path
+
+import numpy as np
+from PIL import Image,ImageDraw
+
+from supmapai.extract import adaptive_resources
+from supmapai.strategy.navigation import raw_layers,launch_candidates,range_witnesses
+
+ROOT=Path(__file__).resolve().parents[3]
+FAF_COMMIT='c7d9d129cc9085ddf84cc49aa3f13af91afd9509'
+NAVAL_PROFILES=(
+    dict(id='uef_t1_frigate',label='UEF T1 frigate',unit_id='ues0103',weapon_labels=['MainGun']),
+    # Both destroyer turrets have the same range. One represents reach without
+    # generating duplicate witnesses for every mex and firing position.
+    dict(id='uef_t2_destroyer',label='UEF T2 destroyer',unit_id='ues0201',weapon_labels=['FrontTurret01']),
+    dict(id='uef_t2_cruiser_missiles',label='UEF T2 cruiser missiles',unit_id='ues0202',weapon_labels=['CruiseMissile']),
+)
+FACTORIES={'UEF':'ueb0103'}
+ENGINEERS={'UEF':'uel0105'}
+
+
+def representative_weapons(units,profile):
+    selected=[w for w in units[profile['unit_id']]['weapons'] if w.get('Label') in profile['weapon_labels']]
+    if {w.get('Label') for w in selected}!=set(profile['weapon_labels']):
+        raise ValueError('Missing representative weapon: '+profile['id'])
+    if any('Land' not in w.get('FireTargetLayerCapsTable',{}).get('Water','').split('|') or w.get('MaxRadius') is None for w in selected):
+        raise ValueError('Representative weapon cannot attack land: '+profile['id'])
+    return selected
+
+
+def naval_rows(record):
+    &quot;&quot;&quot;Read new representative results and historical four-faction artifacts.&quot;&quot;&quot;
+    return record.get('naval_reach',record.get('frigates',[]))
+
+
+def naval_views(record):
+    return {r.get('profile',r['faction'].lower()):r.get('profile_label',r['faction']+' T1 frigate') for r in naval_rows(record)}
+
+
+def dump(path,value):
+    path.parent.mkdir(parents=True,exist_ok=True)
+    temporary=path.with_suffix(path.suffix+'.tmp')
+    temporary.write_text(json.dumps(value,ensure_ascii=False,indent=2,allow_nan=False),encoding='utf-8')
+    temporary.replace(path)
+
+
+def sha(path):
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def run_adapter(*args):
+    sdk=ROOT/'.local-tools/dotnet/dotnet.exe'
+    dll=ROOT/'tools/StrategicMapAdapter/bin/Release/net10.0/StrategicMapAdapter.dll'
+    if not sdk.exists() or not dll.exists():
+        raise RuntimeError('Build tools/StrategicMapAdapter first; see docs/strategic_feature_implementation.md')
+    result=subprocess.run([str(sdk),str(dll),*[str(x) for x in args]],capture_output=True,text=True,
+        timeout=240,env={**os.environ,'DOTNET_ROOT':str(sdk.parent)},cwd=ROOT)
+    if result.returncode:
+        raise RuntimeError(result.stderr.strip() or result.stdout.strip())
+
+
+def sequence(value):
+    return [v for k,v in sorted(((k,v) for k,v in (value or {}).items() if k.isdigit()),key=lambda p:int(p[0]))]
+
+
+def build_profiles(output):
+    cache=ROOT/'data/raw/faf_source/blueprint_cache_c7d9d129cc90/units'
+    files={'/units/'+p.parent.name+'/'+p.name:str(p.resolve()) for p in sorted(cache.glob('*/*_unit.bp'))}
+    dump(output/'blueprint_request.json',files)
+    run_adapter('blueprints',output/'blueprint_request.json',output/'blueprints_raw.json')
+    source=json.loads((output/'blueprints_raw.json').read_text(encoding='utf-8'))
+    units={}
+    for ident,raw in source['units'].items():
+        physics=raw.get('Physics') or {};economy=raw.get('Economy') or {}
+        footprint=raw.get('Footprint') or {};weapons=sequence(raw.get('Weapon'))
+        motion=physics.get('MotionType')
+        layer={'RULEUMT_Land':'land','RULEUMT_Water':'water','RULEUMT_Amphibious':'amphibious',
+            'RULEUMT_AmphibiousFloating':'amphibious','RULEUMT_Hover':'hover','RULEUMT_Air':'air'}.get(motion)
+        path=Path(source['sources'][ident]['file'])
+        units[ident]=dict(id=ident,faction=(raw.get('General') or {}).get('FactionName'),
+            categories=sequence(raw.get('Categories')),physics=physics,footprint=footprint,
+            economy=economy,defense=raw.get('Defense') or {},weapons=weapons,
+            navigation_layer=layer,build_distance=economy.get('MaxBuildDistance',5),
+            source=dict(file=str(path),sha256=sha(path),faf_commit=FAF_COMMIT),
+            validation='pinned_faf_blueprint_fields_not_full_engine_export',
+            postprocessing='raw explicit ranges/costs; engine defaults, hooks and complete postprocessing unverified')
+    for ident in [*[p['unit_id'] for p in NAVAL_PROFILES],FACTORIES['UEF'],ENGINEERS['UEF']]:
+        if ident not in units:raise ValueError('Required unit missing: '+ident)
+    for profile in NAVAL_PROFILES:representative_weapons(units,profile)
+    result=dict(schema_version=1,faf_commit=FAF_COMMIT,parser_commit=source['parser_commit'],
+        roles=dict(representative_navy=NAVAL_PROFILES,naval_factories=FACTORIES,engineers=ENGINEERS),units=units,
+        validation='source_fields_ready_engine_profile_validation_pending',
+        source_archive_sha256=sha(ROOT/'data/raw/faf_source/library_c7d9d129cc90.zip'))
+    dump(output/'balance_profiles.json',result)
+    return result
+
+
+def simple_static_script(scripts):
+    &quot;&quot;&quot;Accept only inspected standard helpers; an imported custom helper is unknown.&quot;&quot;&quot;
+    text=adaptive_resources.clean(scripts)
+    if not re.search(r'\bScenarioUtils\.InitializeArmies\s*\(\s*\)',text):return False
+    for alias,path in [('ScenarioUtils','/lua/sim/ScenarioUtilities.lua'),
+        ('ScenarioFramework','/lua/ScenarioFramework.lua'),('Weather','/lua/weather.lua')]:
+        text=re.sub(r'(?:\blocal\s+)?'+alias+r'\s*=\s*import\s*\(\s*([\'\&quot;])'+re.escape(path)+r'\1\s*\)', '',text)
+    for helper in ['ScenarioUtils.InitializeArmies','ScenarioFramework.SetPlayableArea','Weather.CreateWeather','SetArmyColor']:
+        text=re.sub(re.escape(helper)+r'\s*\([^()]*\)','',text)
+    text=re.sub(r'\bfunction\s+(?:OnPopulate|OnStart)\s*\([^()]*\)|\bend\b','',text)
+    return not text.strip(' \t\n\r;')
+
+
+def effective_resources(folder,nav,scripts):
+    markers=nav['markers']
+    mexes=[m for m in markers if m['type']=='Mass'];hydros=[m for m in markers if m['type']=='Hydrocarbon']
+    spawns=[]
+    for spawn in nav['spawns']:
+        match=re.fullmatch(r'ARMY_(\d+)',spawn['name'],re.I)
+        spawns.append(dict(**spawn,slot=int(match[1]) if match else None,slot_valid=bool(match)))
+    resolution=adaptive_resources.resolve(folder,scripts,spawns,mexes,hydros)
+    if resolution['status']=='resolved_supported_static_rules':
+        resources=[r for r in resolution['resources'] if r['active_in_configuration']]
+        return [dict(name=r['name'],x=r['x'],y=r['y'],z=r['z']) for r in resources if r['resource_type'] in {'mass','mex'}],resolution
+    # A static file whose only populate action is InitializeArmies has fixed
+    # saved resource markers. Anything involving options/custom creation keeps
+    # resource activation unknown; geometry is still exported as an upper set.
+    clean=adaptive_resources.clean(scripts)
+    dynamic=bool(re.search(r'ScenarioInfo\s*\.\s*Options|CreateResourceDeposit|RemoveResource|spwnMex|SpawnMex|automex',clean,re.I))
+    status='static_save_markers' if not dynamic and simple_static_script(scripts) else 'unresolved_static_marker_potential'
+    return mexes,dict(status=status,active_slots=[s['slot'] for s in spawns],
+        active_slots_source='all_scenario_spawns_baseline_not_verified_match_setup',
+        warnings=resolution['warnings'] if dynamic else [],runtime_generated_resources='not_evaluated')
+
+
+def navigation_overlay(labels,spawns,mexes,path):
+    colours=np.array([[40,40,45,0],[70,185,95,165],[60,140,225,165],[180,95,215,165],
+        [235,165,65,165],[70,205,190,165],[230,95,125,165]],np.uint8)
+    image=Image.fromarray(colours[np.where(labels&gt;0,1+(labels-1)%(len(colours)-1),0)])
+    draw=ImageDraw.Draw(image)
+    for m in mexes:draw.ellipse((m['x']-2,m['z']-2,m['x']+2,m['z']+2),fill='#ffdc2d')
+    for s in spawns:
+        draw.ellipse((s['x']-5,s['z']-5,s['x']+5,s['z']+5),fill='#ef4444')
+        draw.text((s['x']+6,s['z']-4),s['name'].replace('ARMY_',''),fill='white')
+    image.save(path)
+
+
+def selected_setup(nav,setup=None):
+    available={int(s['name'].split('_')[-1]):s for s in nav['spawns']}
+    active=list(setup['active_slots']) if setup else sorted(available)
+    if len(active)!=len(set(active)) or not set(active).issubset(available):
+        raise ValueError('Setup contains duplicate or nonexistent active slots')
+    if len(active)&lt;2:raise ValueError('Gameplay setup needs at least two active slots')
+    teams=(setup or {}).get('teams')
+    if teams is not None:
+        flat=[slot for team in teams for slot in team]
+        if len(teams)&lt;2 or any(not team for team in teams) or sorted(flat)!=sorted(active):
+            raise ValueError('Teams must partition active slots exactly once')
+    return [available[slot] for slot in active],dict(active_slots=active,teams=teams,
+        verified=bool(setup and setup.get('verified')),evidence=(setup or {}).get('evidence'),
+        name=(setup or {}).get('name','all_scenario_spawns_reference'),
+        status='explicit_setup' if setup else 'reference_only_teams_unverified')
+
+
+def extract_map(item,profiles,output,setup=None):
+    target=output/item['key'];target.mkdir(parents=True,exist_ok=True)
+    package=json.loads((ROOT/'data/processed/library_overlays'/item['key']/'asset.json').read_text())
+    source=package['sources'];scmap=next(Path(p) for p in source if p.lower().endswith('.scmap'))
+    scenario=next(Path(p) for p in source if p.lower().endswith('_scenario.lua'))
+    save=next(Path(p) for p in source if p.lower().endswith('_save.lua'))
+    for path,digest in source.items():
+        if sha(Path(path))!=digest:raise ValueError('Source changed since overlay extraction: '+path)
+    auxiliary={}
+    old_stats={p.casefold():v for p,v in package.get('source_stats',{}).items()}
+    for path in sorted({*scmap.parent.glob('*_tables.lua'),*scmap.parent.glob('*_options.lua')}):
+        stat=path.stat();baseline=old_stats.get(str(path).casefold())
+        if baseline is not None and [stat.st_size,stat.st_mtime_ns]!=baseline:
+            raise ValueError('Adaptive source changed since overlay extraction: '+str(path))
+        auxiliary[str(path)]=sha(path)
+    run_adapter('map',scmap,scenario,save,target)
+    nav=json.loads((target/'navigation.json').read_text())
+    if any(not re.fullmatch(r'ARMY_\d+',s['name'],re.I) for s in nav['spawns']):
+        raise ValueError('Unexpected player army marker name')
+    nav['spawns'],match_setup=selected_setup(nav,setup)
+    active_names={s['name'] for s in nav['spawns']}
+    nav['pairs']=[pair for pair in nav['pairs'] if pair['from'] in active_names and pair['to'] in active_names]
+    nav['match_setup']=match_setup
+    dump(target/'configured_navigation.json',nav)
+    h,w=nav['height'],nav['width']
+    vertices=np.fromfile(target/'height_vertices.u16',dtype='&lt;u2').reshape(h+1,w+1).astype(np.float32)*nav['height_scale']
+    types=np.fromfile(target/'terrain_types.u8',dtype=np.uint8).reshape(h,w)
+    layers=raw_layers(vertices,types,nav['water_elevation'] if nav['water_enabled'] else None,nav['playable_area'])
+    arrays={**{k+'_raw':v for k,v in layers['labels'].items()},'depth':layers['depth']}
+    for key in layers['labels']:
+        arrays[key+'_ai']=np.fromfile(target/(key+'.i32'),dtype='&lt;i4').reshape(h,w)
+    np.savez_compressed(target/'regions.npz',**arrays)
+    scripts='\n'.join(Path(p).read_text(encoding='utf-8',errors='replace') for p in source if p.lower().endswith('_script.lua'))
+    mexes,configuration=effective_resources(scmap.parent,nav,scripts)
+    area=nav['playable_area']
+    if area:mexes=[m for m in mexes if area['x0']&lt;=m['x']&lt;area['x1'] and area['z0']&lt;=m['z']&lt;area['z1']]
+    else:mexes=[m for m in mexes if 0&lt;=m['x']&lt;w and 0&lt;=m['z']&lt;h]
+    results=[];distance_arrays={}
+    # One distance field per spawn/layer, through the unmodified upstream
+    # weighted search. Reuse each field across factions sharing the layer.
+    for layer in ['land',*sorted({profiles['units'][i]['navigation_layer'] for i in ENGINEERS.values()})]:
+        label_path=target/('raw_'+layer+'.i32');layers['labels'][layer].tofile(label_path)
+        request=dict(width=w,height=h,labels=str(label_path.resolve()),origins=[])
+        for spawn in nav['spawns']:
+            p=target/(layer+'_'+spawn['name']+'.f32')
+            request['origins'].append(dict(x=spawn['x'],z=spawn['z'],output=str(p.resolve())))
+        dump(target/'distance_request.json',request);run_adapter('distances',target/'distance_request.json')
+        for origin in request['origins']:
+            p=Path(origin['output']);distance_arrays[p.stem]=np.fromfile(p,dtype='&lt;f4').reshape(h,w)
+    np.savez_compressed(target/'distance_fields.npz',**distance_arrays)
+    # UEF launch feasibility is shared by all three ships and computed once
+    # per spawn. Weapon range depends only on the reachable basin set, so reuse
+    # target estimates between spawns with that same set too.
+    launches={s['name']:launch_candidates(layers,s,profiles['units'][ENGINEERS['UEF']],profiles['units'][FACTORIES['UEF']]) for s in nav['spawns']}
+    for profile in NAVAL_PROFILES:
+        weapons=representative_weapons(profiles['units'],profile);target_cache={}
+        for spawn in nav['spawns']:
+            candidate,basins,launch_status=launches[spawn['name']]
+            if tuple(basins) not in target_cache:
+                target_cache[tuple(basins)]=range_witnesses(layers['labels']['water'],basins,mexes,weapons)
+            targets=target_cache[tuple(basins)]
+            witnesses=[]
+            for basin in basins:
+                z,x=np.argwhere(candidate&amp;(layers['labels']['water']==basin))[0]
+                witnesses.append(dict(region=basin,candidate_x=float(x+.5),candidate_z=float(z+.5)))
+            results.append(dict(profile=profile['id'],profile_label=profile['label'],weapon_labels=profile['weapon_labels'],
+                faction='UEF',unit_id=profile['unit_id'],spawn=spawn['name'],mex_total=len(mexes),
+                potential_mex_count=sum(t['range_reachable'] for t in targets),
+                potential_mex_percent=round(100*sum(t['range_reachable'] for t in targets)/len(mexes),4) if mexes else None,
+                reachable_naval_basins=basins,launch_status=launch_status,launch_witnesses=witnesses,targets=targets))
+        # A whole-map overlay is the union of potential targets across start
+        # positions; per-spawn counts and ownership remain distinct in JSON.
+        allowed={b for r in results if r['profile']==profile['id'] for b in r['reachable_naval_basins']}
+        rgba=np.zeros((h,w,4),np.uint8);rgba[np.isin(layers['labels']['water'],list(allowed))]=[50,145,225,110]
+        picture=Image.fromarray(rgba);draw=ImageDraw.Draw(picture)
+        covered={t['name'] for r in results if r['profile']==profile['id'] for t in r['targets'] if t['range_reachable']}
+        for m in mexes:
+            colour='#ffb52e' if m['name'] in covered else '#eeeeee'
+            draw.ellipse((m['x']-4,m['z']-4,m['x']+4,m['z']+4),fill=colour,outline='#20242a')
+        picture.save(target/('navy_'+profile['id']+'.png'))
+    for layer in layers['labels']:navigation_overlay(layers['labels'][layer],nav['spawns'],mexes,target/('regions_'+layer+'.png'))
+    record=dict(schema_version=2,key=item['key'],name=item['name'],width=w,height=h,source_files=source,
+        navigation_source_commit=nav['source_commit'],balance_commit=FAF_COMMIT,configuration=configuration,
+        teams_status='explicit_setup' if match_setup['verified'] and match_setup['teams'] else 'not_verified_pairwise_potential_only',
+        match_setup=match_setup,resource_scope=configuration['status'],
+        naval_reach=results,naval_profiles=NAVAL_PROFILES,validation=dict(navigation='source_algorithm_verified_fixtures',
+            unit_profiles='pinned_source_fields_not_engine_export',launch='approximate_candidates',
+            firing='range_potential_not_confirmed_damage',obstructions='props_and_units_not_in_navigation'),
+        valid_for=['navigation_comparison','range_only_potential_review'],
+        not_valid_for=['final_enemy_mex_threat_score','confirmed_hits','eco_safety_or_tech_progression'],
+        outputs=dict(regions='regions.npz',distances='distance_fields.npz',navigation='navigation.json'))
+    record['coordinates']=dict(extent='full_map',x_axis='right',z_axis='down',playable_area=nav['playable_area'])
+    record['auxiliary_source_files']=auxiliary
+    record['outputs']['navigation']='configured_navigation.json'
+    record['provenance']=provenance(output)
+    dump(target/'strategic.json',record)
+    return record
+
+
+def provenance(output):
+    from supmapai.strategy import navigation
+    import scipy
+    return dict(algorithm_version='strategy_stage1_representative_navy_v2',
+        adapter_sha256=sha(ROOT/'tools/StrategicMapAdapter/bin/Release/net10.0/StrategicMapAdapter.dll'),
+        profile_snapshot_sha256=sha(output/'balance_profiles.json'),
+        source_sha256={str(p.relative_to(ROOT)):sha(p) for p in [Path(__file__),Path(navigation.__file__),ROOT/'tools/StrategicMapAdapter/Program.cs']},
+        runtime=dict(numpy=np.__version__,scipy=scipy.__version__),
+        coordinates='Full map: x right, z down; cell centres at integer+0.5; factory centres provisional')
+
+
+def report(records,output):
+    rows=[]
+    for r in records:
+        for x in naval_rows(r):
+            rows.append(dict(map=r['name'],key=r['key'],faction=x['faction'],spawn=x['spawn'],unit=x['unit_id'],
+                profile=x.get('profile',x['faction'].lower()),
+                mex_total=x['mex_total'],potential_mex_count=x['potential_mex_count'],potential_mex_percent=x['potential_mex_percent'],
+                reachable_basins=len(x['reachable_naval_basins']),resource_scope=r['resource_scope'],
+                firing_validation=r['validation']['firing'],teams_status=r['teams_status']))
+    if rows:
+        with (output/'navy_potential.csv').open('w',encoding='utf-8-sig',newline='') as f:
+            writer=csv.DictWriter(f,fieldnames=list(rows[0]));writer.writeheader();writer.writerows(rows)
+    cards=[]
+    import html
+    for r in records:
+        key=r['key'];base=f'../library_overlays/{key}/terrain.png'
+        captions={}
+        views=naval_views(r)
+        for view,label in views.items():
+            unit=[x for x in naval_rows(r) if x.get('profile',x['faction'].lower())==view]
+            covered={t['name'] for x in unit for t in x['targets'] if t['range_reachable']}
+            ranges=sorted({w['max_radius'] for x in unit for t in x['targets'] for w in t['witnesses']})
+            captions[view]=f'{label}: {len(covered)}/{unit[0][&quot;mex_total&quot;]} mex sites in range potential; range '+('/'.join(str(v) for v in ranges) if ranges else 'no reachable naval basin')
+        images=''.join(f'&lt;figure&gt;&lt;figcaption&gt;{html.escape(captions[view])}&lt;br&gt;Blue: candidate water; amber: potential target; white: outside reach&lt;/figcaption&gt;&lt;div class=&quot;stack&quot;&gt;&lt;img src=&quot;{base}&quot;&gt;&lt;img src=&quot;{key}/navy_{view}.png&quot;&gt;&lt;/div&gt;&lt;/figure&gt;' for view in views)
+        terrain=Image.open(ROOT/'data/processed/library_overlays'/key/'terrain.png').convert('RGBA')
+        panel_width=512;panel_height=round(panel_width*r['height']/r['width'])
+        panel_rows=(len(views)+1)//2
+        contact=Image.new('RGB',(panel_width*2,(panel_height+40)*panel_rows+60),'#151b22');draw=ImageDraw.Draw(contact)
+        draw.text((12,10),r['name']+' - Naval RANGE POTENTIAL',fill='white')
+        draw.text((12,30),'Amber = potential mex | White = outside range | No confirmed-hit or enemy ownership claim',fill='#ffbf47')
+        for index,view in enumerate(views):
+            overlay=Image.open(output/key/('navy_'+view+'.png')).convert('RGBA').resize(terrain.size)
+            rendered=Image.alpha_composite(terrain,overlay).resize((panel_width,panel_height))
+            x=(index%2)*panel_width;y=60+(index//2)*(panel_height+40)
+            draw.text((x+10,y),captions[view],fill='white')
+            contact.paste(rendered.convert('RGB'),(x,y+25))
+        contact.save(output/key/'comparison.png')
+        cards.append(f'&lt;section&gt;&lt;h2&gt;{html.escape(r[&quot;name&quot;])}&lt;/h2&gt;&lt;p&gt;Resource scope: {r[&quot;resource_scope&quot;]}. Teams unverified. Range potential only; trajectories and launch placement need in-game checks.&lt;/p&gt;{images}&lt;p&gt;&lt;a href=&quot;{key}/strategic.json&quot;&gt;Per-spawn targets and witnesses&lt;/a&gt;&lt;/p&gt;&lt;/section&gt;')
+    page='&lt;!doctype html&gt;&lt;meta charset=&quot;utf-8&quot;&gt;&lt;title&gt;Featured map strategy pilot&lt;/title&gt;&lt;style&gt;body{background:#151b22;color:#eee;font:16px system-ui;margin:24px}section{border-top:1px solid #53606f;margin-top:30px}figure{display:inline-block;margin:10px;width:min(46vw,600px)}figcaption{font-size:13px;margin-bottom:8px}.stack{position:relative}.stack img{width:100%;display:block}.stack img+img{position:absolute;inset:0}a{color:#83cfff}&lt;/style&gt;&lt;h1&gt;Naval range-potential validation&lt;/h1&gt;&lt;p&gt;Source-based navigation; conservative factory candidates. Amber does not mean confirmed damage. Review target witnesses and unit/source metadata before gameplay interpretation.&lt;/p&gt;'+''.join(cards)
+    (output/'index.html').write_text(page,encoding='utf-8')
+    dump(output/'manifest.json',dict(ready=[dict(key=r['key'],name=r['name'],record=r['key']+'/strategic.json') for r in records],validation='pilot_review_pending'))
+
+
+def main():
+    parser=argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--output',type=Path,default=ROOT/'data/processed/strategic_features_uef',help='Separate from historical four-faction exports')
+    parser.add_argument('--map-id',action='append',help='Vault map ID, repeatable. Default pilot: Virmire, Drunken Beetles, Funeral Plains')
+    parser.add_argument('--all-featured',action='store_true')
+    parser.add_argument('--profiles-only',action='store_true')
+    parser.add_argument('--setups',type=Path,help='JSON {maps: {map_key: {active_slots, teams, verified, evidence}}}; no guessed teams')
+    args=parser.parse_args();args.output.mkdir(parents=True,exist_ok=True)
+    profiles=build_profiles(args.output)
+    if args.profiles_only:print('Exported',len(profiles['units']),'unit profiles');return
+    items=json.loads((ROOT/'data/manifests/featured_strategy_20261014.json').read_text())['maps']
+    selected=None if args.all_featured else set(args.map_id or ['5351','4822','4590'])
+    setups=json.loads(args.setups.read_text(encoding='utf-8'))['maps'] if args.setups else {}
+    records=[];failures=[];start=time.monotonic()
+    for item in items:
+        if selected is not None and item['key'].split('_')[0] not in selected:continue
+        print('Extracting '+item['name'],flush=True)
+        try:records.append(extract_map(item,profiles,args.output,setups.get(item['key'])))
+        except (ValueError,RuntimeError,KeyError,OSError) as e:failures.append(dict(key=item['key'],name=item['name'],error=str(e)));print('FAILED: '+str(e),flush=True)
+        dump(args.output/'progress.json',dict(ready=len(records),failed=len(failures),elapsed_seconds=round(time.monotonic()-start,1)))
+    report(records,args.output);dump(args.output/'failures.json',failures)
+    print(json.dumps(dict(ready=len(records),failed=len(failures),seconds=round(time.monotonic()-start,1))),flush=True)
+    if failures:raise SystemExit(1)
+
+
+if __name__=='__main__':main()
+</pre><script src="../docs/model-atlas/public-links.js" data-public-links></script></body></html>

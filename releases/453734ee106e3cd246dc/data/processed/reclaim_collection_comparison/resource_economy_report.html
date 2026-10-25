@@ -1,0 +1,105 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>resource_economy_report.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="../../../docs/model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="five-minute-economic-pull-construction-and-reclaim">Five-minute economic pull: construction and reclaim</h1>
+<p>Fixed1s acquisition / three tiers; one existing UEF T1 engineer shared across the eligible own-side pool for300s. Reference mex:36 mass,360 energy,12 engineer-s to build,2 mass/s income and2 energy/s upkeep. Values come from the pinned FAF source listed in each result.</p>
+<p>One mex-sized mass advance starts the schedule and is excluded from economic gain. Construction mass must be affordable before building; existing mex production or completed reclaim can fund the next mex. A greedy feasible schedule compares incremental horizon return per occupied engineer-second. It is not an optimum or an actual match-income prediction.</p>
+<p>Energy costs/upkeep and known companion reclaim energy are ledgered. Power is assumed supplied; no energy stalls, mass-to-energy conversion, engineer production cost, travel, upgrades, enemy denial or overflow are simulated. The existing mass/25+1 reclaim work hypothesis remains. Tied identical tasks receive expected fractional route attribution, without parallel engineers or arbitrary asymmetric ordering.</p>
+<table>
+<thead>
+<tr>
+<th>Map (K4)</th>
+<th align="right">Instant-mex + separate reclaim estimate</th>
+<th align="right">Shared engineer net mass</th>
+<th align="right">Mexes built</th>
+<th align="right">Reclaim collected</th>
+<th align="right">Mex construction/upkeep energy</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Loki</td>
+<td align="right">9725</td>
+<td align="right">6372</td>
+<td align="right">12</td>
+<td align="right">1620</td>
+<td align="right">9505</td>
+</tr>
+<tr>
+<td>Adaptive Pyramid</td>
+<td align="right">19500</td>
+<td align="right">6486</td>
+<td align="right">14</td>
+<td align="right">1650</td>
+<td align="right">10380</td>
+</tr>
+<tr>
+<td>Pandemonium Pass</td>
+<td align="right">15725</td>
+<td align="right">6618</td>
+<td align="right">16</td>
+<td align="right">1150</td>
+<td align="right">11804</td>
+</tr>
+<tr>
+<td>Adaptive Morning Prayer</td>
+<td align="right">20151</td>
+<td align="right">6291</td>
+<td align="right">14</td>
+<td align="right">1455</td>
+<td align="right">10380</td>
+</tr>
+<tr>
+<td>DualGap Adaptive</td>
+<td align="right">11450</td>
+<td align="right">6823</td>
+<td align="right">14</td>
+<td align="right">1850</td>
+<td align="right">10517</td>
+</tr>
+<tr>
+<td>Wonder Open</td>
+<td align="right">18180</td>
+<td align="right">6719</td>
+<td align="right">13</td>
+<td align="right">2070</td>
+<td align="right">9796</td>
+</tr>
+<tr>
+<td>Setons Clutch</td>
+<td align="right">7821</td>
+<td align="right">7188</td>
+<td align="right">3</td>
+<td align="right">5800</td>
+<td align="right">2576</td>
+</tr>
+<tr>
+<td>Twin Rivers</td>
+<td align="right">8820</td>
+<td align="right">6235</td>
+<td align="right">11</td>
+<td align="right">1825</td>
+<td align="right">8766</td>
+</tr>
+<tr>
+<td>Adaptive Diversity</td>
+<td align="right">12812</td>
+<td align="right">7811</td>
+<td align="right">11</td>
+<td align="right">3453</td>
+<td align="right">8714</td>
+</tr>
+<tr>
+<td>Adaptive Monument Valley</td>
+<td align="right">12280</td>
+<td align="right">6684</td>
+<td align="right">15</td>
+<td align="right">1400</td>
+<td align="right">11224</td>
+</tr>
+<tr>
+<td>Adaptive Tabula Rasa</td>
+<td align="right">27325</td>
+<td align="right">7840</td>
+<td align="right">8</td>
+<td align="right">4750</td>
+<td align="right">6258</td>
+</tr>
+</tbody></table>
+<script src="../../../docs/model-atlas/public-links.js" data-public-links></script></body></html>

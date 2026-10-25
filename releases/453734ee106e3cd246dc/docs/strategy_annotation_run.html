@@ -1,0 +1,101 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>strategy_annotation_run.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="annotation-collection-frozen-strategy-labels">Annotation collection: frozen strategy labels</h1>
+<p>Authorized 22 October 2026. The batch contains <strong>3,108 exact versions</strong> from the
+annotation app&#39;s visible, ranked Adaptive / 5×5 / 10×10 pool union. Larger maps
+qualify through Adaptive membership. Survival/co-op and four already-unrated
+cases are excluded in the saved selection manifest. No new downloads are needed.</p>
+<p><strong>60 audited pilot results are reused; 3,048 versions need new computation.</strong>
+Scientific pipeline 1.2.1, <code>configs/strategy_labels_v1.json</code>, and the pilot&#39;s
+byte-identical calibration are frozen. No threshold fitting or new algorithm
+research is part of this run. Two workers operate with a 20-minute per-map limit.
+The pilot&#39;s 43-minute 100-map run suggests roughly <strong>20–30 hours</strong> for this larger
+cohort, with substantial variation by terrain size, symmetry and complexity.
+The estimate will be assessed against actual new-map throughput.</p>
+<h2 id="commands">Commands</h2>
+<p>Run these from <code>C:/Users/limon/OneDrive/Documents/MapGen</code> in PowerShell:</p>
+<pre><code class="language-powershell">.\scripts\strategy-annotation-batch.ps1 -Action Status
+.\scripts\strategy-annotation-batch.ps1 -Action Pause
+.\scripts\strategy-annotation-batch.ps1 -Action Resume
+</code></pre>
+<p>Pause is graceful: stop dispatching, finish the active maps, publish exports,
+then record <code>paused</code>. It can take up to the worker timeout to drain. Resume
+starts a hidden background controller, reuses completed outputs, skips recorded
+failures and continues unfinished stages. It never automatically retries failed
+maps or historical download failures. A duplicate controller is rejected by an
+OS lock. If an earlier controller crashed, its surviving workers must release
+their OS leases before new maps are dispatched. The controller keeps Windows
+awake while processing; the machine must remain on.</p>
+<h2 id="progress-and-traceability">Progress and traceability</h2>
+<p><code>data/processed/strategy_annotation_batch/latest_run.json</code> identifies the run.
+Inside that run folder:</p>
+<ul>
+<li><code>status.json</code>: controller state, heartbeat, complete/excluded/failed/pending
+counts, current worker stages and elapsed times. A fresh heartbeat means the
+controller is alive. A slow map can remain in one stage for several minutes.
+<code>waiting_for_orphan_workers</code> means it is deliberately avoiding overlapping work.</li>
+<li><code>events.jsonl</code>: append-only controller/session/map start/finish/error history.</li>
+<li><code>jobs/&lt;key&gt;/attempts/0001/worker.log</code>: each attempt&#39;s retained stdout/stderr.
+Failure JSON includes stage and Python traceback where available. Attempt
+numbers increase on resumed interrupted work; earlier attempts stay intact.</li>
+<li><code>failures.json</code>: aggregate failures/exclusions with names, IDs and reasons.</li>
+<li><code>controller_failure.json</code>: traceback if the controller itself stops.</li>
+<li><code>run.json</code>, <code>runtime.json</code>, <code>code_snapshot/</code>, <code>controller_snapshot.py</code>,
+<code>reuse_manifest.json</code>: scientific inputs, operational identity and provenance.</li>
+</ul>
+<p>Exports refresh every three minutes and on graceful pause/completion. The live
+HTML page checks the heartbeat every ten seconds; reload it to refresh labels.
+A completed scientific result is eligible for export only after its independent
+audit and previews finish. Pending, excluded and failed maps never become zero
+scores or training examples.</p>
+<h2 id="training-handoff">Training handoff</h2>
+<p><code>labels.csv</code> and <code>labels.json</code> include raw values, ratings, per-axis validity and
+confidence. <code>training_manifest.jsonl</code> indexes audited examples and source hashes;
+<code>train.jsonl</code>, <code>validation.jsonl</code>, <code>test.jsonl</code> and <code>quarantine.jsonl</code> separate
+whole families. Exact parent IDs, normalized names, app family hints and identical
+SCMAP bytes are joined before extraction. Pilot split anchors are preserved;
+conflicts between old splits quarantine the entire joined family. Duplicate
+detection is conservative, not exhaustive visual similarity clustering.</p>
+<p>The manifests reference per-map arrays, metadata and local sources. Model-specific
+tensor packing and dataloaders are a separate training step. Use per-axis loss
+masks and omit quarantine families. Save a snapshot of these incrementally updated
+manifests when training begins. A partial run is usable without pretending it is
+the entire cohort. <code>label_validation.json</code>, <code>validation.json</code> and <code>summary.json</code>
+record the aggregate checks and coverage at each export.</p>
+<p>Known limitations remain those of the pilot: static 1v1 opportunities, mass-only
+economy, representative air/naval units, no actual AA/intel/army positions, naval
+projectile blocking omitted, and front width measuring route bottlenecks rather
+than an overall competitive-quality judgement. Low reclaim confidence and missing
+axes stay explicit.</p>
+<h2 id="launch-validation">Launch validation</h2>
+<p>Run <code>v1.2.1/f1ae04e925f139a8</code> launched on 22 October 2026. <strong>311 unit tests passed</strong>.
+A real graceful pause drained both workers, published <strong>66 audited training rows</strong>
+(60 reused + six new), and resumed at the remaining 3,042 versions. The calibration
+hash, unique training keys, loss masks and family separation passed that checkpoint.
+The initial incremental-export metadata collision was corrected before new map
+work started; its stderr log and operational source revision are retained. No
+scientific code, scoring setting or calibration changed. A quiet 20-minute follow-up
+checks the controller and final exports and will stop after the completed handoff.</p>
+<h2 id="recovery-transient-progress-file-lock">Recovery: transient progress-file lock</h2>
+<p>The controller stopped after about one active hour because Windows denied a read
+of a worker&#39;s <code>progress.json</code>. Both outstanding workers completed independently;
+reconciliation recovered <strong>358 scored, 50 excluded, four failed and 2,696 pending</strong>.
+The chat follow-up was paused, so it did not restart that controller. The four
+failed maps have no active in-grid mex targets and remain skipped without retries.</p>
+<p>The operational repair retries transient file reads and treats unavailable
+progress/heartbeat telemetry as optional. It leaves all scientific code, settings,
+results and calibration unchanged. <strong>316 tests passed</strong>, including simulated
+sharing violations, pause preservation and watchdog restart limits. Old controller
+snapshots and incident/status JSON are retained under <code>controller_snapshots/</code> and
+<code>controller_incidents/</code>, with the revision in <code>runtime.json</code>.</p>
+<p>The Resume command now starts a persistent <strong>local watchdog</strong> as well as the
+controller. <code>watchdog.json</code> reports its heartbeat, controller state and session log.
+It uses OS locks to avoid duplicate controllers or overlap with surviving workers,
+and stops on an explicit pause request. If a controller dies unexpectedly, it
+restarts pending work; it never retries failed maps. Three launches within fifteen
+minutes stop automatic recovery and record <code>restart_limit</code>. Controller session
+logs are stored in <code>controller_sessions/</code>. The watchdog exits only after final
+exports are published, or on pause; a chat automation is not required for recovery.</p>
+<h2 id="final-validated-release">Final validated release</h2>
+<p>Completed 23 October 2026 at 08:19 Amsterdam. All 3,108 versions were attempted: <strong>2,764 scored, 329 excluded, 15 failed</strong>. Training splits: <strong>2,236 train / 243 validation / 285 test</strong>, with 2,554 families across the scored dataset and no cross-split families. Active controller time was 9h 21m; wall time to first completion was 14h 33m, including the earlier interruption.</p>
+<p>The final read-only validation checked every scored map recursively against sealed hashes, pinned source/dependency hashes, matching independent audits, rating reproduction from frozen calibration, CSV/JSON/JSONL consistency, loss masks and both PNG previews. See <code>final_validation.json</code>, <code>final_report.md</code>, <code>failed_maps.csv</code> and <code>release_manifest.json</code> in the run directory.</p>
+<p>Keep 45 maps&#39; unavailable openness/control targets masked, 243 lower-bound reclaim flags and 20 censored front searches explicit. Naval geometry overestimates on maps such as Astro remain a known interpretation limit. No scientific rules were changed. The local watchdog completion check now accepts an omitted zero pending count; the three redundant no-work finalization starts did not change scientific artifacts. The watchdog is complete/stopped and the chat follow-up is paused.</p>
+<script src="model-atlas/public-links.js" data-public-links></script></body></html>

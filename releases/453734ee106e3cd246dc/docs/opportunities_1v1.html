@@ -1,0 +1,157 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>opportunities_1v1.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><blockquote>
+<p>Superseded on 15 October 2026 by the reward-and-reinforcement model in <code>docs/drop_calibration_1v1.md</code>. The speed-only flags below are a historical baseline. The current default CLI runs the revised three-map calibration.</p>
+</blockquote>
+<h1 id="1v1-drop-expansion-and-air-opportunity-pilot">1v1 drop, expansion and air opportunity pilot</h1>
+<p>Implemented 14 October 2026. Viewer: <a href="http://127.0.0.1:5177/opportunities_1v1/index.html">http://127.0.0.1:5177/opportunities_1v1/index.html</a></p>
+<h2 id="match-setup">Match setup</h2>
+<ul>
+<li>Astro Crater Battles (2535/3658): slot 1 versus slot 4, its exact 180-degree counterpart.</li>
+<li>Adaptive Diversity v0002 (4619/6828): slot 1 versus slot 2, within one map unit of the 180-degree counterpart.</li>
+<li>Only these two slots are active. Defaults are resolved again for adaptive deposits and player-dependent wrecks; old all-slot resource exports are not reused.</li>
+<li>Both configurations have 42 mexes. Astro has six hydros; Diversity has eight. Static Astro resources remain present regardless of empty slots.</li>
+<li>Both attacking directions are computed. Raw navigation uses slope .75 and amphibious depth 25. Route influence retains the existing approximate-symmetry model. The actual access and landing calculations use raw terrain masks.</li>
+</ul>
+<h2 id="measurements-and-candidate-rules">Measurements and candidate rules</h2>
+<p>Resource areas use a 32-unit bounded walking radius from a seed resource. Land sites group through land; underwater sites through amphibious terrain. This avoids combining opposite sides of cliffs by Euclidean distance. Groups have explicit site identities, mex/hydro counts and a local area mask extending at most 48 walking units from its seed. Overlapping local masks are assigned to the closest seed, so area tiles and associated reclaim are counted once. Reclaim outside these local masks remains outside these area totals. Category totals can overlap and must not be added together.</p>
+<p>Landing feasibility is a dry 7x7 terrain footprint. One feasible point is retained per 8x8 sampling tile, including off-centre points in narrow pockets. This does not check engine placement rules, props or unit collision. A landing must reach the area seed within the local walking budget; the reported payload target list is separately traced from the actual selected landing.</p>
+<p>Each side&#39;s ground arrival costs determine friendly/enemy-biased access, with a 16-unit contested band. When neither engineer can reach a site, straight air distances provide a labelled fallback. This is an initial geography partition, not observed ownership.</p>
+<h3 id="offensive-drops">Offensive drops</h3>
+<p>Enemy-biased land resource areas with a feasible landing more than 32 units from the enemy base and at least one nearby mex target reachable by the payload. Reasons are recorded separately:</p>
+<ul>
+<li><code>land_access_drop</code>: no land route from attacker base.</li>
+<li><code>route_bypass_drop</code>: area is at least 32 walking units from the discovered attack routes, or land-disconnected from them.</li>
+<li><code>long_walk_bypass</code>: transport plus local tank movement saves at least 10 seconds over tank movement from the base.</li>
+</ul>
+<p>These deliberately broad flags describe access opportunities. In particular, an area on Astro&#39;s main lane may still qualify on travel time alone. It is not evidence that the transport can evade the opponent or that units should be dropped there.</p>
+<h3 id="expansion-drops">Expansion drops</h3>
+<p>Friendly/contested areas outside both 48-unit base zones qualify when the transport approach is feasible and saves at least 10 seconds over engineer walking, or when engineer ground access is absent. The engineer uses the existing amphibious grid; an island is not automatically classified as engineer-inaccessible.</p>
+<p>Arrival races compare each side&#39;s faster walking/transport option. Raw walking and transport times are retained separately. A positive race margin means the selected side arrives earlier under the timing model. Contested areas remain visible even when the race is close or unfavorable.</p>
+<h3 id="air-raids">Air raids</h3>
+<p>Enemy-biased areas containing mexes qualify when at least one geometric access indicator exists: absent land access, 10-second air arrival advantage over a tank, 32-unit route separation, or 15-second/absent enemy base tank response. Each reason is exported. A separate ground/air distance ratio isolates terrain detour from the inherent speed difference between aircraft and tanks. Hydro/reclaim totals accompany the mex-led area; isolated hydro-only air targets are outside this first candidate filter.</p>
+<h3 id="aa-coverage-burden">AA coverage burden</h3>
+<p>Greedy set cover over feasible terrain placement candidates covers the estimated enemy-side mex sites at ranges 44, 50 and 60. These come from the pinned UEF T1/T2/T3 static AA blueprints. The viewer draws positions and coverage circles, reports uncovered targets, and allows switching the defended side by switching attacker.</p>
+<p>This estimates spatial coverage positions, not AA combat power, affordability, redundancy or a proven minimum. The greedy result and grid sampling can differ between mirrored sides even if their strategic burden is effectively the same. Do not interpret a one-position difference as a balance conclusion. Coverage ignores projectile line of sight, terrain height and aircraft approach hazards.</p>
+<h2 id="unit-assumptions-and-timing">Unit assumptions and timing</h2>
+<p>Source: local FAF blueprint cache pinned at <code>c7d9d129cc9085ddf84cc49aa3f13af91afd9509</code>. Each profile records its source file, field and SHA256 in the output.</p>
+<table>
+<thead>
+<tr>
+<th>Role</th>
+<th>UEF unit</th>
+<th>Field</th>
+<th align="right">Value</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Transport</td>
+<td>uea0104</td>
+<td>Air.MaxAirspeed</td>
+<td align="right">14.5</td>
+</tr>
+<tr>
+<td>Bomber</td>
+<td>uea0103</td>
+<td>Air.MaxAirspeed</td>
+<td align="right">10</td>
+</tr>
+<tr>
+<td>Engineer</td>
+<td>uel0105</td>
+<td>Physics.MaxSpeed</td>
+<td align="right">1.9</td>
+</tr>
+<tr>
+<td>Tank</td>
+<td>uel0201</td>
+<td>Physics.MaxSpeed</td>
+<td align="right">3.4</td>
+</tr>
+<tr>
+<td>T1 AA</td>
+<td>ueb2104</td>
+<td>Weapon.MaxRadius</td>
+<td align="right">44</td>
+</tr>
+<tr>
+<td>T2 AA</td>
+<td>ueb2204</td>
+<td>Weapon.MaxRadius</td>
+<td align="right">50</td>
+</tr>
+<tr>
+<td>T3 AA</td>
+<td>ueb2304</td>
+<td>Weapon.MaxRadius</td>
+<td align="right">60</td>
+</tr>
+</tbody></table>
+<p>Distances are map units; nominal speeds yield approximate seconds. Transport overhead defaults to 10 seconds. Production, acceleration, loading queues, aircraft losses, unit weapons and actual army presence are not simulated. The engineer&#39;s amphibious terrain model is an explicit approximation, not verified engine movement for every water condition. Parameters remain explicit in <code>strategy/opportunities.py</code> and every export.</p>
+<h2 id="first-numeric-output-slot-1-attacking">First numeric output, slot 1 attacking</h2>
+<table>
+<thead>
+<tr>
+<th>Metric</th>
+<th align="right">Astro</th>
+<th align="right">Diversity</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Resource areas</td>
+<td align="right">12</td>
+<td align="right">37</td>
+</tr>
+<tr>
+<td>Expansion candidate areas / mexes</td>
+<td align="right">4 / 10</td>
+<td align="right">19 / 18</td>
+</tr>
+<tr>
+<td>Offensive drop candidate areas / mexes</td>
+<td align="right">6 / 21</td>
+<td align="right">16 / 20</td>
+</tr>
+<tr>
+<td>Air candidate areas / mexes</td>
+<td align="right">6 / 21</td>
+<td align="right">16 / 20</td>
+</tr>
+<tr>
+<td>Enemy mexes covered by AA calculation</td>
+<td align="right">21</td>
+<td align="right">20</td>
+</tr>
+<tr>
+<td>Greedy T1 AA positions</td>
+<td align="right">3</td>
+<td align="right">8</td>
+</tr>
+<tr>
+<td>Greedy T2 AA positions</td>
+<td align="right">2</td>
+<td align="right">7</td>
+</tr>
+<tr>
+<td>Greedy T3 AA positions</td>
+<td align="right">2</td>
+<td align="right">7</td>
+</tr>
+</tbody></table>
+<p>This comparison primarily exposes much greater geographic dispersion on Diversity. The broad candidate count is not an effectiveness score. Its interpretation remains for map/player review.</p>
+<h2 id="outputs-and-reproduction">Outputs and reproduction</h2>
+<p><code>data/processed/opportunities_1v1/&lt;astro|diversity&gt;/</code> contains:</p>
+<ul>
+<li><code>opportunities.json</code>: geometry, candidate reasons, timings, races, resources, reclaim, AA positions and source provenance.</li>
+<li><code>area_metrics.csv</code>: one row per area per attacking side.</li>
+<li><code>opportunity_layers.npz</code>: numbered local areas, landing feasibility and per-side category masks.</li>
+<li><code>ARMY_N_&lt;offensive|expansion|air&gt;.png</code>: transparent overlays.</li>
+<li><code>routes/index.html</code>: 1v1 corridor inspection using the correct active deposits.</li>
+<li><code>extraction/&lt;key&gt;/</code>: numerical reclaim and entities from the existing extractor with two active players.</li>
+</ul>
+<p>Run with <code>PYTHONPATH=src</code>:</p>
+<pre><code class="language-powershell">.venv-codex/Scripts/python.exe -m supmapai.tools.inspect_opportunities
+# Force regeneration of cached 1v1 routes and entity extraction:
+.venv-codex/Scripts/python.exe -m supmapai.tools.inspect_opportunities --rebuild
+</code></pre>
+<p>The two navigation inputs from the preceding comparison must exist. This pilot does not rerun naval reach, parse every faction blueprint or process the full library. Nothing is deployed to Netlify.</p>
+<p>Validation: 40 targeted tests passed. Tests cover mirrored-slot selection, geometric AA coverage, a disconnected island with amphibious engineer access, no-corner-cut distances and the existing route pipeline. Actual pilot validation confirms unique complete resource grouping, disjoint local areas, every route on raw passable cells, terrain-feasible landing/AA points, assigned AA targets within their stated radius, and exact agreement between PNG alpha and numerical masks. The report is in <code>data/processed/opportunities_1v1/validation.json</code>. The viewer&#39;s map, side, layer and AA range controls were checked in the local browser.</p>
+<script src="model-atlas/public-links.js" data-public-links></script></body></html>
