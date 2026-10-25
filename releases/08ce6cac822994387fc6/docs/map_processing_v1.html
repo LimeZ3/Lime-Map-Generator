@@ -1,0 +1,1421 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>map_processing_v1.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="map-processing-v1">Map Processing V1</h1>
+<p>V1 should extract concrete, explainable facts from map files before survey or ML. No diffusion models, no learned classifiers, and no AI-marker analysis in this phase.</p>
+<p>The goal is one stable output record per canonical map folder. Missing or uncertain fields should be explicit rather than guessed.</p>
+<h2 id="source-definition">Source Definition</h2>
+<p>One map is one immediate folder under the FAF maps root:</p>
+<pre><code class="language-text">C:\Program Files (x86)\Steam\steamapps\common\FAF_modsmaps\maps
+</code></pre>
+<p>Nested <code>Backup_*</code> folders or internal version folders are candidate versions of that same map. The canonical inventory chooses the best available representative and records the candidate counts.</p>
+<h2 id="v1-pipeline">V1 Pipeline</h2>
+<pre><code class="language-text">FAF maps folder
+-&gt; canonical inventory
+-&gt; Lua extraction
+-&gt; SCMAP terrain/header extraction
+-&gt; exact marker layer export
+-&gt; reclaim/civilian entity layer export
+-&gt; resource balance and team-layout inference
+-&gt; structure metrics
+-&gt; derived feature pass
+-&gt; survey seed export
+-&gt; ML feature table
+</code></pre>
+<p>Recommended commands:</p>
+<pre><code class="language-powershell">python -m supmapai.extract.canonical_inventory --maps-root &quot;C:\Program Files (x86)\Steam\steamapps\common\FAF_modsmaps\maps&quot; --out data\manifests\faf_modsmaps_canonical_inventory.json
+python -m supmapai.extract.metadata_from_inventory --inventory data\manifests\faf_modsmaps_canonical_inventory.json --out data\interim\faf_modsmaps_canonical_metadata.csv
+python -m supmapai.extract.name_families --metadata data\interim\faf_modsmaps_canonical_metadata.csv --out data\interim\faf_modsmaps_canonical_name_families.csv --summary-out data\interim\faf_modsmaps_canonical_name_families_summary.json
+</code></pre>
+<p>Full-dataset processing should be run in resumable chunks, not as one monolithic command:</p>
+<pre><code class="language-powershell">python -m supmapai.extract.chunk_inventory --inventory data\manifests\faf_modsmaps_canonical_inventory.json --out-dir data\manifests\batches_250 --prefix batch --chunk-size 250 --require scmap --require scenario_lua --require save_lua
+
+python -m supmapai.tools.run_v1_batch --inventory data\manifests\batches_250\batch_0000_inventory.json --out-dir data\interim\batches\batch_0000 --preview-dir data\exports\previews\batch_0000 --batch-name batch_0000 --max-maps 250
+</code></pre>
+<p>The batch runner writes per-map survey/admin PNGs:</p>
+<ul>
+<li><code>*.terrain.png</code></li>
+<li><code>*.water_depth.png</code></li>
+<li><code>*.pathability.png</code></li>
+<li><code>*.markers.png</code></li>
+<li><code>*.entities.png</code></li>
+</ul>
+<p>Run later chunks by changing <code>batch_0000</code> to <code>batch_0001</code>, <code>batch_0002</code>, etc. Keep chunk outputs separate so parser fixes can be rerun against only the affected chunk.</p>
+<p>Future V1 tools:</p>
+<pre><code class="language-powershell">python -m supmapai.extract.lua_entities --inventory data\manifests\faf_modsmaps_canonical_inventory.json --out data\interim\faf_modsmaps_lua_entities.jsonl
+python -m supmapai.extract.scmap_terrain --inventory data\manifests\faf_modsmaps_canonical_inventory.json --out data\interim\faf_modsmaps_terrain_metrics.csv --preview-dir data\interim\structural_previews
+python -m supmapai.tools.marker_layers --entities-jsonl data\interim\faf_modsmaps_lua_entities.jsonl --terrain-csv data\interim\faf_modsmaps_terrain_metrics.csv --out data\interim\faf_modsmaps_markers.csv --summary-out data\interim\faf_modsmaps_markers_summary.csv --preview-dir data\interim\structural_previews
+python -m supmapai.tools.entity_layers --entities-jsonl data\interim\faf_modsmaps_lua_entities.jsonl --terrain-csv data\interim\faf_modsmaps_terrain_metrics.csv --out data\interim\faf_modsmaps_entities.csv --summary-out data\interim\faf_modsmaps_entities_summary.csv --preview-dir data\interim\structural_previews
+python -m supmapai.extract.scmap_props --inventory data\manifests\faf_modsmaps_canonical_inventory.json --out data\interim\faf_modsmaps_scmap_props.jsonl --summary-out data\interim\faf_modsmaps_scmap_props_summary.csv --max-maps 1
+python -m supmapai.extract.structure_metrics --inventory data\manifests\faf_modsmaps_canonical_inventory.json --terrain data\interim\faf_modsmaps_terrain_metrics.csv --markers data\interim\faf_modsmaps_markers.csv --entities data\interim\faf_modsmaps_entities.csv --out data\interim\faf_modsmaps_structure_metrics.csv --max-maps 1
+python -m supmapai.extract.features_v1 --metadata data\interim\faf_modsmaps_canonical_metadata.csv --entities data\interim\faf_modsmaps_lua_entities.jsonl --terrain data\interim\faf_modsmaps_terrain_metrics.csv --scmap-props-summary data\interim\faf_modsmaps_scmap_props_summary.csv --name-families data\interim\faf_modsmaps_canonical_name_families.csv --out data\processed\features_v1\map_features_v1.csv --survey-out apps\crowd-labeler\src\data\maps.generated.json
+python -m supmapai.tools.dataset_audit --batches-root data\interim\batches --out-dir data\audit\v1_current
+python -m supmapai.tensors.export_tensors --inventory data\manifests\batches_250_no_neroxis\batch_0024_inventory.json --features data\interim\batches\batch_0024\batch_0024_map_features_v1.csv --markers data\interim\batches\batch_0024\batch_0024_markers.csv --entities data\interim\batches\batch_0024\batch_0024_entities.csv --audit-maps data\audit\v1_current\dataset_audit_maps.csv --audit-status ready --audit-status review --out-dir data\tensors\v1_smoke\batch_0024 --manifest-out data\tensors\v1_smoke\batch_0024_manifest.csv --max-maps 2 --grid-size 256
+python -m supmapai.tensors.contact_sheet --manifest data\tensors\v1_smoke\batch_0024_manifest.csv --out-dir data\tensors\v1_smoke\qa --max-maps 2
+python -m supmapai.tensors.split_dataset --audit-maps data\audit\v1_current\dataset_audit_maps.csv --out data\splits\v1_current\splits.csv --summary-out data\splits\v1_current\splits_summary.json
+</code></pre>
+<h2 id="output-files">Output Files</h2>
+<h3 id="canonical_inventoryjson"><code>canonical_inventory.json</code></h3>
+<p>Purpose: one canonical map record per top-level folder, with selected internal version.</p>
+<p>Already implemented:</p>
+<ul>
+<li><code>top_level_dir</code></li>
+<li><code>selected_map_dir</code></li>
+<li><code>selection_reason</code></li>
+<li><code>name_signals</code></li>
+<li><code>candidate_count</code></li>
+<li><code>backup_candidate_count</code></li>
+<li>selected file paths</li>
+<li>all candidate versions/backups</li>
+</ul>
+<h3 id="lua_entitiesjsonl"><code>lua_entities.jsonl</code></h3>
+<p>Purpose: detailed entities and object counts from <code>_scenario.lua</code> and <code>_save.lua</code>.</p>
+<p>One JSON object per canonical map. This file should preserve detailed counts and positions, not just summary features.</p>
+<p>Implemented first pass:</p>
+<ul>
+<li>marker positions for spawns, mexes, and hydros</li>
+<li>exact spawn/mex/hydro <code>x/y/z</code> positions</li>
+<li>marker type counts</li>
+<li>declared team count/team sizes when parseable</li>
+<li>unit blueprint counts</li>
+<li>prop blueprint counts</li>
+<li>reclaim entity counts and positions when encoded as save-Lua wreckage groups or props</li>
+<li>civilian unit/building counts and positions using conservative blueprint and group-name heuristics</li>
+<li>group path/context for parsed save-Lua units, so optional wreckage groups can be classified as reclaim even when the blueprint is a normal unit type</li>
+</ul>
+<p>Known gap: individual reclaim entity counts can still remain zero when reclaim is stored only inside <code>.scmap</code> prop data or another format not exposed as save-Lua units/props.</p>
+<h3 id="terrain_metricscsv"><code>terrain_metrics.csv</code></h3>
+<p>Purpose: terrain and texture metrics from <code>.scmap</code>.</p>
+<p>This is where buildable terrain, water percentage, steep-pathblocking terrain, and texture pack should come from.</p>
+<p>Implemented first pass:</p>
+<ul>
+<li>safe single-map decoding with <code>--max-maps 1</code> default</li>
+<li>preview DDS skip</li>
+<li>16-byte terrain prefix skip before the heightmap block</li>
+<li>heightmap decode for tested FA <code>.scmap</code> files</li>
+<li>conversion from <code>(map_size + 1)</code> height vertices to playable terrain cells</li>
+<li>playable-area crop from <code>_save.lua</code> <code>AREA_1</code> when present</li>
+<li>playable-cell height stats</li>
+<li>parsed water-block elevation when present</li>
+<li>uncertain histogram water-level fallback when a water block is not found</li>
+<li>water/land percentages</li>
+<li>shallow/medium/deep water percentages from terrain depth below the water plane</li>
+<li>continuous water-depth preview channel for QA and future tensor export</li>
+<li>connected water-body count, area, bounding boxes, and per-body depth stats</li>
+<li>land-unit passable/unpassable masks from water plus steep terrain</li>
+<li>connected passable-land component count, area, and bounding boxes</li>
+<li>tiny connected-water-component filtering only when water level is histogram-inferred</li>
+<li>optional removal of tiny water components confined to map-corner artifact zones, disabled by default</li>
+<li>rough buildable/slope/steep percentages from configurable slope thresholds</li>
+<li>texture path extraction</li>
+<li>structural terrain preview PNG</li>
+</ul>
+<p>Validated on Seton&#39;s Clutch, Dual Gap, Canis River, Monument Valley, Tabula Rasa, and The Drunken Beetles Dance. Do not run this across thousands of maps until more sample maps and failure modes have been tested.</p>
+<h3 id="map_features_v1csv"><code>map_features_v1.csv</code></h3>
+<p>Purpose: flat, stable table for survey display, filtering, and ML conditioning.</p>
+<p>This should be the main V1 data product.</p>
+<p>Implemented first pass:</p>
+<ul>
+<li>identity/canonical fields</li>
+<li>source quality and parse warnings</li>
+<li>size and slot counts</li>
+<li>spawn/mex/hydro counts</li>
+<li>exact spawn/mex/hydro position JSON</li>
+<li>declared reclaim totals and per-player ratios</li>
+<li>civilian unit/building counts</li>
+<li>duplicate family key from name-family detection</li>
+<li>terrain/symmetry/texture columns present but blank or <code>unknown</code> until <code>.scmap</code> decoding</li>
+<li>dense natural reclaim counts from <code>.scmap</code> props when <code>scmap_props_summary.csv</code> is supplied</li>
+</ul>
+<h3 id="mapsgeneratedjson"><code>maps.generated.json</code></h3>
+<p>Purpose: compact survey-app seed derived from <code>map_features_v1.csv</code>.</p>
+<p>It should not expose raw local file paths.</p>
+<h2 id="field-schema">Field Schema</h2>
+<h3 id="identity">Identity</h3>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Source</th>
+<th>Required</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>map_id</code></td>
+<td>string</td>
+<td>derived</td>
+<td>yes</td>
+<td>Stable slug/hash from canonical folder.</td>
+</tr>
+<tr>
+<td><code>top_level_dir</code></td>
+<td>string</td>
+<td>canonical inventory</td>
+<td>yes</td>
+<td>User-facing folder identity.</td>
+</tr>
+<tr>
+<td><code>selected_map_dir</code></td>
+<td>string</td>
+<td>canonical inventory</td>
+<td>yes</td>
+<td>Internal representative folder.</td>
+</tr>
+<tr>
+<td><code>scenario_name</code></td>
+<td>string</td>
+<td>scenario Lua</td>
+<td>yes</td>
+<td>Empty only if scenario parse fails.</td>
+</tr>
+<tr>
+<td><code>scenario_description</code></td>
+<td>string</td>
+<td>scenario Lua</td>
+<td>no</td>
+<td>Useful for survey/admin context.</td>
+</tr>
+<tr>
+<td><code>map_version</code></td>
+<td>int/null</td>
+<td>scenario Lua</td>
+<td>no</td>
+<td>Scenario <code>map_version</code>.</td>
+</tr>
+<tr>
+<td><code>name_signals</code></td>
+<td>string list</td>
+<td>folder/name</td>
+<td>yes</td>
+<td>Example: <code>adaptive</code>, <code>gap</code>, <code>pass</code>, <code>crater</code>.</td>
+</tr>
+<tr>
+<td><code>duplicate_family_key</code></td>
+<td>string/null</td>
+<td>name families</td>
+<td>no</td>
+<td>Normalized likely-family key.</td>
+</tr>
+<tr>
+<td><code>candidate_count</code></td>
+<td>int</td>
+<td>canonical inventory</td>
+<td>yes</td>
+<td>Internal candidate versions/backups.</td>
+</tr>
+<tr>
+<td><code>backup_candidate_count</code></td>
+<td>int</td>
+<td>canonical inventory</td>
+<td>yes</td>
+<td>Usually exclude from independent training.</td>
+</tr>
+</tbody></table>
+<h3 id="files-and-parse-status">Files And Parse Status</h3>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Source</th>
+<th>Required</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>has_scmap</code></td>
+<td>bool</td>
+<td>inventory</td>
+<td>yes</td>
+<td></td>
+</tr>
+<tr>
+<td><code>has_scenario_lua</code></td>
+<td>bool</td>
+<td>inventory</td>
+<td>yes</td>
+<td></td>
+</tr>
+<tr>
+<td><code>has_save_lua</code></td>
+<td>bool</td>
+<td>inventory</td>
+<td>yes</td>
+<td></td>
+</tr>
+<tr>
+<td><code>has_preview_image</code></td>
+<td>bool</td>
+<td>inventory</td>
+<td>yes</td>
+<td>Existing image only.</td>
+</tr>
+<tr>
+<td><code>parse_warnings</code></td>
+<td>string list</td>
+<td>all tools</td>
+<td>yes</td>
+<td>Include missing/invalid file warnings.</td>
+</tr>
+<tr>
+<td><code>source_quality</code></td>
+<td>enum</td>
+<td>derived</td>
+<td>yes</td>
+<td><code>complete</code>, <code>partial</code>, <code>broken</code>.</td>
+</tr>
+</tbody></table>
+<h3 id="map-size-and-slots">Map Size And Slots</h3>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Source</th>
+<th>Required</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>size_x</code></td>
+<td>int/null</td>
+<td>scenario/scmap</td>
+<td>yes</td>
+<td>Scenario size preferred; validate against <code>.scmap</code>.</td>
+</tr>
+<tr>
+<td><code>size_z</code></td>
+<td>int/null</td>
+<td>scenario/scmap</td>
+<td>yes</td>
+<td></td>
+</tr>
+<tr>
+<td><code>size_class</code></td>
+<td>enum</td>
+<td>derived</td>
+<td>yes</td>
+<td>Example: <code>5km</code>, <code>10km</code>, <code>20km</code>, <code>40km</code>, <code>80km</code>.</td>
+</tr>
+<tr>
+<td><code>player_slots</code></td>
+<td>int/null</td>
+<td>scenario/save</td>
+<td>yes</td>
+<td>Count configured <code>ARMY_*</code> slots.</td>
+</tr>
+<tr>
+<td><code>spawn_count</code></td>
+<td>int</td>
+<td>save Lua</td>
+<td>yes</td>
+<td>Count spawn/blank markers that represent starts.</td>
+</tr>
+<tr>
+<td><code>spawn_positions_json</code></td>
+<td>JSON array</td>
+<td>save Lua</td>
+<td>yes</td>
+<td>Exact spawn marker names, types, and <code>x/y/z</code> coordinates.</td>
+</tr>
+<tr>
+<td><code>slots_match_spawns</code></td>
+<td>bool/null</td>
+<td>derived</td>
+<td>yes</td>
+<td>Useful quality warning.</td>
+</tr>
+</tbody></table>
+<h3 id="team-layout-and-spawn-geometry">Team Layout And Spawn Geometry</h3>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Source</th>
+<th>Required</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>team_count_declared</code></td>
+<td>int/null</td>
+<td>scenario Lua</td>
+<td>yes</td>
+<td>From configurations where possible.</td>
+</tr>
+<tr>
+<td><code>team_layout_label</code></td>
+<td>enum/null</td>
+<td>derived</td>
+<td>yes</td>
+<td><code>ffa</code>, <code>two_teams</code>, <code>three_plus_teams</code>, <code>unknown</code>.</td>
+</tr>
+<tr>
+<td><code>spawn_geometry_label</code></td>
+<td>enum/null</td>
+<td>derived</td>
+<td>yes</td>
+<td><code>corners</code>, <code>opposite_sides</code>, <code>radial</code>, <code>mixed</code>, <code>unknown</code>.</td>
+</tr>
+<tr>
+<td><code>spawn_center_distance_mean</code></td>
+<td>float/null</td>
+<td>derived</td>
+<td>no</td>
+<td>Normalized distance from map center.</td>
+</tr>
+<tr>
+<td><code>spawn_pair_distance_min</code></td>
+<td>float/null</td>
+<td>derived</td>
+<td>no</td>
+<td>Normalized closest spawn distance.</td>
+</tr>
+<tr>
+<td><code>spawn_pair_distance_mean</code></td>
+<td>float/null</td>
+<td>derived</td>
+<td>no</td>
+<td>Normalized average spawn distance.</td>
+</tr>
+</tbody></table>
+<h3 id="resources">Resources</h3>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Source</th>
+<th>Required</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>mex_count</code></td>
+<td>int</td>
+<td>save Lua</td>
+<td>yes</td>
+<td>Marker type <code>Mass</code>.</td>
+</tr>
+<tr>
+<td><code>hydro_count</code></td>
+<td>int</td>
+<td>save Lua</td>
+<td>yes</td>
+<td>Marker type <code>Hydrocarbon</code>.</td>
+</tr>
+<tr>
+<td><code>mex_positions_json</code></td>
+<td>JSON array</td>
+<td>save Lua</td>
+<td>yes</td>
+<td>Exact mass marker names, types, and <code>x/y/z</code> coordinates.</td>
+</tr>
+<tr>
+<td><code>hydro_positions_json</code></td>
+<td>JSON array</td>
+<td>save Lua</td>
+<td>yes</td>
+<td>Exact hydro marker names, types, and <code>x/y/z</code> coordinates.</td>
+</tr>
+<tr>
+<td><code>mex_per_player</code></td>
+<td>float/null</td>
+<td>derived</td>
+<td>yes</td>
+<td>Null if player count missing.</td>
+</tr>
+<tr>
+<td><code>hydro_per_player</code></td>
+<td>float/null</td>
+<td>derived</td>
+<td>yes</td>
+<td></td>
+</tr>
+<tr>
+<td><code>reclaim_mass_total_declared</code></td>
+<td>float/null</td>
+<td>scenario Lua</td>
+<td>yes</td>
+<td>Scenario <code>reclaim</code> mass.</td>
+</tr>
+<tr>
+<td><code>reclaim_energy_total_declared</code></td>
+<td>float/null</td>
+<td>scenario Lua</td>
+<td>yes</td>
+<td>Scenario <code>reclaim</code> energy.</td>
+</tr>
+<tr>
+<td><code>reclaim_entity_count</code></td>
+<td>int/null</td>
+<td>save Lua/scmap props</td>
+<td>yes</td>
+<td>Count individual reclaim props/units if extractable.</td>
+</tr>
+<tr>
+<td><code>scmap_prop_count</code></td>
+<td>int/null</td>
+<td>scmap props</td>
+<td>no</td>
+<td>Total props in the <code>.scmap</code> prop section.</td>
+</tr>
+<tr>
+<td><code>tree_prop_count</code></td>
+<td>int/null</td>
+<td>scmap props</td>
+<td>no</td>
+<td>Natural tree props, usually reclaimable.</td>
+</tr>
+<tr>
+<td><code>rock_prop_count</code></td>
+<td>int/null</td>
+<td>scmap props</td>
+<td>no</td>
+<td>Natural rock props, usually reclaimable.</td>
+</tr>
+<tr>
+<td><code>boulder_prop_count</code></td>
+<td>int/null</td>
+<td>scmap props</td>
+<td>no</td>
+<td>Natural boulder props, usually reclaimable.</td>
+</tr>
+<tr>
+<td><code>scmap_reclaim_prop_count</code></td>
+<td>int/null</td>
+<td>scmap props</td>
+<td>no</td>
+<td>Tree + rock + boulder + explicit reclaim-like prop paths.</td>
+</tr>
+<tr>
+<td><code>total_reclaim_entity_count</code></td>
+<td>int/null</td>
+<td>derived</td>
+<td>no</td>
+<td>Save-Lua reclaim plus <code>.scmap</code> natural reclaim props.</td>
+</tr>
+<tr>
+<td><code>reclaim_entity_positions_json</code></td>
+<td>JSON array</td>
+<td>save Lua/scmap props</td>
+<td>no</td>
+<td>Exact parsed reclaim object positions where extractable.</td>
+</tr>
+<tr>
+<td><code>reclaim_entity_type_counts_json</code></td>
+<td>JSON object</td>
+<td>save Lua/scmap props</td>
+<td>yes</td>
+<td>Example groups: trees, rocks, wrecks, civilian structures.</td>
+</tr>
+<tr>
+<td><code>reclaim_mass_per_player</code></td>
+<td>float/null</td>
+<td>derived</td>
+<td>yes</td>
+<td></td>
+</tr>
+<tr>
+<td><code>reclaim_energy_per_player</code></td>
+<td>float/null</td>
+<td>derived</td>
+<td>yes</td>
+<td></td>
+</tr>
+</tbody></table>
+<h3 id="marker-layer-export">Marker Layer Export</h3>
+<p><code>supmapai.tools.marker_layers</code> writes one row per spawn, mex, and hydro marker.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Source</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>map_dir</code></td>
+<td>string</td>
+<td>derived</td>
+<td>Canonical map folder.</td>
+</tr>
+<tr>
+<td><code>kind</code></td>
+<td>enum</td>
+<td>save Lua</td>
+<td><code>spawn</code>, <code>mex</code>, or <code>hydro</code>.</td>
+</tr>
+<tr>
+<td><code>name</code></td>
+<td>string</td>
+<td>save Lua</td>
+<td>Marker name, such as <code>ARMY_1</code> or <code>Mass 01</code>.</td>
+</tr>
+<tr>
+<td><code>x</code></td>
+<td>float</td>
+<td>save Lua</td>
+<td>Raw map x coordinate.</td>
+</tr>
+<tr>
+<td><code>y</code></td>
+<td>float</td>
+<td>save Lua</td>
+<td>Raw marker height/elevation coordinate.</td>
+</tr>
+<tr>
+<td><code>z</code></td>
+<td>float</td>
+<td>save Lua</td>
+<td>Raw map z coordinate.</td>
+</tr>
+<tr>
+<td><code>playable_x</code></td>
+<td>float</td>
+<td>derived</td>
+<td><code>x - playable_x0</code>.</td>
+</tr>
+<tr>
+<td><code>playable_z</code></td>
+<td>float</td>
+<td>derived</td>
+<td><code>z - playable_z0</code>.</td>
+</tr>
+<tr>
+<td><code>norm_x</code></td>
+<td>float</td>
+<td>derived</td>
+<td>Playable-area normalized x, 0-1.</td>
+</tr>
+<tr>
+<td><code>norm_z</code></td>
+<td>float</td>
+<td>derived</td>
+<td>Playable-area normalized z, 0-1.</td>
+</tr>
+<tr>
+<td><code>in_playable_area</code></td>
+<td>bool</td>
+<td>derived</td>
+<td>False if marker lies outside the current playable rectangle.</td>
+</tr>
+</tbody></table>
+<p>Marker previews use red for spawns, yellow for mexes, and cyan for hydros.</p>
+<h3 id="reclaim-and-civilian-entity-layer-export">Reclaim And Civilian Entity Layer Export</h3>
+<p><code>supmapai.tools.entity_layers</code> writes one row per parsed reclaim/civilian object and a QA preview per map. When <code>--scmap-props-jsonl</code> is supplied, it also includes dense <code>.scmap</code> natural props such as trees, rocks, and boulders.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Source</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>map_dir</code></td>
+<td>string</td>
+<td>derived</td>
+<td>Canonical map folder.</td>
+</tr>
+<tr>
+<td><code>source</code></td>
+<td>enum</td>
+<td>derived</td>
+<td><code>save_lua</code> or <code>scmap</code>.</td>
+</tr>
+<tr>
+<td><code>kind</code></td>
+<td>enum</td>
+<td>save Lua/scmap</td>
+<td><code>reclaim</code>, <code>civilian_unit</code>, <code>civilian_building</code>, <code>tree</code>, <code>rock</code>, or <code>boulder</code>.</td>
+</tr>
+<tr>
+<td><code>name</code></td>
+<td>string</td>
+<td>save Lua</td>
+<td>Unit/table name, usually <code>UNIT_*</code>.</td>
+</tr>
+<tr>
+<td><code>blueprint</code></td>
+<td>string</td>
+<td>save Lua</td>
+<td>Unit or prop blueprint ID.</td>
+</tr>
+<tr>
+<td><code>army</code></td>
+<td>string</td>
+<td>save Lua</td>
+<td>Enclosing army when parseable.</td>
+</tr>
+<tr>
+<td><code>group_path</code></td>
+<td>string</td>
+<td>save Lua</td>
+<td>Slash-separated enclosing GROUP names.</td>
+</tr>
+<tr>
+<td><code>x</code></td>
+<td>float</td>
+<td>save Lua</td>
+<td>Raw map x coordinate.</td>
+</tr>
+<tr>
+<td><code>y</code></td>
+<td>float</td>
+<td>save Lua</td>
+<td>Raw object height/elevation coordinate.</td>
+</tr>
+<tr>
+<td><code>z</code></td>
+<td>float</td>
+<td>save Lua</td>
+<td>Raw map z coordinate.</td>
+</tr>
+<tr>
+<td><code>playable_x</code></td>
+<td>float</td>
+<td>derived</td>
+<td><code>x - playable_x0</code>.</td>
+</tr>
+<tr>
+<td><code>playable_z</code></td>
+<td>float</td>
+<td>derived</td>
+<td><code>z - playable_z0</code>.</td>
+</tr>
+<tr>
+<td><code>norm_x</code></td>
+<td>float</td>
+<td>derived</td>
+<td>Playable-area normalized x, 0-1.</td>
+</tr>
+<tr>
+<td><code>norm_z</code></td>
+<td>float</td>
+<td>derived</td>
+<td>Playable-area normalized z, 0-1.</td>
+</tr>
+<tr>
+<td><code>in_playable_area</code></td>
+<td>bool</td>
+<td>derived</td>
+<td>False if object lies outside the current playable rectangle.</td>
+</tr>
+</tbody></table>
+<p>Entity previews use orange for save-Lua reclaim, violet for civilian units, magenta squares for civilian buildings, green dots for trees, and gray/tan dots for rocks and boulders.</p>
+<h3 id="civilian-and-enemy-civilian-content">Civilian And Enemy Civilian Content</h3>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Source</th>
+<th>Required</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>civilian_unit_count</code></td>
+<td>int</td>
+<td>save Lua</td>
+<td>yes</td>
+<td>Neutral/civilian units.</td>
+</tr>
+<tr>
+<td><code>civilian_unit_positions_json</code></td>
+<td>JSON array</td>
+<td>save Lua</td>
+<td>no</td>
+<td>Exact parsed civilian unit positions.</td>
+</tr>
+<tr>
+<td><code>civilian_building_count</code></td>
+<td>int</td>
+<td>save Lua</td>
+<td>yes</td>
+<td>Civilian structures.</td>
+</tr>
+<tr>
+<td><code>civilian_building_positions_json</code></td>
+<td>JSON array</td>
+<td>save Lua</td>
+<td>no</td>
+<td>Exact parsed civilian structure positions.</td>
+</tr>
+<tr>
+<td><code>enemy_civilian_unit_count</code></td>
+<td>int</td>
+<td>save Lua</td>
+<td>yes</td>
+<td>If owner/army can distinguish enemy civilian.</td>
+</tr>
+<tr>
+<td><code>civilian_type_counts_json</code></td>
+<td>JSON object</td>
+<td>save Lua</td>
+<td>yes</td>
+<td>Blueprint/type to count.</td>
+</tr>
+<tr>
+<td><code>has_civilian_base</code></td>
+<td>bool</td>
+<td>derived</td>
+<td>yes</td>
+<td>True if meaningful structure cluster exists.</td>
+</tr>
+</tbody></table>
+<h3 id="terrain-from-scmap">Terrain From <code>.scmap</code></h3>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Source</th>
+<th>Required</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>height_min</code></td>
+<td>float/null</td>
+<td>scmap</td>
+<td>yes</td>
+<td>Requires heightmap decoding.</td>
+</tr>
+<tr>
+<td><code>height_max</code></td>
+<td>float/null</td>
+<td>scmap</td>
+<td>yes</td>
+<td></td>
+</tr>
+<tr>
+<td><code>height_mean</code></td>
+<td>float/null</td>
+<td>scmap</td>
+<td>no</td>
+<td></td>
+</tr>
+<tr>
+<td><code>height_std</code></td>
+<td>float/null</td>
+<td>scmap</td>
+<td>no</td>
+<td></td>
+</tr>
+<tr>
+<td><code>playable_area_source</code></td>
+<td>enum</td>
+<td>save Lua/derived</td>
+<td>yes</td>
+<td><code>save_lua_area_1</code> when <code>AREA_1</code> is used, otherwise <code>full_map</code>.</td>
+</tr>
+<tr>
+<td><code>playable_x0</code></td>
+<td>int</td>
+<td>save Lua/derived</td>
+<td>yes</td>
+<td>Playable crop lower x cell.</td>
+</tr>
+<tr>
+<td><code>playable_z0</code></td>
+<td>int</td>
+<td>save Lua/derived</td>
+<td>yes</td>
+<td>Playable crop lower z cell.</td>
+</tr>
+<tr>
+<td><code>playable_x1</code></td>
+<td>int</td>
+<td>save Lua/derived</td>
+<td>yes</td>
+<td>Playable crop upper x cell.</td>
+</tr>
+<tr>
+<td><code>playable_z1</code></td>
+<td>int</td>
+<td>save Lua/derived</td>
+<td>yes</td>
+<td>Playable crop upper z cell.</td>
+</tr>
+<tr>
+<td><code>playable_width</code></td>
+<td>int</td>
+<td>save Lua/derived</td>
+<td>yes</td>
+<td>Width of terrain used for metrics/previews.</td>
+</tr>
+<tr>
+<td><code>playable_height</code></td>
+<td>int</td>
+<td>save Lua/derived</td>
+<td>yes</td>
+<td>Height of terrain used for metrics/previews.</td>
+</tr>
+<tr>
+<td><code>water_level</code></td>
+<td>float/null</td>
+<td>scmap</td>
+<td>yes</td>
+<td>If present in format.</td>
+</tr>
+<tr>
+<td><code>water_level_source</code></td>
+<td>enum/null</td>
+<td>scmap/derived</td>
+<td>yes</td>
+<td><code>waterramp_block_elevation</code> when parsed from the water block; <code>height_histogram_fallback_uncertain</code> when guessed.</td>
+</tr>
+<tr>
+<td><code>water_percent</code></td>
+<td>float/null</td>
+<td>scmap derived</td>
+<td>yes</td>
+<td>Terrain cells at/below water level.</td>
+</tr>
+<tr>
+<td><code>shallow_water_percent</code></td>
+<td>float/null</td>
+<td>derived</td>
+<td>no</td>
+<td>Water cells with 0-2 height units of water depth.</td>
+</tr>
+<tr>
+<td><code>medium_water_percent</code></td>
+<td>float/null</td>
+<td>derived</td>
+<td>no</td>
+<td>Water cells with 2-8 height units of water depth.</td>
+</tr>
+<tr>
+<td><code>deep_water_percent</code></td>
+<td>float/null</td>
+<td>derived</td>
+<td>no</td>
+<td>Water cells deeper than 8 height units.</td>
+</tr>
+<tr>
+<td><code>water_depth_max</code></td>
+<td>float/null</td>
+<td>derived</td>
+<td>no</td>
+<td>Maximum depth over water cells only.</td>
+</tr>
+<tr>
+<td><code>water_depth_mean</code></td>
+<td>float/null</td>
+<td>derived</td>
+<td>no</td>
+<td>Mean depth over water cells only.</td>
+</tr>
+<tr>
+<td><code>water_depth_p50</code></td>
+<td>float/null</td>
+<td>derived</td>
+<td>no</td>
+<td>Median depth over water cells only.</td>
+</tr>
+<tr>
+<td><code>water_depth_p95</code></td>
+<td>float/null</td>
+<td>derived</td>
+<td>no</td>
+<td>95th percentile depth over water cells only.</td>
+</tr>
+<tr>
+<td><code>water_body_count</code></td>
+<td>int</td>
+<td>derived</td>
+<td>yes</td>
+<td>Connected water components after cleanup/filtering.</td>
+</tr>
+<tr>
+<td><code>largest_water_body_percent</code></td>
+<td>float</td>
+<td>derived</td>
+<td>yes</td>
+<td>Largest water component area as percent of playable terrain.</td>
+</tr>
+<tr>
+<td><code>largest_water_body_depth_mean</code></td>
+<td>float</td>
+<td>derived</td>
+<td>yes</td>
+<td>Mean depth inside largest water body.</td>
+</tr>
+<tr>
+<td><code>largest_water_body_depth_max</code></td>
+<td>float</td>
+<td>derived</td>
+<td>yes</td>
+<td>Maximum depth inside largest water body.</td>
+</tr>
+<tr>
+<td><code>water_bodies_json</code></td>
+<td>JSON array</td>
+<td>derived</td>
+<td>yes</td>
+<td>Largest connected bodies with area, bbox, depth mean/p50/p95/max.</td>
+</tr>
+<tr>
+<td><code>water_artifact_removed_cells</code></td>
+<td>int</td>
+<td>derived</td>
+<td>yes</td>
+<td>Count of water cells removed by the corner-artifact cleanup.</td>
+</tr>
+<tr>
+<td><code>water_artifact_removed_percent</code></td>
+<td>float</td>
+<td>derived</td>
+<td>yes</td>
+<td>Removed cells as percent of playable terrain cells.</td>
+</tr>
+<tr>
+<td><code>water_artifact_rule</code></td>
+<td>string</td>
+<td>derived</td>
+<td>yes</td>
+<td>Rule identifier, currently corner-confined components.</td>
+</tr>
+<tr>
+<td><code>water_noise_removed_cells</code></td>
+<td>int</td>
+<td>derived</td>
+<td>yes</td>
+<td>Count of tiny water components removed when water level was uncertain.</td>
+</tr>
+<tr>
+<td><code>water_noise_removed_percent</code></td>
+<td>float</td>
+<td>derived</td>
+<td>yes</td>
+<td>Removed tiny uncertain-water cells as percent of playable terrain.</td>
+</tr>
+<tr>
+<td><code>water_noise_rule</code></td>
+<td>string</td>
+<td>derived</td>
+<td>yes</td>
+<td>Rule identifier and current minimum component size.</td>
+</tr>
+<tr>
+<td><code>land_percent</code></td>
+<td>float/null</td>
+<td>derived</td>
+<td>yes</td>
+<td><code>100 - water_percent</code>.</td>
+</tr>
+<tr>
+<td><code>buildable_percent</code></td>
+<td>float/null</td>
+<td>derived</td>
+<td>yes</td>
+<td>Flat enough and non-water unless we decide naval factories count separately.</td>
+</tr>
+<tr>
+<td><code>non_buildable_slope_percent</code></td>
+<td>float/null</td>
+<td>derived</td>
+<td>yes</td>
+<td>Sloped but possibly passable.</td>
+</tr>
+<tr>
+<td><code>pathblocking_steep_percent</code></td>
+<td>float/null</td>
+<td>derived</td>
+<td>yes</td>
+<td>Very steep terrain where land units likely cannot pass.</td>
+</tr>
+<tr>
+<td><code>land_unit_passable_percent</code></td>
+<td>float/null</td>
+<td>derived</td>
+<td>yes</td>
+<td>Non-water terrain below the pathblocking slope threshold.</td>
+</tr>
+<tr>
+<td><code>land_unit_unpassable_percent</code></td>
+<td>float/null</td>
+<td>derived</td>
+<td>yes</td>
+<td>Water plus steep/pathblocking terrain for normal land units.</td>
+</tr>
+<tr>
+<td><code>land_unit_blocked_by_water_percent</code></td>
+<td>float/null</td>
+<td>derived</td>
+<td>yes</td>
+<td>Water-blocked portion of playable terrain.</td>
+</tr>
+<tr>
+<td><code>land_unit_blocked_by_steep_percent</code></td>
+<td>float/null</td>
+<td>derived</td>
+<td>yes</td>
+<td>Steep-land blocked portion of playable terrain.</td>
+</tr>
+<tr>
+<td><code>passable_land_component_count</code></td>
+<td>int</td>
+<td>derived</td>
+<td>yes</td>
+<td>Connected passable-land regions after water/steep blocking.</td>
+</tr>
+<tr>
+<td><code>largest_passable_land_percent</code></td>
+<td>float</td>
+<td>derived</td>
+<td>yes</td>
+<td>Largest passable-land component as percent of playable terrain.</td>
+</tr>
+<tr>
+<td><code>passable_land_components_json</code></td>
+<td>JSON array</td>
+<td>derived</td>
+<td>no</td>
+<td>Largest passable-land components with area and bbox.</td>
+</tr>
+<tr>
+<td><code>flat_height_mode_percent</code></td>
+<td>float/null</td>
+<td>derived</td>
+<td>no</td>
+<td>Percent near the most common height band.</td>
+</tr>
+<tr>
+<td><code>slope_mean</code></td>
+<td>float/null</td>
+<td>derived</td>
+<td>no</td>
+<td></td>
+</tr>
+<tr>
+<td><code>slope_p95</code></td>
+<td>float/null</td>
+<td>derived</td>
+<td>no</td>
+<td></td>
+</tr>
+</tbody></table>
+<p>V1 terrain thresholds should be configurable. Initial defaults:</p>
+<ul>
+<li><code>buildable</code>: slope below a conservative low threshold and above water.</li>
+<li><code>non_buildable_slope</code>: slope above buildable threshold but below pathblocking threshold.</li>
+<li><code>pathblocking_steep</code>: slope above high threshold.</li>
+</ul>
+<p>The pathability preview uses green for land-unit-passable terrain, blue for water-blocked terrain, and red for steep/pathblocking terrain. This is still a terrain-derived approximation, not the final game path graph.</p>
+<p>These thresholds should be validated visually against known maps before being trusted.</p>
+<p>Terrain metrics should be computed on playable terrain cells, not directly on raw heightmap vertices. FA <code>.scmap</code> heightmaps contain one more vertex than the map cell width/height; isolated border vertices can create fake one-pixel water artifacts that are not visible or playable in-game.</p>
+<p>An earlier decoder version missed the 16-byte prefix before the heightmap block. That made terrain appear horizontally shifted and created false edge/corner artifacts. Corner cleanup remains an optional audit switch, but it should stay disabled unless a separate artifact is proven after the heightmap alignment is correct.</p>
+<p>Some maps declare a playable rectangle in <code>_save.lua</code>, usually as <code>AREA_1</code>. Terrain previews and metrics should use that rectangle when present. This matters for maps like Dual Gap, where the full <code>.scmap</code> is square but the in-game playable area is rectangular.</p>
+<p>When no explicit water block is found, the water level is inferred from height distribution and should be treated as uncertain. In that case only, V1 removes tiny connected water components below a configurable cell-count threshold. This handles maps such as Canis River where the inferred plane captures three true water bodies plus several tiny below-plane terrain specks that do not render as water in-game.</p>
+<p>Depth should be preserved as a continuous model input, not just summarized into shallow/medium/deep bands. The PNG depth preview is for human QA and normalizes depth per map visually; the future tensor export should store numeric water depth in terrain height units, with land as 0 and a separate water mask channel.</p>
+<h3 id="symmetry">Symmetry</h3>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Source</th>
+<th>Required</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>symmetry_detected</code></td>
+<td>bool</td>
+<td>derived</td>
+<td>yes</td>
+<td>Based on terrain/resources/spawns.</td>
+</tr>
+<tr>
+<td><code>symmetry_order</code></td>
+<td>int/null</td>
+<td>derived</td>
+<td>yes</td>
+<td><code>2</code>, <code>3</code>, <code>4</code>, etc. &quot;Pizza slices.&quot;</td>
+</tr>
+<tr>
+<td><code>symmetry_label</code></td>
+<td>enum/null</td>
+<td>derived</td>
+<td>yes</td>
+<td><code>mirror_x</code>, <code>mirror_z</code>, <code>rotational_2</code>, <code>rotational_3</code>, <code>rotational_4</code>, <code>radial</code>, <code>asymmetric</code>, <code>unknown</code>.</td>
+</tr>
+<tr>
+<td><code>symmetry_score</code></td>
+<td>float/null</td>
+<td>derived</td>
+<td>yes</td>
+<td>0-1 confidence/fit score.</td>
+</tr>
+<tr>
+<td><code>symmetry_basis</code></td>
+<td>string list</td>
+<td>derived</td>
+<td>yes</td>
+<td>Example: <code>terrain</code>, <code>spawns</code>, <code>mexes</code>, <code>hydros</code>.</td>
+</tr>
+</tbody></table>
+<p>V1 should try simple checks first:</p>
+<ul>
+<li>compare spawn positions under 180-degree rotation</li>
+<li>compare mex/hydro positions under candidate rotations/reflections</li>
+<li>later compare terrain masks once <code>.scmap</code> decoding is reliable</li>
+</ul>
+<h3 id="structure-metrics">Structure Metrics</h3>
+<p><code>supmapai.extract.structure_metrics</code> derives higher-level structural map facts from terrain,
+marker, entity, and team-layout CSVs. It intentionally uses a bounded analysis grid so full
+batches remain practical on Windows.</p>
+<p>Implemented fields:</p>
+<ul>
+<li><code>shoreline_length_cells</code> and <code>shoreline_length_per_10k_area</code></li>
+<li><code>structural_water_body_count</code>, <code>structural_water_body_sizes_json</code>, and <code>water_body_type_guess</code></li>
+<li><code>plateau_count</code>, <code>plateau_sizes_json</code>, and <code>largest_plateau_percent</code></li>
+<li><code>engineer_hover_region_count</code> and <code>largest_engineer_hover_region_percent</code></li>
+<li><code>transport_only_region_count</code> and <code>transport_only_area_percent</code></li>
+<li><code>water_separated_region_count</code> and <code>water_separated_area_percent</code></li>
+<li><code>base_to_base_path_exists</code>, path length/direct distance, straightness, min/median width, and choke count</li>
+<li><code>early_reclaim_per_spawn_*</code>, <code>center_reclaim_percent</code>, <code>contested_reclaim_percent</code></li>
+<li><code>reclaim_cluster_count</code>, <code>reclaim_cluster_sizes_json</code>, <code>reclaim_spread_label</code>, and <code>reclaim_fairness_score</code></li>
+</ul>
+<p>Definitions:</p>
+<ul>
+<li>Normal land pathing treats water and steep terrain as blocked.</li>
+<li>Engineer-hover accessibility treats steep terrain as blocked but allows water, matching most engineers.</li>
+<li>Transport-only regions are engineer-hover regions isolated by steep/pathblocking terrain, not merely by water.</li>
+<li>Water-separated regions are normal-land regions split by water that are still connected under engineer-hover rules.</li>
+<li>Reclaim structure currently uses individual parsed reclaim entity counts/positions, not mass or energy weighting.</li>
+</ul>
+<h3 id="dataset-audit">Dataset Audit</h3>
+<p><code>supmapai.tools.dataset_audit</code> reads completed batch feature outputs and produces a
+non-destructive health report:</p>
+<ul>
+<li><code>dataset_audit_summary.json</code>: global counts, missing stages, warning counts, batch status.</li>
+<li><code>dataset_audit_maps.csv</code>: one row per map with <code>ready</code>, <code>review</code>, or <code>exclude_candidate</code>.</li>
+<li><code>dataset_audit_outliers.csv</code>: robust-z outliers for terrain, resources, props, reclaim, and balance.</li>
+<li><code>dataset_audit_warnings.csv</code>: warning-token frequency table.</li>
+<li><code>dataset_audit_families.csv</code>: duplicate/name-family groups that must stay together in train/validation/test splits.</li>
+</ul>
+<p>Readiness labels are intentionally conservative:</p>
+<ul>
+<li><code>ready</code>: no hard parse/source issue and no gameplay-critical numeric outlier.</li>
+<li><code>review</code>: likely usable, but worth checking because of odd water/buildable/pathing/resource values.</li>
+<li><code>exclude_candidate</code>: missing critical files, zero spawns, zero mexes, nearly all water, almost no buildable/passable area, or parser failure warnings.</li>
+</ul>
+<p>Outlier rows do not automatically mean a map is bad. High tree/rock/boulder/civilian counts are preserved as audit facts but do not by themselves downgrade readiness.</p>
+<h3 id="tensor-export-v1">Tensor Export V1</h3>
+<p><code>supmapai.tensors.export_tensors</code> converts audited maps into compressed NumPy archives.
+This is the bridge from parser/audit work to ML experiments.</p>
+<p>Each exported map writes one <code>.npz</code> file with:</p>
+<ul>
+<li><code>tensor</code>: <code>float32</code> array shaped <code>[channel, grid_z, grid_x]</code>.</li>
+<li><code>channels</code>: ordered channel names.</li>
+<li><code>map_id</code> and <code>map_dir</code>: identity fields for joining back to CSV metadata.</li>
+</ul>
+<p>Initial V1 channel order:</p>
+<ol>
+<li><code>height_norm</code></li>
+<li><code>water_mask</code></li>
+<li><code>water_depth_norm</code></li>
+<li><code>land_mask</code></li>
+<li><code>land_passable_mask</code></li>
+<li><code>buildable_mask</code></li>
+<li><code>slope_norm</code></li>
+<li><code>spawn_heatmap</code></li>
+<li><code>mex_heatmap</code></li>
+<li><code>hydro_heatmap</code></li>
+<li><code>reclaim_density</code></li>
+<li><code>civilian_structure_density</code></li>
+</ol>
+<p>V1 defaults to <code>256x256</code>. Terrain channels are cropped to playable area before resizing.
+Marker/entity channels are drawn from normalized playable-area coordinates, so all layers are aligned.
+When an audit CSV is supplied, tensor export can filter by <code>ready</code>, <code>review</code>, or any other
+audit status before writing <code>.npz</code> files.</p>
+<p>The first expected success criterion is visual QA, not training: generate contact sheets from tensor channels and confirm that terrain, water, spawns, mexes, hydros, reclaim, and civilian structures line up with existing previews.</p>
+<h3 id="dataset-splits">Dataset Splits</h3>
+<p><code>supmapai.tensors.split_dataset</code> creates deterministic train/validation/test assignments
+from <code>dataset_audit_maps.csv</code>.</p>
+<p>Rules:</p>
+<ul>
+<li>Include <code>ready</code> and <code>review</code> maps by default.</li>
+<li>Exclude <code>exclude_candidate</code> maps by default.</li>
+<li>Keep every <code>duplicate_family_key</code> in exactly one split.</li>
+<li>Maps without a family key use their own map folder as the split group.</li>
+<li>Default ratios are 80% train, 10% validation, 10% test.</li>
+</ul>
+<p>The output is <code>splits.csv</code> plus <code>splits_summary.json</code>. These split assignments should be used by tensor export and training so near-clones do not leak into validation/test.</p>
+<h3 id="texture-and-visual-metadata">Texture And Visual Metadata</h3>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Source</th>
+<th>Required</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>texture_pack</code></td>
+<td>string/null</td>
+<td>scmap</td>
+<td>yes</td>
+<td>Best-effort extracted texture set/folder.</td>
+</tr>
+<tr>
+<td><code>texture_names_json</code></td>
+<td>JSON array</td>
+<td>scmap</td>
+<td>no</td>
+<td>Raw texture identifiers.</td>
+</tr>
+<tr>
+<td><code>biome_guess</code></td>
+<td>enum/null</td>
+<td>derived</td>
+<td>no</td>
+<td>Rule-based from texture names only.</td>
+</tr>
+</tbody></table>
+<p>Texture/biome should be displayed as machine context, not treated as truth.</p>
+<h3 id="survey-display-fields">Survey Display Fields</h3>
+<p>The survey app should consume a compact subset:</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>map_id</code></td>
+<td>string</td>
+<td>Stable ID.</td>
+</tr>
+<tr>
+<td><code>display_name</code></td>
+<td>string</td>
+<td>Scenario name or folder name.</td>
+</tr>
+<tr>
+<td><code>top_level_dir</code></td>
+<td>string</td>
+<td>Useful for admin/debug.</td>
+</tr>
+<tr>
+<td><code>size_class</code></td>
+<td>string</td>
+<td>Human-friendly size.</td>
+</tr>
+<tr>
+<td><code>player_slots</code></td>
+<td>int/null</td>
+<td></td>
+</tr>
+<tr>
+<td><code>mex_count</code></td>
+<td>int</td>
+<td></td>
+</tr>
+<tr>
+<td><code>hydro_count</code></td>
+<td>int</td>
+<td></td>
+</tr>
+<tr>
+<td><code>reclaim_mass_total_declared</code></td>
+<td>float/null</td>
+<td></td>
+</tr>
+<tr>
+<td><code>reclaim_entity_count</code></td>
+<td>int/null</td>
+<td></td>
+</tr>
+<tr>
+<td><code>civilian_unit_count</code></td>
+<td>int/null</td>
+<td></td>
+</tr>
+<tr>
+<td><code>civilian_building_count</code></td>
+<td>int/null</td>
+<td></td>
+</tr>
+<tr>
+<td><code>water_percent</code></td>
+<td>float/null</td>
+<td></td>
+</tr>
+<tr>
+<td><code>buildable_percent</code></td>
+<td>float/null</td>
+<td></td>
+</tr>
+<tr>
+<td><code>pathblocking_steep_percent</code></td>
+<td>float/null</td>
+<td></td>
+</tr>
+<tr>
+<td><code>symmetry_label</code></td>
+<td>string/null</td>
+<td></td>
+</tr>
+<tr>
+<td><code>symmetry_score</code></td>
+<td>float/null</td>
+<td></td>
+</tr>
+<tr>
+<td><code>team_layout_label</code></td>
+<td>string/null</td>
+<td></td>
+</tr>
+<tr>
+<td><code>spawn_geometry_label</code></td>
+<td>string/null</td>
+<td></td>
+</tr>
+<tr>
+<td><code>name_signals</code></td>
+<td>string list</td>
+<td><code>adaptive</code>, <code>gap</code>, <code>pass</code>, <code>crater</code>.</td>
+</tr>
+<tr>
+<td><code>duplicate_family_key</code></td>
+<td>string/null</td>
+<td></td>
+</tr>
+<tr>
+<td><code>structural_preview_url</code></td>
+<td>string/null</td>
+<td>Later.</td>
+</tr>
+</tbody></table>
+<h2 id="explicitly-out-of-v1">Explicitly Out Of V1</h2>
+<ul>
+<li>AI marker analysis.</li>
+<li>Neural quality prediction.</li>
+<li>Diffusion/image generation.</li>
+<li>Automatic deletion of bad maps.</li>
+<li>Perfect terrain pathability simulation.</li>
+<li>Full playable-map export.</li>
+</ul>
+<h2 id="v1-success-criteria">V1 Success Criteria</h2>
+<ul>
+<li>One flat <code>map_features_v1.csv</code> row per canonical top-level map.</li>
+<li>Reclaim totals and individual reclaim entity counts are present where extractable.</li>
+<li>Mex, hydro, spawn, civilian, and enemy/civilian structure counts are present.</li>
+<li>Terrain percentages are present for maps with decodable <code>.scmap</code>.</li>
+<li>Symmetry label and score exist, even if <code>unknown</code> for hard cases.</li>
+<li>Survey seed export contains enough context to show useful facts without overwhelming voters.</li>
+<li>All derived fields carry warnings/nulls when the source is missing or uncertain.</li>
+</ul>
+<script src="model-atlas/public-links.js" data-public-links></script></body></html>

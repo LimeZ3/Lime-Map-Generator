@@ -1,0 +1,213 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>resources.py | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="../docs/model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1>resources.py</h1><p class="meta">Saved public evidence snapshot: src/supmapai/tensors/resources.py</p><pre>&quot;&quot;&quot;Terrain-conditioned resource targets from the human-curated terrain cohort.&quot;&quot;&quot;
+
+from __future__ import annotations
+
+import argparse
+import json
+from collections import Counter
+from pathlib import Path
+
+import numpy as np
+
+from supmapai.tensors.strategy_dataset import (
+    file_hash, point_field, pool, read_json, read_rows, write_json,
+)
+from supmapai.tensors.terrain_joint import encode, spawn_fields
+
+SCHEMA = 'terrain_conditioned_resources_v1'
+TARGETS = ['mex_heatmap', 'hydro_heatmap']
+SPATIAL = ['height', 'water_distance', 'water_depth', 'land_passable',
+           'hover_passable', 'spawn_a', 'spawn_b']
+
+
+def heatmaps(meta, grid):
+    sigma = 4.0 * grid / 512
+    fields = []
+    for name in ('mexes', 'hydros'):
+        points = meta[name]
+        if any(not (0 &lt;= p['x'] &lt; 512 and 0 &lt;= p['z'] &lt; 512) for p in points):
+            raise ValueError('Resource lies outside the full playable canvas')
+        field = point_field(points, grid, sigma=sigma) * (2 * np.pi * sigma**2)
+        fields.append(np.clip(field, 0, 1) * 2 - 1)
+    return np.stack(fields).astype(np.float32)
+
+
+def count_profile(counts, water_enabled, norm):
+    counts = np.asarray(counts, np.float32)
+    if counts.shape != (2,) or np.any(counts &lt; 0) or not np.isfinite(counts).all():
+        raise ValueError('Expected finite nonnegative mex/hydro counts')
+    values = (np.log1p(counts) - norm['count_mean']) / norm['count_std']
+    return np.append(values, float(water_enabled)).astype(np.float32)
+
+
+def native_condition(relative, spawns, norm):
+    if relative.shape != (513, 513) or not np.isfinite(relative).all() or len(spawns) != 2:
+        raise ValueError('Expected full native 10km terrain and two planned bases')
+    for p in spawns:
+        if not (0 &lt;= p['x'] &lt; 512 and 0 &lt;= p['z'] &lt; 512):
+            raise ValueError('Planned base outside canvas')
+    grid = norm['grid_size']
+    tl, tr, bl, br = relative[:-1, :-1], relative[:-1, 1:], relative[1:, :-1], relative[1:, 1:]
+    height = .25 * (tl + tr + bl + br)
+    depth = .25 * sum(np.maximum(-a, 0) for a in (tl, tr, bl, br))
+    flat = (abs(tl-tr) &lt; .75) &amp; (abs(bl-br) &lt; .75) &amp; (abs(tl-bl) &lt; .75) &amp; (abs(tr-br) &lt; .75)
+    physical = np.stack([pool(height, grid), pool(depth &gt; 0, grid), pool(depth, grid)])
+    terrain = encode(physical, norm['terrain_normalization'])
+    navigation = np.stack([pool(flat &amp; (depth &lt;= 0), grid), pool((depth &gt;= 1) | flat, grid)])
+    return np.concatenate([terrain, navigation * 2 - 1,
+                           spawn_fields(spawns, grid, sigma=8 * grid / 512)]).astype(np.float32)
+
+
+def build(source, out, grid=256):
+    from supmapai.tools.dataset_review import load_cohort
+
+    source, cohort_hash, rows = load_cohort(source)
+    out = Path(out).resolve()
+    if (out / 'release_manifest.json').exists():
+        raise ValueError('Choose a new dataset directory; published targets are immutable')
+    if grid not in (128, 256):
+        raise ValueError('Supported grids: 128, 256')
+    records = []
+    for row in rows:
+        native = Path(row['native_source'])
+        if file_hash(native) != row['native_source_sha256']:
+            raise ValueError('Native archive changed: ' + row['key'])
+        metadata = native.with_suffix('.json')
+        meta = read_json(metadata)
+        if meta['key'] != row['key'] or meta['spawns'] != row['spawns']:
+            raise ValueError('Source marker configuration mismatch: ' + row['key'])
+        if len(meta['mexes']) != round(meta['raw']['mex_per_player'] * 2):
+            raise ValueError('Resource count differs from audited active configuration')
+        records.append(dict(row=row, metadata=str(metadata), metadata_sha256=file_hash(metadata),
+                            counts=[len(meta['mexes']), len(meta['hydros'])]))
+    counts = np.log1p([r['counts'] for r in records if r['row']['split'] == 'train'])
+    terrain_norm = read_json(source / 'normalization.json')
+    norm = dict(schema=SCHEMA, grid_size=grid, native_size=512, targets=TARGETS, spatial=SPATIAL,
+                count_mean=counts.mean(axis=0).tolist(), count_std=np.maximum(counts.std(axis=0), .1).tolist(),
+                count_presets={name: np.quantile(np.expm1(counts[:, i]), [.2, .5, .8]).tolist()
+                               for i, name in enumerate(('mexes', 'hydros'))},
+                gaussian_sigma_world=4., fitted_on='train_only', terrain_normalization=terrain_norm)
+    out.mkdir(parents=True, exist_ok=True)
+    write_json(out / 'normalization.json', norm)
+    contract = dict(schema=SCHEMA, source=str(source), source_release_sha256=cohort_hash,
+                    builder_sha256=file_hash(__file__), grid_size=grid,
+                    geometry='Frozen curated terrain; no imposed symmetry in training targets',
+                    markers='Exact audited active-configuration coordinates, re-rasterized at target grid')
+    write_json(out / 'contract.json', contract)
+    packed = []
+    for index, record in enumerate(records, 1):
+        row = record['row']
+        meta = read_json(record['metadata'])
+        with np.load(row['native_source'], allow_pickle=False) as archive:
+            relative = archive['height_vertices'].copy() - meta['height_reference']
+        # Disabled water must remain entirely dry, including minimum-height vertices.
+        if not row['water_enabled']:
+            relative = relative + .01
+        spatial = native_condition(relative, row['spawns'], norm)
+        target = heatmaps(meta, grid)
+        profile = count_profile(record['counts'], row['water_enabled'], norm)
+        path = out / 'maps' / (row['key'] + '.npz')
+        path.parent.mkdir(parents=True, exist_ok=True)
+        np.savez_compressed(path, target=target, spatial=spatial, profile=profile)
+        packed.append(dict(key=row['key'], family=row['family'], split=row['split'],
+            archive='maps/' + path.name, sha256=file_hash(path), counts=record['counts'],
+            native_source_sha256=row['native_source_sha256'],
+            metadata=record['metadata'], metadata_sha256=record['metadata_sha256'],
+            spawns=row['spawns'], water_enabled=row['water_enabled']))
+        if index % 50 == 0 or index == len(records):
+            print(f'prepared={index}/{len(records)}', flush=True)
+            write_json(out / 'progress.json', dict(status='preparing', complete=index, total=len(records)))
+    for split in ('train', 'validation'):
+        (out / (split + '.jsonl')).write_text(''.join(json.dumps(r) + '\n' for r in packed
+            if r['split'] == split), encoding='utf-8')
+    audit = dict(status='passed', maps=len(packed), splits=dict(Counter(r['split'] for r in packed)),
+                 families=len({r['family'] for r in packed}), test_used=False,
+                 checks=['Curated exclusions and family split retained', 'Native checksums verified',
+                         'Exact active resource coordinates', 'Count scaling fitted on train only'],
+                 count_presets=norm['count_presets'])
+    write_json(out / 'audit.json', audit)
+    names = ['normalization.json', 'contract.json', 'train.jsonl', 'validation.jsonl', 'audit.json']
+    write_json(out / 'release_manifest.json', dict(schema=SCHEMA, status='ready',
+               artifacts={name: file_hash(out / name) for name in names}))
+    write_json(out / 'progress.json', dict(status='complete', complete=len(packed), total=len(packed)))
+    return audit
+
+
+class ResourceDataset:
+    def __init__(self, root, split):
+        self.root = Path(root)
+        release = read_json(self.root / 'release_manifest.json')
+        if release['schema'] != SCHEMA or release['status'] != 'ready':
+            raise ValueError('Resource release is not ready')
+        for name, sha in release['artifacts'].items():
+            if file_hash(self.root / name) != sha:
+                raise ValueError('Changed resource release: ' + name)
+        self.rows = read_rows(self.root / (split + '.jsonl'))
+        all_rows = read_rows(self.root / 'train.jsonl') + read_rows(self.root / 'validation.jsonl')
+        families = {}
+        for row in all_rows:
+            if families.setdefault(row['family'], row['split']) != row['split']:
+                raise ValueError('Resource family leakage')
+        self.cache = {}
+
+    def get(self, index):
+        if index not in self.cache:
+            row = self.rows[index]
+            path = self.root / row['archive']
+            if file_hash(path) != row['sha256']:
+                raise ValueError('Changed resource target: ' + row['key'])
+            with np.load(path, allow_pickle=False) as archive:
+                self.cache[index] = tuple(archive[k].astype(np.float16) for k in ('target', 'spatial', 'profile'))
+        return tuple(a.astype(np.float32) for a in self.cache[index])
+
+    def batch(self, indices, device, rng=None):
+        import torch
+
+        batch = [[], [], []]
+        for index in indices:
+            target, spatial, profile = self.get(int(index))
+            if rng is not None:
+                turns, flip = int(rng.integers(4)), rng.random() &lt; .5
+                target = np.rot90(target, turns, axes=(-2, -1))
+                spatial = np.rot90(spatial, turns, axes=(-2, -1))
+                if flip:
+                    target, spatial = target[..., ::-1], spatial[..., ::-1]
+                if rng.random() &lt; .5:
+                    spatial = spatial.copy()
+                    spatial[[-2, -1]] = spatial[[-1, -2]]
+            for values, array in zip(batch, (target, spatial, profile), strict=True):
+                values.append(array.copy())
+        return tuple(torch.from_numpy(np.stack(a)).to(device) for a in batch)
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    sub = parser.add_subparsers(dest='command', required=True)
+    build_parser = sub.add_parser('build')
+    build_parser.add_argument('--source', type=Path, required=True)
+    build_parser.add_argument('--out', type=Path, required=True)
+    build_parser.add_argument('--grid', type=int, default=256)
+    condition = sub.add_parser('condition')
+    condition.add_argument('--dataset', type=Path, required=True)
+    condition.add_argument('--native', type=Path, required=True)
+    condition.add_argument('--config', type=Path, required=True)
+    condition.add_argument('--out', type=Path, required=True)
+    args = parser.parse_args()
+    if args.command == 'build':
+        print(json.dumps(build(args.source, args.out, args.grid), indent=2))
+    else:
+        norm = read_json(args.dataset / 'normalization.json')
+        spawns = read_json(args.config)['spawns']
+        with np.load(args.native, allow_pickle=False) as archive:
+            relative = archive['relative_vertices'].copy()
+        spatial = native_condition(relative, spawns, norm)
+        args.out.parent.mkdir(parents=True, exist_ok=True)
+        np.savez_compressed(args.out, spatial=spatial, relative_vertices=relative)
+        write_json(args.out.with_suffix('.json'), dict(native=str(args.native.resolve()),
+            native_sha256=file_hash(args.native), spatial_sha256=file_hash(args.out), spawns=spawns,
+            normalization_sha256=file_hash(args.dataset / 'normalization.json')))
+
+
+if __name__ == '__main__':
+    main()
+</pre><script src="../docs/model-atlas/public-links.js" data-public-links></script></body></html>

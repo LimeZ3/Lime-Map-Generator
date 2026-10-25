@@ -1,0 +1,100 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>terrain_steering.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="10-km-terrain-steering-pilot">10 km Terrain Steering Pilot</h1>
+<blockquote>
+<p>Historical checkpoint experiment: its economic <code>front_width</code> and route-style
+proxies are not the new terrain-only targets. See
+<a href="terrain_controls_v1.md">direct terrain controls v1</a> for resource-independent
+widths, bottleneck persistence, connectivity and fragmentation. Existing
+checkpoints have not been retrained with those controls.</p>
+</blockquote>
+<p>Output: <code>data/models/terrain_steering_10km_v1/</code>.
+Four fresh seeds (1001-1004), seven profiles, 28 unique terrain samples.
+No game launch, playable-map installation, or retraining was performed.</p>
+<p>The checkpoint is the existing full-map joint terrain model at update 12,000.
+All settings share fixed left/right requested bases, 180-degree symmetry,
+100 initial DDIM steps, 50 symmetric refinement steps starting at t=250,
+guidance 1.5, and light native-grid smoothing. Refinement begins with averaged
+physical fields, re-encoded for the joint model. Unlike the earlier water-aware
+symmetry comparison, no rank-based water-area preservation is applied here.
+No water percentage is forcibly imposed, no passages carved, and no resource pads
+are added. Raw and refined model predictions are preserved separately.</p>
+<h2 id="requests">Requests</h2>
+<p>All unchanged profile values use training-cohort medium presets. Only training
+manifest rows define relief presets and nearest-profile support diagnostics;
+validation/test rows are not used for this experiment.</p>
+<table>
+<thead>
+<tr>
+<th>Sweep</th>
+<th>Low / closed</th>
+<th>Baseline</th>
+<th>High / open</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Water fraction</td>
+<td>5%</td>
+<td>20%</td>
+<td>45%</td>
+</tr>
+<tr>
+<td>Economic front-width control</td>
+<td>11.17</td>
+<td>31.60</td>
+<td>60.45</td>
+</tr>
+<tr>
+<td>Route-style proxy</td>
+<td>Narrow front + p80 relief</td>
+<td>Typical front + p50 relief</td>
+<td>Wide front + p20 relief</td>
+</tr>
+</tbody></table>
+<p>The route proxy is explicitly not an exact path-count request: the current
+checkpoint never received a path-count condition. Front labels are automated
+resource-dependent economic-front estimates, not human assessments. Geometric
+route width on terrain-only output is a diagnostic, not a recomputation of that
+same training label.</p>
+<h2 id="initial-results">Initial Results</h2>
+<p>Water coverage is ordered low &lt; medium &lt; high for all four matched seeds.
+Mean final water coverages are 0.4%, 8.3% and 47.5%, respectively: clearly
+responsive, but not accurately calibrated. Raw model water coverages average
+2.0%, 19.6% and 48.3%. The loss between raw and final water at the medium request
+shows that symmetry/refinement/decoding also affect calibration. This is not all
+a learned-conditioning failure.</p>
+<p>The open-front setting has a wider shortest-route p10 width than the closed-front
+setting on all four seeds, but the visual differences are relatively subtle.
+Average geometric widths are 237 versus 190 world units. These are not the same
+quantity as the requested economic front-width label, and four samples do not
+establish reliability. One high-water sample disconnects the requested bases.</p>
+<p>Relief responds strongly: the bottleneck-biased set averages 21.2 world units
+of p95-p05 relief, versus 6.3 for maneuver-biased outputs. This does not translate
+into dependable one-versus-many attack lanes. Small isolated hills can increase
+barrier-side route signatures without creating strategically distinct fronts.
+An open plain can have one route group and many valid attack directions.</p>
+<h2 id="pngs-and-measurements">PNGs and Measurements</h2>
+<p><code>water.png</code>, <code>front.png</code> and <code>approach_proxies.png</code> show all four seeds without
+selection. Matching <code>*_routes.png</code> sheets add terrain-only route witnesses and
+grey blocked-land masks. Only up to six witnesses are drawn per sample; they are
+not certified attack lanes. Individual full-resolution images are under <code>png/</code>.</p>
+<p>The existing raw movement masks, SciPy movement graph, bounded barrier-separated
+route sampler and route-width helper are reused. Routes obey eight-neighbour
+movement without corner cuts. No props/unit footprints are tested, route
+enumeration is not exhaustive, and invalid requested bases are not moved.</p>
+<p>Profiles, checkpoint/source hashes, requested settings, raw/final fields, native
+heights, support distances, route witnesses and measured outcomes are retained
+in JSON/NPZ files. Generated <code>README.md</code> and <code>summary.json</code> summarize the run.</p>
+<h2 id="windows-commands">Windows Commands</h2>
+<p>Use a fresh output directory for new generation. No dependencies were installed;
+the existing CUDA and CPU scientific environments are used separately.</p>
+<pre><code class="language-powershell">$env:PYTHONPATH = &#39;src&#39;
+.venv/Scripts/python.exe -m supmapai.tools.steer_terrain generate `
+  --checkpoint data/models/terrain_joint_10km_1v1_long_v1/best.pt `
+  --out data/models/terrain_steering_10km_v1 --seeds 1001 1002 1003 1004
+.venv-codex/Scripts/python.exe -m supmapai.tools.steer_terrain report `
+  --run data/models/terrain_steering_10km_v1
+</code></pre>
+<p>Generation took 53.6 seconds. Reporting is separate. Three focused tests cover
+profile isolation/train-only presets, blocked-base reporting, and route-witness
+behaviour on open terrain versus a central obstacle. These PNGs are structural
+previews, not engine screenshots or balance certifications.</p>
+<script src="model-atlas/public-links.js" data-public-links></script></body></html>

@@ -1,0 +1,120 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>astro_diversity_comparison.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="astro-crater-battles-vs-adaptive-diversity">Astro Crater Battles vs Adaptive Diversity</h1>
+<p>Computed 14 October 2026 using the current corridor-cut / symmetry / merged-section implementation. No blueprint parsing, naval reach calculations or library-wide extraction was performed.</p>
+<h2 id="configuration">Configuration</h2>
+<ul>
+<li>Astro Crater Battles: map 2535/version 3658, original folder <code>astro_crater_battles</code>.</li>
+<li>Adaptive Diversity: map 4619/version 6828, <code>adaptive_diversity.v0002</code>.</li>
+<li>Both 512 x 512. Selected route endpoints ARMY_1 to ARMY_2.</li>
+<li>All scenario slots active: six for Astro, sixteen for Diversity. Default adaptive settings only. Teams are not inferred.</li>
+<li>This is a comparison of one opposing base pair, not a complete team-game attack network. All-map resource counts describe these configurations and are not normalized for player count.</li>
+<li>Existing MaxSlope .75, amphibious maximum depth 25, obstacle filtering and search budgets retained.</li>
+</ul>
+<h2 id="results">Results</h2>
+<table>
+<thead>
+<tr>
+<th>Metric</th>
+<th align="right">Astro</th>
+<th align="right">Diversity</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Land route families found</td>
+<td align="right">1</td>
+<td align="right">5</td>
+</tr>
+<tr>
+<td>Amphibious route families found</td>
+<td align="right">1</td>
+<td align="right">9 (cut budget reached)</td>
+</tr>
+<tr>
+<td>Hover route families found</td>
+<td align="right">1</td>
+<td align="right">9 (cut budget reached)</td>
+</tr>
+<tr>
+<td>Land route length range</td>
+<td align="right">377.7</td>
+<td align="right">429.2-546.1</td>
+</tr>
+<tr>
+<td>Shortest route narrowest width</td>
+<td align="right">36.8</td>
+<td align="right">41.9</td>
+</tr>
+<tr>
+<td>Shortest route sustained 8-unit minimum width</td>
+<td align="right">39.5</td>
+<td align="right">43.9</td>
+</tr>
+<tr>
+<td>Land merged sections</td>
+<td align="right">0</td>
+<td align="right">6</td>
+</tr>
+<tr>
+<td>Active mexes</td>
+<td align="right">42</td>
+<td align="right">112</td>
+</tr>
+<tr>
+<td>Within 32 walking units of any discovered land route</td>
+<td align="right">24 (57.1%)</td>
+<td align="right">42 (37.5%)</td>
+</tr>
+<tr>
+<td>Between 32 and 64 units</td>
+<td align="right">17</td>
+<td align="right">40</td>
+</tr>
+<tr>
+<td>More than 64 units from every discovered land route</td>
+<td align="right">1 (2.4%)</td>
+<td align="right">28 (25.0%)</td>
+</tr>
+<tr>
+<td>Disconnected from selected bases&#39; land component</td>
+<td align="right">0</td>
+<td align="right">2</td>
+</tr>
+<tr>
+<td>Median distance to any discovered land route, reachable sites</td>
+<td align="right">28.3</td>
+<td align="right">43.6</td>
+</tr>
+<tr>
+<td>More than 64 units from shortest route alone</td>
+<td align="right">1</td>
+<td align="right">78</td>
+</tr>
+<tr>
+<td>Median ground distance to nearest active base, reachable sites</td>
+<td align="right">11.0</td>
+<td align="right">21.8</td>
+</tr>
+<tr>
+<td>Farther than 64 from both all routes and every active base</td>
+<td align="right">0</td>
+<td align="right">4</td>
+</tr>
+</tbody></table>
+<p>The five Diversity land routes have 18 / 33 / 33 / 32 / 32 associated mexes (exclusive plus shared). These overlap: 110 distinct mexes are assigned; do not sum per-route totals. The other two mexes and two hydros are land-disconnected. Amphibious and hover can reach all 112 mexes and all eight hydros. Astro has 42 mexes and six hydros, all land-reachable.</p>
+<p>The resource distance overlay separates route proximity from nearest-route territory membership. Territory membership alone previously associated all reachable resources with routes even if the resource was far away. The new distances use weighted eight-neighbor movement with no diagonal corner cutting. Resource sites on blocked cells are not snapped; disconnected sites are explicit. Here the two land-disconnected Diversity mexes are passable local cells in disconnected components, not blocked marker cells.</p>
+<h2 id="interpretation-and-limits">Interpretation and limits</h2>
+<p>Astro concentrates the chosen bases&#39; ground access into one route family. Diversity supports several obstacle-separated alternatives and has substantially more economy distant from those routes. The reduction from 78 far mexes when using only the shortest route to 28 when using all discovered routes demonstrates why alternatives matter.</p>
+<p>Distance bands 32/64 are inspection thresholds, not validated safety or weapon ranges. Far from a route is distinct from far from a base. The base-response distance here is to any active base, without teams, so it is an optimistic lower bound for friendly response. Neither distance proves air vulnerability, AA coverage, army presence, drop effectiveness or behind-base safety. Those need team assignments, base-front orientation and unit ranges/timings.</p>
+<p>Widths belong to the representative polylines, exclude 32 units at both endpoints and do not model unit footprints, props or army formations. Multiple routes can share sections. The algorithm is greedy, not exhaustive; Diversity amphibious and hover explicitly hit the cut budget. Equal route counts for these layers do not imply identical paths.</p>
+<h2 id="artifacts-and-reproduction">Artifacts and reproduction</h2>
+<p>Comparison: <code>http://127.0.0.1:5177/navigation_comparison/index.html</code>.</p>
+<p>Interactive route viewers: <code>navigation_comparison_astro/index.html</code> and <code>navigation_comparison_diversity/index.html</code> under the same server.</p>
+<p>Numerical export: <code>data/processed/navigation_comparison/comparison.json</code>.
+Per-resource export: <code>data/processed/navigation_comparison/resource_access.csv</code>.</p>
+<p>With <code>PYTHONPATH=src</code>:</p>
+<pre><code class="language-powershell"># Summary and distance overlays from cached route results
+.venv-codex/Scripts/python.exe -m supmapai.tools.compare_navigation_maps
+# Re-extract navigation only and rerun the selected route pairs
+.venv-codex/Scripts/python.exe -m supmapai.tools.compare_navigation_maps --prepare --routes
+</code></pre>
+<p>Validation: 37 targeted tests passed (resource access 2, route metrics/normalization 14, strategic navigation/routes/corridors 21). Source SCMAP/Lua hashes checked against overlay provenance; every final route validated against its modeled mask; allocated areas checked to conserve reachable map area. Static resource distance overlays inspected visually. No engine/playtest validation claimed.</p>
+<script src="model-atlas/public-links.js" data-public-links></script></body></html>

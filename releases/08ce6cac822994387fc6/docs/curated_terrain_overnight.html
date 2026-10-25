@@ -1,0 +1,108 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>curated_terrain_overnight.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="curated-terrain-small-versus-multiscale">Curated Terrain: Small Versus Multiscale</h1>
+<h2 id="frozen-dataset">Frozen Dataset</h2>
+<p>The October 24 review is frozen into a <strong>new</strong> release, leaving the original
+review, raw maps, V3 tensors and checkpoints unchanged. Unreviewed means retained.</p>
+<ul>
+<li>Original cohort: 1,310 maps.</li>
+<li>Human exclusions: 50.</li>
+<li>Additional superseded family members omitted: 143.</li>
+<li>New cohort: <strong>1,020 train / 97 validation</strong>, one representative per family.</li>
+<li>No held-out test data is used.</li>
+</ul>
+<p>Family evidence combines existing groups, matching vault map IDs, conservative
+normalized names, an explicit Canis alias requested by the user, and near-identical
+height patterns across eight orientations (32-grid correlation &gt;= 0.9998).
+Constant/near-constant terrain is not matched merely because it is flat.
+Generic words like gap/pass/crater do not automatically merge unrelated maps.
+Geometry matching is a conservative heuristic, not a full clone classifier.</p>
+<p>Within each merged family, manually excluded members are ineligible. An explicitly
+FAF-labelled version is preferred; otherwise the highest folder author-version
+number wins, with embedded version/adaptive/vault-ID tie breakers. Vault upload IDs
+are not confused with author version numbers. Fourteen Canis entries reduce to
+<code>adaptive_canis_fizzy_revenge.v0010</code>. A full audit trail records every member,
+winner, omission and merge reason in <code>family_selection.json</code>.</p>
+<p>Four newly connected families crossed the old split: Canis, Four Leaf Clover,
+Tabula Rasa and Heritage of Ancestors. Their single representatives are held out.
+Other split assignments are preserved. This prevents newly discovered relatives
+from occurring on both sides. The old V3 validation score is not directly comparable
+to the new runs, which share their own identical validation cohort and fixed noise.</p>
+<p>Dataset: <code>data/tensors/terrain_curated_20261024_v1</code>.
+All target archives are referenced by absolute path and checksum; no re-extraction
+of the 6,000-map library occurs. Conditioning scales and profiles are refitted using
+retained training maps only. Physical height/depth units and target encoding remain
+frozen to the source representation, preserving already measured geometry labels.
+This is not a claim that physical scales were refitted or that the full dataset
+was re-encoded.</p>
+<h2 id="why-validation-is-separate">Why Validation Is Separate</h2>
+<p>Training examples update the weights. Validation examples never update the weights;
+they check behavior on unseen families and help choose checkpoints or stop a run
+that deteriorates. Using the same maps for both would turn memorization into an
+apparently good validation result. Reviewing validation maps for broken extraction
+or unsuitable content is curation, not a final blind test. A separate test set is
+still needed for an unbiased final assessment after model selection.</p>
+<h2 id="comparison">Comparison</h2>
+<p>Both models start fresh, use full 256 x 256 height/SDF/depth outputs, two spatial
+base fields, the same 21-entry profile, rotations/reflections/base swaps, AdamW,
+bfloat16, EMA, clipping and an effective batch of 16. Same dataset and validation
+map-specific noise/timesteps in both runs. No resources, props or textures trained.</p>
+<table>
+<thead>
+<tr>
+<th>Run</th>
+<th align="right">Parameters</th>
+<th align="right">Convolutions</th>
+<th>Spatial Scales</th>
+<th>Training Budget</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Small</td>
+<td align="right">2,988,787</td>
+<td align="right">20</td>
+<td>256/128/64</td>
+<td>About one hour</td>
+</tr>
+<tr>
+<td>Multiscale</td>
+<td align="right">28,812,291</td>
+<td align="right">52</td>
+<td>256/128/64/32/16</td>
+<td>Remaining overnight budget</td>
+</tr>
+</tbody></table>
+<p>The stronger model has attention at 32 and 16, two residual blocks per encoder/
+decoder level, and feature dropout 0.1. It is an architecture/regularization change,
+not a controlled parameter-count-only study. At microbatch four, four accumulated
+microsteps make one update of batch 16. Its initial GPU probe passed using about
+5.5 GB allocated memory. A batch-eight probe was stopped after stalling; the
+conservative, tested batch-four configuration is used. cuDNN exhaustive autotuning
+is disabled to avoid long startup stalls. Optional activation checkpointing exists
+but is not needed for the chosen configuration.</p>
+<p>The local supervisor caps total active execution at eight hours, including its
+probes/reports, with time reserved for finalization. A hung child has a stage limit.
+Training pauses/checkpoints cooperatively; a hard timeout preserves the last
+completed checkpoint. Runtime is cumulative across explicit resumes. Windows idle
+sleep is inhibited only while the supervisor is active; the display can sleep.
+No persistent power-plan changes, cloud compute or purchases occur.</p>
+<h2 id="checkpoints-and-diagnostics">Checkpoints and Diagnostics</h2>
+<p>Training validates every five minutes, saves atomic last/resumable and best-EMA
+checkpoints, and renders matched-seed PNGs every thirty minutes and at completion.
+Six consecutive validations more than 20% worse than the best, after thirty minutes,
+stop a deteriorating run. Lower denoising loss is not itself proof of better maps.</p>
+<p>Final sample audits measure direct controls both before and after symmetry/water/
+smoothing. They also find the three closest training terrains over eight grid
+orientations and render a generated/nearest-neighbor contact sheet. Coarse encoded
+RMSE and a nearest/second-nearest ratio provide warning heuristics only; they do not
+prove originality or memorization. New held-out samples and player review remain
+necessary. Existing tensor resolution and limited layout diversity remain limits
+that extra parameters cannot automatically solve.</p>
+<p>Run folder: <code>data/models/terrain_curated_overnight_v1</code>.</p>
+<pre><code class="language-powershell">.\scripts\curated-terrain-training.ps1 -Action Status
+.\scripts\curated-terrain-training.ps1 -Action Pause
+.\scripts\curated-terrain-training.ps1 -Action Resume
+</code></pre>
+<p><code>pipeline.json</code> contains stage, heartbeat, child PID, log paths and total remaining
+budget. Each model subfolder contains <code>progress.json</code>, <code>losses.json</code>, <code>last.pt</code>,
+<code>best.pt</code>, <code>samples/</code>, and final <code>sample_audit.json</code> / <code>training_neighbors.png</code>.
+New review decisions after this release do not alter a running experiment.</p>
+<script src="model-atlas/public-links.js" data-public-links></script></body></html>

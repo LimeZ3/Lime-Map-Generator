@@ -1,0 +1,245 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>opportunities.py | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="../docs/model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1>opportunities.py</h1><p class="meta">Saved public evidence snapshot: src/supmapai/strategy/opportunities.py</p><pre>&quot;&quot;&quot;First-round 1v1 drop, expansion, air access and geometric AA coverage.
+
+These are parameterized terrain opportunities, never predictions of army presence.
+&quot;&quot;&quot;
+import numpy as np
+from scipy import ndimage
+from scipy.sparse.csgraph import dijkstra
+
+from .corridors import movement_graph
+
+DEFAULTS=dict(cluster_radius=32,local_walk_budget=48,landing_clearance=3,
+    base_exclusion=32,route_remote=32,minimum_time_saved=10,
+    transport_speed=14.5,transport_overhead=10,engineer_speed=1.9,
+    tank_speed=3.4,bomber_speed=10,grid_step=8,aa_ranges=[44,50,60])
+
+
+def number(value):
+    return float(value) if np.isfinite(value) else None
+
+
+def mirror_spawn(nav):
+    &quot;&quot;&quot;Select the closest 180-degree counterpart, failing on ambiguous layouts.&quot;&quot;&quot;
+    spawn=next(s for s in nav['spawns'] if s['name']=='ARMY_1')
+    target=np.array([nav['width']-spawn['x'],nav['height']-spawn['z']])
+    choices=sorted((float(np.linalg.norm(np.array([s['x'],s['z']])-target)),s['name'],s)
+        for s in nav['spawns'] if s['name']!='ARMY_1')
+    if not choices or choices[0][0]&gt;max(4,.02*min(nav['width'],nav['height'])):
+        raise ValueError('No sufficiently close 180-degree mirror of slot 1')
+    if len(choices)&gt;1 and choices[1][0]-choices[0][0]&lt;1:
+        raise ValueError('Ambiguous mirrored opponent')
+    return spawn,choices[0][2],dict(kind='rotate180',position_error=choices[0][0],expected=target.tolist())
+
+
+def distance(graph,shape,points,limit=np.inf):
+    xy=np.floor(points).astype(int).reshape(-1,2)
+    if not len(xy):return np.full(shape,np.inf)
+    return dijkstra(graph,directed=True,indices=np.unique(xy[:,1]*shape[1]+xy[:,0]),
+        min_only=True,limit=limit).reshape(shape)
+
+
+def greedy_cover(candidates,targets,radius):
+    &quot;&quot;&quot;Discrete geometric set cover; greedy upper estimate, not an optimum.&quot;&quot;&quot;
+    c=np.asarray(candidates,float).reshape(-1,2);t=np.asarray(targets,float).reshape(-1,2)
+    if not len(t):return dict(positions=[],uncovered=[],count=0)
+    covered=((c[:,None,:]-t[None,:,:])**2).sum(axis=2)&lt;=radius**2
+    remaining=np.ones(len(t),bool);positions=[]
+    while remaining.any() and len(c):
+        scores=(covered&amp;remaining).sum(axis=1);best=int(np.argmax(scores))
+        if scores[best]==0:break
+        ids=np.flatnonzero(covered[best]&amp;remaining)
+        positions.append(dict(x=float(c[best,0]),z=float(c[best,1]),target_indices=ids.tolist()))
+        remaining[ids]=False
+    return dict(positions=positions,uncovered=np.flatnonzero(remaining).tolist(),count=len(positions))
+
+
+def landing_candidates(mask,step):
+    &quot;&quot;&quot;One feasible cell per tile, allowing off-centre narrow pockets.&quot;&quot;&quot;
+    candidates=[];h,w=mask.shape
+    for z in range(0,h,step):
+        for x in range(0,w,step):
+            cells=np.argwhere(mask[z:z+step,x:x+step])
+            if len(cells):
+                centre=np.array([(step-1)/2]*2)
+                dz,dx=cells[np.argmin(((cells-centre)**2).sum(axis=1))]
+                candidates.append([int(x+dx),int(z+dz)])
+    return np.asarray(candidates,int).reshape(-1,2)
+
+
+def analyze(masks,routes,resources,spawns,reclaim=None,parameters=None):
+    p={**DEFAULTS,**(parameters or {})};shape=masks['land'].shape;h,w=shape
+    land=masks['land'];engineer=masks['hover']
+    graphs={k:movement_graph(masks[k]) for k in ['land','hover']}
+    xx,zz=np.meshgrid(np.arange(w)+.5,np.arange(h)+.5)
+    route_points=[q for r in routes for q in r['points']]
+    route_distance=distance(graphs['land'],shape,route_points)
+    base_fields={};air_fields={}
+    for spawn in spawns:
+        name=spawn['name'];point=[[spawn['x'],spawn['z']]]
+        base_fields[name]={k:distance(g,shape,point) for k,g in graphs.items()}
+        air_fields[name]=np.hypot(xx-spawn['x'],zz-spawn['z'])
+    # A flat dry 7x7 footprint is only a terrain feasibility estimate.
+    landing=ndimage.minimum_filter(land.astype(np.uint8),size=2*p['landing_clearance']+1,mode='constant')&gt;0
+    engineer_landing=ndimage.minimum_filter(engineer.astype(np.uint8),size=2*p['landing_clearance']+1,mode='constant')&gt;0
+    candidates=landing_candidates(landing,p['grid_step'])
+    engineer_candidates=landing_candidates(engineer_landing,p['grid_step'])
+    resources=[dict(r) for r in resources]
+    xy=np.floor([[r['x'],r['z']] for r in resources]).astype(int)
+    for r,(x,z) in zip(resources,xy):
+        r['site_surface']='land' if land[z,x] else 'water' if engineer[z,x] else 'unresolved'
+    land_labels=ndimage.label(land)[0];component_sizes=np.bincount(land_labels.ravel())
+    base_components={land_labels[int(s['z']),int(s['x'])] for s in spawns}
+    ungrouped=set(range(len(resources)));regions=[];area_distances=[];area_modes=[]
+    stream=p.get('stream_area_fields',False)
+    if stream:nearest=np.full(shape,np.inf);areas=np.zeros(shape,np.int32)
+    for seed in sorted(range(len(resources)),key=lambda i:(resources[i]['z'],resources[i]['x'],resources[i]['name'])):
+        if seed not in ungrouped:continue
+        x,z=xy[seed];mode='land' if land[z,x] else 'hover' if engineer[z,x] else None
+        if mode is None:
+            resources[seed]['area_status']='site_not_passable';ungrouped.remove(seed);continue
+        component=land_labels[z,x]
+        pocket=bool(mode=='land' and component not in base_components and
+            component_sizes[component]&lt;=p.get('island_pocket_limit',0))
+        field=distance(graphs[mode],shape,[[x,z]],limit=np.inf if pocket else p['local_walk_budget'])
+        members=[i for i in sorted(ungrouped) if (land_labels[xy[i,1],xy[i,0]]==component if pocket else
+            field[xy[i,1],xy[i,0]]&lt;=p['cluster_radius'] and bool(land[xy[i,1],xy[i,0]])==(mode=='land'))]
+        ungrouped.difference_update(members)
+        region=dict(id='A'+str(len(regions)+1),x=float(x+.5),z=float(z+.5),
+            grouping_layer=mode,resource_names=[resources[i]['name'] for i in members],
+            mexes=sum(resources[i]['kind']=='mex' for i in members),hydros=sum(resources[i]['kind']=='hydro' for i in members),
+            resources=members,connected_island_pocket=pocket,
+            water_mexes=sum(resources[i]['kind']=='mex' and resources[i]['site_surface']=='water' for i in members))
+        for i in members:resources[i]['area_id']=region['id']
+        regions.append(region);area_modes.append(mode)
+        if stream:
+            better=field&lt;nearest;nearest[better]=field[better];areas[better]=len(regions)
+        else:area_distances.append(field)
+    # Disjoint local influence cells prevent reclaim from being counted twice.
+    if stream:fields=None
+    else:
+        fields=np.array(area_distances);nearest=np.min(fields,axis=0) if len(fields) else np.full(shape,np.inf)
+        areas=np.where(np.isfinite(nearest),np.argmin(fields,axis=0)+1,0).astype(np.int32) if len(fields) else np.zeros(shape,np.int32)
+    reclaim_mass=np.zeros(shape) if reclaim is None else reclaim['known_mass_per_cell']
+    unresolved=np.zeros(shape) if reclaim is None else reclaim['unresolved_mass_count']
+    for i,r in enumerate(regions):
+        owned=areas==i+1;r['area_tiles']=int(owned.sum())
+        r['known_reclaim_mass']=float(reclaim_mass[owned].sum())
+        r['unknown_reclaim_entities']=int(unresolved[owned].sum())
+        r['land_components']=sorted(set(int(v) for v in land_labels[xy[r['resources'],1],xy[r['resources'],0]] if v))
+    by_side={};layers={}
+    for own in spawns:
+        enemy=next(s for s in spawns if s['name']!=own['name']);name=own['name'];other=enemy['name']
+        own_land=base_fields[name]['land'];enemy_land=base_fields[other]['land']
+        own_eng=base_fields[name]['hover'];enemy_eng=base_fields[other]['hover']
+        own_air=air_fields[name];enemy_air=air_fields[other]
+        side_regions=[];expansion_mask=np.zeros(shape,bool);offense_mask=np.zeros(shape,bool);air_mask=np.zeros(shape,bool)
+        aa_targets=[];aa_names=[]
+        for i,area in enumerate(regions):
+            x,z=int(area['x']),int(area['z'])
+            field=(distance(graphs[area_modes[i]],shape,[[x,z]],limit=np.inf if area['connected_island_pocket'] else p['local_walk_budget']) if stream else fields[i])
+            # Access/ownership refers to the local area's representative resource.
+            od,ed=own_eng[z,x],enemy_eng[z,x]
+            if np.isfinite(od) or np.isfinite(ed):
+                territory='friendly' if od+16&lt;ed else 'enemy' if ed+16&lt;od else 'contested'
+            else:territory='friendly' if own_air[z,x]+16&lt;enemy_air[z,x] else 'enemy' if enemy_air[z,x]+16&lt;own_air[z,x] else 'contested'
+            if area.get('connected_island_pocket'):
+                sites=xy[area['resources']]
+                aa=own_eng[sites[:,1],sites[:,0]];bb=enemy_eng[sites[:,1],sites[:,0]]
+                if not (np.isfinite(aa)|np.isfinite(bb)).any():
+                    aa=own_air[sites[:,1],sites[:,0]];bb=enemy_air[sites[:,1],sites[:,0]]
+                if (aa+16&lt;bb).any() and (bb+16&lt;aa).any():territory='contested'
+            available=(field[candidates[:,1],candidates[:,0]]&lt;=p['local_walk_budget']) if len(candidates) else np.zeros(0,bool)
+            local=candidates[available]
+            engineer_field=field if area_modes[i]=='hover' else distance(graphs['hover'],shape,[[x,z]],limit=p['local_walk_budget'])
+            engineer_local=engineer_candidates[engineer_field[engineer_candidates[:,1],engineer_candidates[:,0]]&lt;=p['local_walk_budget']]
+            if len(engineer_local):
+                # Arrival time includes the final ground leg from landing to target.
+                ground_leg=engineer_field[engineer_local[:,1],engineer_local[:,0]]/p['engineer_speed']
+                time=own_air[engineer_local[:,1],engineer_local[:,0]]/p['transport_speed']+p['transport_overhead']+ground_leg
+                best=int(np.argmin(time));lx,lz=engineer_local[best];drop_time=float(time[best]);landing_point=[float(lx+.5),float(lz+.5)]
+                enemy_drop_time=float(np.min(enemy_air[engineer_local[:,1],engineer_local[:,0]]/p['transport_speed']+p['transport_overhead']+ground_leg))
+            else:drop_time=None;landing_point=None;enemy_drop_time=None
+            engineer_walk=number(od/p['engineer_speed']);enemy_walk=number(ed/p['engineer_speed'])
+            own_arrivals=[v for v in [engineer_walk,drop_time] if v is not None]
+            enemy_arrivals=[v for v in [enemy_walk,enemy_drop_time] if v is not None]
+            race_margin=min(enemy_arrivals)-min(own_arrivals) if own_arrivals and enemy_arrivals else None
+            saved=None if drop_time is None or engineer_walk is None else engineer_walk-drop_time
+            expansion=bool(territory!='enemy' and min(own_air[z,x],enemy_air[z,x])&gt;48 and drop_time is not None and
+                (engineer_walk is None or saved&gt;=p['minimum_time_saved']))
+            # Land payload must have a continuous walking approach after unloading.
+            attack_field=field if area_modes[i]=='land' else None
+            attack_landing=None;attack_time=None;targets=[]
+            if attack_field is not None and len(local):
+                eligible=enemy_air[local[:,1],local[:,0]]&gt;p['base_exclusion']
+                choices=local[eligible]
+                if len(choices):
+                    times=own_air[choices[:,1],choices[:,0]]/p['transport_speed']+p['transport_overhead']+attack_field[choices[:,1],choices[:,0]]/p['tank_speed']
+                    best=int(np.argmin(times));lx,lz=choices[best];attack_landing=[float(lx+.5),float(lz+.5)];attack_time=float(times[best])
+                    payload_field=distance(graphs['land'],shape,[[lx,lz]],limit=p['local_walk_budget'])
+                    targets=[r['name'] for j,r in enumerate(resources) if r['kind']=='mex' and payload_field[xy[j,1],xy[j,0]]&lt;=p['local_walk_budget']]
+            ground_time=number(own_land[z,x]/p['tank_speed']);enemy_response=number(enemy_land[z,x]/p['tank_speed'])
+            route_gap=number(route_distance[z,x]);attack_saving=None if attack_time is None or ground_time is None else ground_time-attack_time
+            offensive_reasons=[]
+            if ground_time is None:offensive_reasons.append('land_access_drop')
+            if route_gap is None or route_gap&gt;=p['route_remote']:offensive_reasons.append('route_bypass_drop')
+            if attack_saving is not None and attack_saving&gt;=p['minimum_time_saved']:offensive_reasons.append('long_walk_bypass')
+            offensive=bool(territory=='enemy' and attack_landing is not None and targets and offensive_reasons)
+            air_time=float(own_air[z,x]/p['bomber_speed']);air_saving=None if ground_time is None else ground_time-air_time
+            # Air opportunity is a union of access advantage and slow response;
+            # report both reasons, never turn geometric proximity into AA safety.
+            reasons=[]
+            if ground_time is None:reasons.append('land_disconnected')
+            elif air_saving&gt;=p['minimum_time_saved']:reasons.append('air_arrival_advantage')
+            if route_gap is None or route_gap&gt;=p['route_remote']:reasons.append('away_from_main_routes')
+            if enemy_response is None or enemy_response&gt;=15:reasons.append('slow_base_ground_response')
+            air_candidate=bool(territory=='enemy' and area['mexes'] and reasons)
+            own_point=np.array([own['x'],own['z']]);enemy_point=np.array([enemy['x'],enemy['z']]);axis=enemy_point-own_point
+            behind_enemy=float(np.dot(np.array([area['x'],area['z']])-enemy_point,axis)/np.linalg.norm(axis))
+            row=dict(area_id=area['id'],territory=territory,offensive_drop=offensive,expansion_drop=expansion,
+                air_raid=air_candidate,air_reasons=reasons,offensive_reasons=offensive_reasons,
+                expansion_reason='engineer_ground_disconnected' if engineer_walk is None else 'engineer_travel_time_saved',
+                engineer_walk_seconds=engineer_walk,
+                engineer_drop_seconds=drop_time,engineer_seconds_saved=saved,enemy_engineer_walk_seconds=enemy_walk,
+                enemy_engineer_drop_seconds=enemy_drop_time,fastest_expansion_arrival_margin_seconds=race_margin,
+                expansion_arrival_margin_seconds=None if drop_time is None or enemy_walk is None else enemy_walk-drop_time,
+                expansion_landing=landing_point,offensive_landing=attack_landing,offensive_drop_seconds=attack_time,
+                engineer_navigation_layer='hover',
+                expansion_landing_surface=None if landing_point is None else 'land' if land[int(landing_point[1]),int(landing_point[0])] else 'water',
+                tank_walk_seconds=ground_time,offensive_seconds_saved=attack_saving,reachable_mex_after_drop=targets,
+                route_distance=route_gap,enemy_ground_response_seconds=enemy_response,
+                attacker_land_distance=number(own_land[z,x]),attacker_air_distance=float(own_air[z,x]),
+                land_air_detour_ratio=number(own_land[z,x]/max(own_air[z,x],1e-9)),
+                bomber_arrival_seconds=air_time,air_seconds_saved=air_saving,
+                behind_enemy_base_projection=behind_enemy)
+            sites=xy[area['resources']]
+            row['closest_route_distance']=number(np.min(route_distance[sites[:,1],sites[:,0]]))
+            row['closest_enemy_base_distance']=float(np.min(enemy_air[sites[:,1],sites[:,0]]))
+            row['closest_own_base_distance']=float(np.min(own_air[sites[:,1],sites[:,0]]))
+            row['closest_enemy_land_distance']=number(np.min(enemy_land[sites[:,1],sites[:,0]]))
+            side_regions.append(row)
+            if expansion:expansion_mask|=areas==i+1
+            if offensive:offense_mask|=areas==i+1
+            if air_candidate:air_mask|=areas==i+1
+            if territory=='enemy':
+                for j in area['resources']:
+                    if resources[j]['kind']=='mex':aa_targets.append([resources[j]['x'],resources[j]['z']]);aa_names.append(resources[j]['name'])
+        aa={format(radius,'g'):greedy_cover(candidates+.5,aa_targets,radius) for radius in p['aa_ranges']}
+        for value in aa.values():value['target_names']=aa_names
+        def summary(flag):
+            selected=[i for i,r in enumerate(side_regions) if r[flag]]
+            return dict(areas=len(selected),mexes=sum(regions[i]['mexes'] for i in selected),
+                hydros=sum(regions[i]['hydros'] for i in selected),
+                known_reclaim_mass=sum(regions[i]['known_reclaim_mass'] for i in selected),
+                unknown_reclaim_entities=sum(regions[i]['unknown_reclaim_entities'] for i in selected))
+        by_side[name]=dict(enemy=other,regions=side_regions,aa=aa,
+            summary={flag:summary(flag) for flag in ['offensive_drop','expansion_drop','air_raid']})
+        layers[name+'_expansion']=expansion_mask;layers[name+'_offensive']=offense_mask;layers[name+'_air']=air_mask
+    return dict(parameters=p,regions=regions,resources=resources,sides=by_side,
+        assumptions=['1v1; default initial resources; no army positions or AA strength simulated',
+            'distance advantage is not combat success; aircraft acceleration and flight hazards omitted',
+            'land payload uses dry unloading; engineers use hover movement and may unload onto water with no seabed slope/depth limit',
+            'landing feasibility uses the payload movement footprint; AA placement stays dry; props and engine placement rules omitted',
+            'AA greedy discrete geometric cover ignores LOS, DPS and redundancy; not a minimum proof',
+            'resource groups bounded by seed walking distance; reclaim allocation local and disjoint',
+            'opportunities may overlap across categories; do not sum category totals']),dict(areas=areas,landing=landing,engineer_landing=engineer_landing,**layers)
+</pre><script src="../docs/model-atlas/public-links.js" data-public-links></script></body></html>
