@@ -1,0 +1,222 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>strategic_map_features_plan.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="featured-map-gameplay-analysis-plan">Featured-map gameplay analysis plan</h1>
+<p>Prepared 14 October 2026. Scope: all maps on the signed-in
+<a href="https://vault.jipwijnia.nl/maps/featured">featured list</a>, not just 10×10 or 1v1.
+The live list has 33 maps; all 33 exact linked versions match our local catalog
+and have overlays. The frozen cohort is
+<code>data/manifests/featured_strategy_20261014.json</code>.</p>
+<p>The goal is to calculate gameplay opportunities, threats and defense requirements
+from map geometry and versioned FAF mechanics. Outputs must say which game setup,
+faction, unit/weapon and economy scenario they describe. Keep raw measurements
+alongside derived indices so a community member can inspect the reasoning.</p>
+<h2 id="shared-contract">Shared contract</h2>
+<ul>
+<li>Pin map/version IDs, source hashes, FAF balance revision, navigation revision,
+profile definitions and algorithm/threshold versions. Metrics and overlays
+must derive from the same masks; avoid separate stale numerical catalogs.</li>
+<li>Record active spawn IDs, allied/enemy teams, player count and default adaptive
+settings. Scenario army lists alone do not establish the intended teams.
+Build one verified recommended setup first for each map; add other setups later.</li>
+<li>Include every featured map, including unranked featured entries. Size and ranked
+status remain attributes. Team/FFA configurations remain distinct analyses.</li>
+<li>Keep default adaptive settings in scope. Resolve the resources actually enabled
+by that default/setup; do not silently use all possible static markers. Where
+unsupported, publish geometry and explicitly unresolved resource-dependent
+fields, not zero or an invented default. No adaptive-options UI is required.</li>
+<li>Preserve full-map coordinates and playable bounds, raw terrain/water tensors,
+exact entity/resource identities, numerical reclaim, and region masks.</li>
+<li>Start with current standard FAF without specialty mods or enhancements. Use
+the requested representative UEF units for estimates, recording the exact
+proxy and selected weapon. Do not enumerate every faction/unit against every
+mex or combine fields from different units into a fictitious profile.</li>
+<li>Export measurements in game-world units and seconds; map kilometres are
+display units. Normalize percentages per relevant player/team as well as map.</li>
+</ul>
+<h2 id="step-1-navigation-and-game-mechanics-foundation">Step 1 — Navigation and game-mechanics foundation</h2>
+<p>Integrate the pinned community map/navigation library behind a small local batch
+adapter. Retain our tensor/PNG/reclaim packaging and format-52 fallback. Produce
+terrain-driven land, amphibious, hover and naval grids, connected-region IDs and
+resource-to-region associations. Preserve both raw passability and the compressed,
+culled FAF AI-navigation view: they answer different questions.</p>
+<p>Keep the requested 0.75 height threshold and amphibious depth limit of 25. Match
+FAF&#39;s four-corner, strict boundary test rather than smoothed cell gradients.
+Use one generic naval-depth rule initially; separate T1/T2 naval-depth boundaries
+remain out of scope as previously agreed. Record blocking terrain types. Add a
+separate initial-obstruction layer where blueprint footprints/collision behavior
+are known; identify reclaimable obstacles and unknown collisions explicitly.</p>
+<p>Create versioned unit profiles from resolved game blueprints: unit ID, faction,
+tech/role, movement layer, speed, footprint, build cost/time, health, transport
+properties and relevant weapon range/target layers/damage/shot timing. Our current
+reclaim blueprint cache alone is not enough. Apply base-game + FAF modifications
+and postprocessing, or obtain an engine-exported resolved snapshot. Preserve
+unresolved script-dependent behavior rather than presenting raw fields as final.</p>
+<p><strong>Deliverable:</strong> <code>balance_profiles.json</code>, region grids, pairwise reachability and
+distance fields for each verified setup. Test flat dry ground, threshold cliffs,
+blocked terrain, shoreline, underwater cliffs/depth 25 and cropped map bounds.
+Start on representative featured maps before running all 33.</p>
+<h2 id="step-2-naval-attack-reach-first-gameplay-feature">Step 2 — Naval attack reach: first gameplay feature</h2>
+<p>Use only the UEF T1 frigate (<code>ues0103</code>, main gun, range 28), UEF T2 destroyer
+(<code>ues0201</code>, one representative main turret, range 60), and UEF T2 cruiser
+(<code>ues0202</code>, cruise missiles only, minimum 20/maximum 150). These are sufficient
+proxies for the present estimates; do not extend target enumeration to other
+factions or T3 without a new request. Reuse launch calculations and target reach
+for spawns sharing the same basin set. Submarine, anti-air and cruiser gun weapons
+do not contribute to these selected profiles.</p>
+<p>For resource site m and unit profile u, find navigable firing positions p in a
+naval region reachable from that player&#39;s viable launch locations. A potential
+hit requires compatible target layers/categories and
+<code>MinRadius(u) &lt;= distance(p, m) &lt;= MaxRadius(u)</code>. Use the game&#39;s range/elevation
+conventions. A circular radius around all water is insufficient: a tiny isolated
+lake or a basin without valid factory/launch space must not create naval reach.</p>
+<p>Add terrain/line-of-fire checks appropriate to the weapon. Keep initial range-only
+reach separate from terrain-screened reach, and mark trajectory behavior pending
+engine validation. Direct-fire, high-arc artillery and guided missiles require
+different treatment. Do not count range-only hits as confirmed damage.</p>
+<p><strong>Measurements:</strong> reachable naval basins, usable launch sites, targetable mex and
+hydro counts/percentages, affected expansion clusters, nearest firing positions,
+travel distance/time from launch, target IDs and weapon IDs. Keep per-unit values
+and explicit faction/tier unions; report each target once in a union. Add scenarios
+for T1/T2/T3 mex structures so income/build value exposed can be compared.</p>
+<p><strong>Preview:</strong> naval reach overlay with threatened resources, firing-location
+witnesses and unreachable basins. <strong>Acceptance:</strong> sample both hit/non-hit cases
+in game, including a cliff-screened target, island target, isolated basin and
+minimum-range case. The first visible milestone is a trustworthy T1-frigate mex
+coverage report, not a universal navy score.</p>
+<h2 id="step-3-attack-routes-and-obstacles">Step 3 — Attack routes and obstacles</h2>
+<p>For each opposing spawn/team pair and movement profile, calculate shortest
+travel distances and route geometry. Build a corridor graph from navigable space,
+clearance fields, junctions and bottlenecks. Attach obstacle reasons: cliff,
+water/depth, terrain-type blocking, playable boundary or known placed obstruction.</p>
+<p>Do not count every grid path as a different attack route. Group paths that use
+the same corridor/shared choke. Measure distinct approaches and route alternatives
+across versioned cost-stretch, separation and minimum-clearance thresholds.
+Record sensitivity curves rather than hiding all definitions in one route count.</p>
+<p><strong>Measurements:</strong> direct-vs-walking detour, route length/time, minimum/median
+width, shared chokepoints, independent corridors, distinct base-approach sectors,
+alternate-route extra time, distance to resource clusters and routes opened by
+removing reclaimable obstructions. Our older path/width features can be retained
+after replacing their underlying navigation and validating their definitions.</p>
+<p><strong>Preview:</strong> numbered corridors with widths, obstacles and shared bottlenecks.
+<strong>Acceptance:</strong> distinguish one winding choke from two independent approaches;
+an open plain must not generate hundreds of nominal routes. These quantities
+describe split-army/control pressure; a universal player-skill score is not needed.</p>
+<h2 id="step-4-expansion-drops-and-offensive-drops">Step 4 — Expansion drops and offensive drops</h2>
+<p>Keep two analyses separate.</p>
+<p><strong>Expansion access:</strong> count land-unreachable regions from each active start and
+their mexes, hydros, reclaim and usable landing/build area. Also test actual
+engineer, hover and amphibious profiles so a merely land-isolated island is not
+automatically called transport-only. Include naval-access status separately.
+Calculate engineer walking/alternative-mode travel versus transport flight,
+load/unload assumptions, cargo compatibility and capacity for a chosen transport.</p>
+<p><strong>Offensive access:</strong> establish a reproducible baseline front from competing
+travel-time fields and the main route corridors. This is a reference deployment,
+not a claim about where a real army stands during a match. Measure enemy economy
+behind that front, off-corridor distances, landing space, and the time for a main
+force or separately positioned defense to reach each target cluster.</p>
+<p><strong>Measurements:</strong> resources in isolated regions, mode-specific access, flight
+advantage, drop-compatible landing clusters, off-main-route economic value,
+target-to-front/main-army travel times and extra defense clusters needed under
+stated response-time budgets. Produce results for several army staging/reference
+positions instead of assuming one universal frontline.</p>
+<p><strong>Acceptance:</strong> a resource-free island should not receive high economic drop value;
+a hover-accessible region must differ from a transport-required one. Review known
+behind-front targets with community members and validate transport placement.</p>
+<h2 id="step-5-air-advantage-and-aa-defense-burden">Step 5 — Air advantage and AA defense burden</h2>
+<p>Calculate attack flight paths/times, ground reinforcement times and isolated
+economy clusters. Map size is an input; resource placement and ground detours
+explain the effect. Use faction/tier aircraft profiles and stated launch positions.</p>
+<p>Model defensive coverage using actual mobile/static AA profiles: valid placement,
+weapon coverage, movement time and mass/energy/build-time cost. First calculate a
+coverage-placement problem for economy sites, including separate clusters. Then
+add capacity under a defined aircraft count, health, speed and attack pattern:
+being inside an AA circle is not proof of surviving a strike.</p>
+<p><strong>Measurements:</strong> distant-mex counts, defended area/cluster count, air-vs-ground
+arrival-time difference, response deficits, AA placements and reinforcement time,
+estimated mass/energy required for defined coverage, and vulnerable mex count/value
+under fixed defense budgets. Mark whether coverage optimization is exact or an
+approximation; a greedy cover is a feasible cost bound, not the true minimum.</p>
+<p><strong>Preview:</strong> economy clusters, strike travel fields and example AA placements.
+<strong>Acceptance:</strong> clustered sites can share defenses; widely separated sites should
+require additional coverage. Compare terrain-detour cases, not size alone, and
+test selected strike/defense profiles in game.</p>
+<h2 id="step-6-tech-stage-pressure-and-economic-safety">Step 6 — Tech-stage pressure and economic safety</h2>
+<p>Reuse movement, firing reach, routes and defense coverage with representative
+T1/T2/T3 land/naval/air attack profiles. Preserve direct-fire versus artillery,
+sniper or missile roles. Include normal FAF faction differences and record any
+mode-dependent unit behavior in the profile rather than silently changing it.</p>
+<p>Define explicit economy/attack/defense scenarios. Resource sites are not evidence
+of actual built/upgraded mexes; evaluate target structures at stated tiers.
+Calculate potential production using pinned mex production/upgrade costs,
+hydro/energy options, accessible reclaim and stated build capacity. Initial
+reclaim access combines value with travel/collection assumptions, not radius alone.</p>
+<p><strong>Measurements:</strong> vulnerable target counts/value by attacker and target tier,
+nominal damage and time-to-kill, earliest travel/engagement times, coverage gained
+from a tech upgrade, safe/contested resource access, defense/reinforcement costs,
+and economic investment/payback under the defined scenario. Weapon timing must
+respect game ticks, salvos, beams and relevant script changes; do not assume
+<code>Damage * RateOfFire</code> is universally correct.</p>
+<p>Publish threat/defense curves over budgets and profiles. They let us describe
+which economy a map permits a chosen defense to protect, and what each tech stage
+can threaten. They do not assert that every player reaches T2 at one predicted
+minute. Actual tech timing remains conditional on the recorded strategy scenario.</p>
+<p><strong>Acceptance:</strong> use controlled unit-vs-mex tests for damage/kill time and selected
+upgrade/defense scenarios for economy calculations. Keep geometry-only results
+separate from those that need damage/trajectory/economy validation.</p>
+<h2 id="step-7-biomes-and-texture-composition">Step 7 — Biomes and texture composition</h2>
+<p>Read structured terrain strata, diffuse/normal paths, tiling scales, shader,
+stratum masks, decals and relevant water/lighting fields. Separate terrain albedo
+from normal maps, decals and effect assets so file references do not become a
+misleading terrain-texture count.</p>
+<p>Build a canonical texture-to-biome catalog from FAF editor group definitions and
+FAF/game environment assets. Normalize aliases. Record custom/unknown textures
+explicitly and allow mixed biomes; do not infer the whole map from its first
+<code>/env/</code> path. Retain asset provenance and map license metadata.</p>
+<p><strong>Measurements:</strong> unique referenced/actually used diffuse textures, normal/decal
+counts, area per material and biome, dominant biome, biome mixture, texture scale
+distribution, and texture use around water, cliffs and bases. Decode mask weights
+using the map&#39;s shader semantics, including implicit base strata; a loaded texture
+with zero visible weight is not a used design element. Custom shaders can have
+unknown area weights even if their texture paths are known.</p>
+<p><strong>Acceptance:</strong> compare the layer list and dominant/mixed biome against the map
+editor and representative game visuals. This module can be implemented earlier
+because it does not depend on combat calculations; its agreed scope remains
+asset composition rather than inferring beauty from texture counts.</p>
+<h2 id="storage-review-and-progression">Storage, review and progression</h2>
+<p>Use a map/configuration record plus separate unit profiles. Suggested outputs:</p>
+<ul>
+<li><code>cohort.json</code>: exact featured versions and source/configuration provenance.</li>
+<li><code>balance_profiles.json</code>: versioned unit, weapon and structure profiles.</li>
+<li><code>regions.npz</code> / <code>distance_fields.npz</code>: registered labels and distances.</li>
+<li><code>resource_analysis.parquet</code>: one resource identity with mode access, threat,
+region and ownership/configuration evidence; CSV export for manual inspection.</li>
+<li><code>routes.json</code>: corridor graph, pair/profile results and obstacle explanations.</li>
+<li><code>map_metrics.csv</code>: geometry, biome and configuration-independent summaries.</li>
+<li><code>scenario_metrics.csv</code>: map × setup × faction/profile × budget/tier summaries.</li>
+<li><code>feature_manifest.json</code>: definitions, units, inputs, validity flags and previews.</li>
+</ul>
+<p>Every strategic summary should expose its target/region IDs and a spatial witness
+(route, firing position, landing cluster or defense placement). Unknown values
+stay unknown. Build a short per-map visual report with our existing vault preview
+and registered overlays; keep new previews locally until an explicit release.</p>
+<p>Progress one module at a time. For each: implement on 2–3 representative featured
+maps, run boundary/consistency tests, review overlays, check disputed cases in
+game, then calculate all 33. Prefer concrete tests such as same-profile extra
+weapon reach not losing targets, removal of an obstacle not removing terrain
+reachability, and unchanged masks producing identical metrics and overlays.
+Document accepted deviations from the game and keep algorithm versions.</p>
+<p>The first implementation batch is <strong>scope/configuration manifest + balance
+profiles + validated navigation</strong>, followed by <strong>T1 frigate target coverage</strong>.
+This is the planning deliverable; no extraction integration, bulk rerender,
+questionnaire rewrite or deployment has been performed for this plan.</p>
+<h2 id="primary-implementation-references">Primary implementation references</h2>
+<ul>
+<li><a href="https://github.com/Garanas/scfa-cs-replay/blob/6cdd8137f633aa62e3ea9a50e9a8f82e1b513793/src/FAForever.FileFormats.Map/NavGenerator.cs">Community navigation</a></li>
+<li><a href="https://github.com/Garanas/scfa-cs-replay/blob/6cdd8137f633aa62e3ea9a50e9a8f82e1b513793/src/FAForever.FileFormats.Map/NavPaths.cs">Community routes</a></li>
+<li><a href="https://github.com/Garanas/scfa-cs-replay/blob/6cdd8137f633aa62e3ea9a50e9a8f82e1b513793/src/FAForever.FileFormats.Map/Scmap.cs">Structured map fields</a></li>
+<li><a href="https://github.com/FAForever/fa/blob/develop/engine/Core/Blueprints/WeaponBlueprint.lua">Weapon blueprint fields</a></li>
+<li><a href="https://github.com/FAForever/fa/blob/develop/engine/Core/Blueprints/UnitBlueprint.lua">Unit blueprint fields</a></li>
+<li><a href="https://github.com/FAForever/fa/blob/develop/lua/system/Blueprints.lua">FAF blueprint processing</a></li>
+</ul>
+<p>Pin the current released game revision chosen for implementation; <code>develop</code> links
+above document field meanings and are not an instruction to mix live development
+balance with a released-game profile.</p>
+<script src="model-atlas/public-links.js" data-public-links></script></body></html>

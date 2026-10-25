@@ -1,0 +1,269 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>layer-review.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="section-1-review-existing-evidence-and-pending-changes">Section 1 review: existing evidence and pending changes</h1>
+<p><strong>Historical review snapshot.</strong> The subsequent display correction is implemented;
+see <a href="layer-methods.md">current presentation methods</a> for completed changes and
+remaining exact-version gaps. The default background preference was subsequently
+updated to a very dim, separately labeled FAF vault preview (10% opacity).</p>
+<p>Reviewed 25 October 2026 against the five exact atlas versions. This is an
+inventory and TODO record. No extraction, scientific recomputation, tensor edits
+or PNG regeneration was performed. Access structure is a presentation rename;
+the saved <code>gameplay</code> field and existing anchors remain compatible.</p>
+<h2 id="accepted-in-this-review">Accepted in this review</h2>
+<p>Pathing and Surface appearance are accepted as currently presented. Retain the
+walk-access diagnostic with a clearer description; the explicit rename to
+Access structure has been applied without altering its stored arrays or PNGs.</p>
+<h2 id="background-rule">Background rule</h2>
+<p>For starts, markers, props, wrecks and civilians, default to <strong>no map background</strong>
+(transparent layer over a neutral viewer surface). A dimmed official FAF vault
+preview may be offered as optional context; label the source and registration
+uncertainty. Do not use extracted height/terrain as an implicit background.
+This rule concerns entity/marker overlays; terrain, water, pathing and surface
+appearance still visualize their own numeric fields.</p>
+<p>The current starts/markers/civilians/scenario PNGs were created by the new
+<a href="../../src/supmapai/tools/atlas_layers.py">atlas renderer</a>, not retrieved from an
+older preview library. The renderer explicitly applies <code>terrain // 2</code> and draws
+points over it. The raw coordinates remain in the linked JSON records. Pending:
+replace those display backgrounds, without changing coordinates or extracted data.</p>
+<h2 id="reclaim-resolution-and-channels">Reclaim resolution and channels</h2>
+<p>The atlas renderer sums mass per <strong>16×16 world-unit tile</strong>, producing only 32×32
+cells for 10km maps and 64×64 for 20km maps before enlarging the PNG. This is an
+atlas presentation choice, not the resolution limit of the available data.</p>
+<p>All five source caches contain native 512² or 1024² <code>reclaim.npz</code> arrays
+(<code>known_mass_per_cell</code>, <code>known_energy_per_cell</code>, entity counts and unknown-value
+counts), plus per-entity identities and values. The atlas diagnostics archive
+already retains native <code>natural</code>, <code>tree_energy</code>, <code>rock_mass</code> and <code>wrecks</code> arrays.
+The older transparent overlay library has <strong>4-world-unit</strong> mass/energy tiles,
+rendered at native 512/1024 PNG dimensions.</p>
+<ul>
+<li>TODO: expose separate natural <strong>energy</strong> and <strong>mass</strong> rows, using finer saved
+representations. Tree energy and natural-rock mass are also separate roles in
+the selected allocation model; document whether a source layer totals all
+natural prop mass or just the model&#39;s rock role.</li>
+<li>TODO: keep wreck mass separate from natural mass and render it from its native
+role field. Generic library reclaim-mass PNGs can include multiple reclaim
+categories; do not relabel those as wreck-only or natural-only.</li>
+<li>TODO: use no terrain background for entity overlays. Existing library PNGs
+are RGBA, but some legacy glyphs/legends and mixed entity semantics still need
+inspection before choosing one as the final atlas preview.</li>
+</ul>
+<h2 id="adaptive-settings-and-connections">Adaptive settings and connections</h2>
+<p>The current scenario PNG only repeats numbered starts. It does not display the
+resource connections that already exist in the saved records.</p>
+<table>
+<thead>
+<tr>
+<th>Exact map</th>
+<th align="right">Script-declared spawn–resource links</th>
+<th>Adaptive parser state</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Setons FAF <code>8553_17709</code></td>
+<td align="right">0</td>
+<td><code>unresolved</code></td>
+</tr>
+<tr>
+<td>Adaptive Canis <code>4617_6826</code></td>
+<td align="right">98</td>
+<td><code>resolved_supported_static_rules</code></td>
+</tr>
+<tr>
+<td>Adaptive Tabula Rasa <code>9675_18616</code></td>
+<td align="right">80</td>
+<td><code>resolved_supported_static_rules</code></td>
+</tr>
+<tr>
+<td>DualGap Adaptive <code>8070_26498</code></td>
+<td align="right">108</td>
+<td><code>resolved_supported_static_rules</code></td>
+</tr>
+<tr>
+<td>FAF Beetles <code>10838_21065</code></td>
+<td align="right">0</td>
+<td><code>unresolved</code></td>
+</tr>
+</tbody></table>
+<p>Connections are in <code>adaptive_options.json.resource_connections</code> and
+<code>markers.json.resource_connections</code>, including marker name, resource type, slot,
+source table and <code>script_declared</code> association. Source starts also retain
+<code>connected_resources</code>. Existing <code>adaptive_slots.png</code> overlays are available for
+all five maps; Canis/Tabula/DualGap are the meaningful supported cases here.</p>
+<p>Entity records contain <code>adaptive_dependencies</code>, including global natural-reclaim
+multipliers, regrowth status and some audited player-count/optional-group wreck
+rules. The common <code>scope: global_option_not_slot_owned</code> flag is <strong>not</strong> a
+spawn→prop ownership edge. Option catalogs include unresolved effects, so the
+presence of an option does not prove its full prop activation rule is extracted.</p>
+<ul>
+<li>TODO: show saved spawn→mex/hydro links in the scenario section, with a legend.</li>
+<li>TODO: surface recorded option→entity/group dependencies separately.</li>
+<li>TODO: identify unsupported spawn→prop/group rules and record them explicitly;
+do not infer those edges from proximity or global option metadata.</li>
+<li>TODO: distinguish non-adaptive/static maps from parser <code>unresolved</code> outputs;
+an empty link list is not proof that an adaptive script has no links.</li>
+</ul>
+<h2 id="air-restore-three-actual-analyses">Air: restore three actual analyses</h2>
+<p>The displayed red/blue map is a new atlas distance proxy:
+<code>(distance_to_B - distance_to_A) / map_diagonal</code>. It is not the established air
+analysis and should be replaced in the atlas navigation.</p>
+<p>For <strong>all five exact versions</strong>, the historical collection contains separate
+<strong>expansion drops</strong>, <strong>offensive drops</strong> and <strong>air raids</strong>, for each selected
+side. <code>automatic_layers.npz</code> retains <code>medium_ARMY_*_expansion</code>,
+<code>medium_ARMY_*_offensive</code> and <code>medium_ARMY_*_air</code> plus strict/permissive variants.
+<code>auto_ARMY_*_{expansion,offensive,air}.png</code> are existing overlays.
+<code>opportunities.json</code> records the setup, gates, response/economy assumptions and
+candidate/rejection reasons. DualGap&#39;s historical pair is ARMY_1 versus ARMY_12;
+other selected versions use ARMY_1 versus ARMY_2. These are not team-game labels.</p>
+<p>The v1.2.1 annotation batch also has newer opportunity fields for Canis, Tabula
+and DualGap. Matching v1.2.1 jobs for Setons FAF and FAF Beetles were not found in
+the checked batch. Do not mix historical and newer calculations in an unlabeled
+comparison row.</p>
+<ul>
+<li>TODO: replace the atlas proxy with three separately explained families using
+saved outputs, retaining exact scenario/pipeline versions.</li>
+<li>TODO: record remaining newer-pipeline coverage gaps; no reruns in this review.</li>
+</ul>
+<h2 id="resource-abundance">Resource abundance</h2>
+<p>The current atlas row is a duplicate aggregate: natural known mass + wreck known
+mass with mex markers. I added it while assembling the draft. It is not the
+project&#39;s handling-adjusted abundance, collection-effort or economic-return
+analysis. A duplicate row under that name adds confusion.</p>
+<ul>
+<li>TODO: remove the duplicate stock panel from the atlas structure; retain the
+source mass/energy/wreck layers. If a genuine derived abundance view is added,
+identify the separate handling, travel, stock and timing policy it uses.</li>
+</ul>
+<h2 id="access-and-access-structure">Access and access structure</h2>
+<p>The current Access &amp; economy PNG is another atlas-only diagnostic: the land
+component connected to the closest passable seed near A. It contains <strong>no</strong>
+economic classification or timed economy. Its seed offset is recorded.</p>
+<p>The renamed <strong>Access structure</strong> row colors all four-neighbor land bodies. It
+is useful for separated walk-access bodies, but is not yet a per-spawn access
+classification. Colors repeat after 255 and do not imply cross-map identities.</p>
+<ul>
+<li>TODO: clarify/rename Access &amp; economy as walk access unless actual economy
+fields are shown there.</li>
+<li>TODO: pair access bodies with each scenario spawn&#39;s reachability; preserve
+movement-layer distinctions. No recalculation in this review.</li>
+</ul>
+<h2 id="main-battle-paths">Main battle paths</h2>
+<p>Saved <code>strategy_collection_1v1/&lt;key&gt;/routes.json</code> exists for <strong>all five versions</strong>,
+with land/amphibious/hover alternatives, widths and source starts. These are
+algorithmic route hypotheses, not observed army movement or a trained battle-path
+predictor. The historical DualGap selected pair has no land route; do not invent
+one or replace its scenario silently.</p>
+<p>More recent own-half/frontier networks exist for Setons FAF, Canis, Tabula and
+DualGap in <code>frontier_map_comparison/&lt;key&gt;/</code>: <code>result.json</code>, <code>K*_paths.png</code>,
+<code>K*_territories.png</code> and <code>K*_territory.npz</code>. They encode contact-budget variants,
+shared approaches and response territories. A matching FAF Beetles case was not
+found in this comparison. Newer v1.2.1 <code>fronts/fronts.json.gz</code> exists for Canis,
+Tabula and DualGap; inspect status/disconnected cases before describing these
+as successful fitted fronts.</p>
+<ul>
+<li>TODO: add a Main battle paths section using existing artifacts, distinguishing
+whole-map alternative routes from own-half economic fronts/contact response.</li>
+<li>TODO: select and label a contact budget and exact setup; list missing newer
+cases rather than substituting stock or similarly named versions.</li>
+</ul>
+<h2 id="main-base-rear-contestable-resources">Main-base / rear / contestable resources</h2>
+<p>The actual whole-economy implementation contains per-side <strong>near_base</strong>, <strong>rear</strong>
+and <strong>forward_or_flank</strong> roles, resource identities, walking access and a
+one-engineer 300-second mass ledger. It is independent of the simple atlas land
+component. <code>whole_economy/layers.npz</code> stores <code>ARMY_*_roles</code> and <code>ARMY_*_access</code>;
+<code>economy.json.gz</code> retains resource and location records.</p>
+<p>The current v1.2.1 batch has these fields for <strong>Canis, Tabula and DualGap</strong>.
+The seven-map starting-economy comparison also contains those three, but its
+Setons and Beetles entries are <strong>stock</strong> <code>433_560</code> and <code>4822_7169</code>. They must not
+be shown as FAF <code>8553_17709</code> or <code>10838_21065</code>. Matching whole-economy outputs for
+the two FAF versions were not found in the checked runs.</p>
+<p>Historical <code>opportunities.json</code> also contains friendly/enemy/contested territory
+records. A forward/flank role, shared-neutral access and a contested opportunity
+region are different definitions; they cannot be silently merged into a single
+&quot;contestable resources&quot; target.</p>
+<ul>
+<li>TODO: add the main-base/rear/resource-access section from existing outputs.</li>
+<li>TODO: specify what &quot;contestable&quot; should mean and use the matching saved field,
+or mark the requested unified label as not yet available.</li>
+<li>TODO: record missing exact-version whole-economy coverage for Setons FAF and
+FAF Beetles. Do not recompute it during this review.</li>
+</ul>
+<h2 id="evidence-index">Evidence index</h2>
+<p>Paths below point to already-saved artifacts. The accompanying
+<a href="layer-review-inventory.json">layer-review-inventory.json</a> records their hashes,
+array names/shapes and exact-version coverage. This is a review snapshot, not a
+new scientific release.</p>
+<h3 id="setons-faf-8553_17709">Setons FAF <code>8553_17709</code></h3>
+<ul>
+<li><a href="../../data/processed/project_atlas_v1/8553_17709/adaptive_options.json">Saved adaptive links</a></li>
+<li><a href="../../data/processed/project_atlas_v1/8553_17709/entities.json">Entity values / option dependencies</a></li>
+<li><a href="../../data/processed/library_overlays/8553_17709/reclaim_mass.png">Existing mass overlay</a></li>
+<li><a href="../../data/processed/library_overlays/8553_17709/reclaim_energy.png">Existing energy overlay</a></li>
+<li><a href="../../data/processed/strategy_collection_1v1/8553_17709/automatic_layers.npz">Three air-analysis families</a></li>
+<li><a href="../../data/processed/strategy_collection_1v1/8553_17709/opportunities.json">Air analysis reasons / scenario</a></li>
+<li><a href="../../data/processed/strategy_collection_1v1/8553_17709/routes.json">Historical battle routes</a></li>
+<li><a href="../../data/processed/frontier_map_comparison/8553_17709/result.json">Own-half frontier results</a></li>
+</ul>
+<h3 id="adaptive-canis-4617_6826">Adaptive Canis <code>4617_6826</code></h3>
+<ul>
+<li><a href="../../data/processed/project_atlas_v1/4617_6826/adaptive_options.json">Saved adaptive links</a></li>
+<li><a href="../../data/processed/project_atlas_v1/4617_6826/entities.json">Entity values / option dependencies</a></li>
+<li><a href="../../data/processed/library_overlays/4617_6826/reclaim_mass.png">Existing mass overlay</a></li>
+<li><a href="../../data/processed/library_overlays/4617_6826/reclaim_energy.png">Existing energy overlay</a></li>
+<li><a href="../../data/processed/strategy_collection_1v1/4617_6826/automatic_layers.npz">Three air-analysis families</a></li>
+<li><a href="../../data/processed/strategy_collection_1v1/4617_6826/opportunities.json">Air analysis reasons / scenario</a></li>
+<li><a href="../../data/processed/strategy_collection_1v1/4617_6826/routes.json">Historical battle routes</a></li>
+<li><a href="../../data/processed/frontier_map_comparison/4617_6826/result.json">Own-half frontier results</a></li>
+<li><a href="../../data/processed/strategy_annotation_batch/v1.2.1/f1ae04e925f139a8/jobs/4617_6826/opportunities/layers.npz">v1.2.1 opportunities/layers.npz</a></li>
+<li><a href="../../data/processed/strategy_annotation_batch/v1.2.1/f1ae04e925f139a8/jobs/4617_6826/fronts/fronts.json.gz">v1.2.1 fronts/fronts.json.gz</a></li>
+<li><a href="../../data/processed/strategy_annotation_batch/v1.2.1/f1ae04e925f139a8/jobs/4617_6826/whole_economy/layers.npz">v1.2.1 whole_economy/layers.npz</a></li>
+<li><a href="../../data/processed/strategy_annotation_batch/v1.2.1/f1ae04e925f139a8/jobs/4617_6826/whole_economy/economy.json.gz">v1.2.1 whole_economy/economy.json.gz</a></li>
+</ul>
+<h3 id="adaptive-tabula-rasa-9675_18616">Adaptive Tabula Rasa <code>9675_18616</code></h3>
+<ul>
+<li><a href="../../data/processed/project_atlas_v1/9675_18616/adaptive_options.json">Saved adaptive links</a></li>
+<li><a href="../../data/processed/project_atlas_v1/9675_18616/entities.json">Entity values / option dependencies</a></li>
+<li><a href="../../data/processed/library_overlays/9675_18616/reclaim_mass.png">Existing mass overlay</a></li>
+<li><a href="../../data/processed/library_overlays/9675_18616/reclaim_energy.png">Existing energy overlay</a></li>
+<li><a href="../../data/processed/strategy_collection_1v1/9675_18616/automatic_layers.npz">Three air-analysis families</a></li>
+<li><a href="../../data/processed/strategy_collection_1v1/9675_18616/opportunities.json">Air analysis reasons / scenario</a></li>
+<li><a href="../../data/processed/strategy_collection_1v1/9675_18616/routes.json">Historical battle routes</a></li>
+<li><a href="../../data/processed/frontier_map_comparison/9675_18616/result.json">Own-half frontier results</a></li>
+<li><a href="../../data/processed/strategy_annotation_batch/v1.2.1/f1ae04e925f139a8/jobs/9675_18616/opportunities/layers.npz">v1.2.1 opportunities/layers.npz</a></li>
+<li><a href="../../data/processed/strategy_annotation_batch/v1.2.1/f1ae04e925f139a8/jobs/9675_18616/fronts/fronts.json.gz">v1.2.1 fronts/fronts.json.gz</a></li>
+<li><a href="../../data/processed/strategy_annotation_batch/v1.2.1/f1ae04e925f139a8/jobs/9675_18616/whole_economy/layers.npz">v1.2.1 whole_economy/layers.npz</a></li>
+<li><a href="../../data/processed/strategy_annotation_batch/v1.2.1/f1ae04e925f139a8/jobs/9675_18616/whole_economy/economy.json.gz">v1.2.1 whole_economy/economy.json.gz</a></li>
+</ul>
+<h3 id="dualgap-adaptive-8070_26498">DualGap Adaptive <code>8070_26498</code></h3>
+<ul>
+<li><a href="../../data/processed/project_atlas_v1/8070_26498/adaptive_options.json">Saved adaptive links</a></li>
+<li><a href="../../data/processed/project_atlas_v1/8070_26498/entities.json">Entity values / option dependencies</a></li>
+<li><a href="../../data/processed/library_overlays/8070_26498/reclaim_mass.png">Existing mass overlay</a></li>
+<li><a href="../../data/processed/library_overlays/8070_26498/reclaim_energy.png">Existing energy overlay</a></li>
+<li><a href="../../data/processed/strategy_collection_1v1/8070_26498/automatic_layers.npz">Three air-analysis families</a></li>
+<li><a href="../../data/processed/strategy_collection_1v1/8070_26498/opportunities.json">Air analysis reasons / scenario</a></li>
+<li><a href="../../data/processed/strategy_collection_1v1/8070_26498/routes.json">Historical battle routes</a></li>
+<li><a href="../../data/processed/frontier_map_comparison/8070_26498/result.json">Own-half frontier results</a></li>
+<li><a href="../../data/processed/strategy_annotation_batch/v1.2.1/f1ae04e925f139a8/jobs/8070_26498/opportunities/layers.npz">v1.2.1 opportunities/layers.npz</a></li>
+<li><a href="../../data/processed/strategy_annotation_batch/v1.2.1/f1ae04e925f139a8/jobs/8070_26498/fronts/fronts.json.gz">v1.2.1 fronts/fronts.json.gz</a></li>
+<li><a href="../../data/processed/strategy_annotation_batch/v1.2.1/f1ae04e925f139a8/jobs/8070_26498/whole_economy/layers.npz">v1.2.1 whole_economy/layers.npz</a></li>
+<li><a href="../../data/processed/strategy_annotation_batch/v1.2.1/f1ae04e925f139a8/jobs/8070_26498/whole_economy/economy.json.gz">v1.2.1 whole_economy/economy.json.gz</a></li>
+</ul>
+<h3 id="faf-beetles-10838_21065">FAF Beetles <code>10838_21065</code></h3>
+<ul>
+<li><a href="../../data/processed/project_atlas_v1/10838_21065/adaptive_options.json">Saved adaptive links</a></li>
+<li><a href="../../data/processed/project_atlas_v1/10838_21065/entities.json">Entity values / option dependencies</a></li>
+<li><a href="../../data/processed/library_overlays/10838_21065/reclaim_mass.png">Existing mass overlay</a></li>
+<li><a href="../../data/processed/library_overlays/10838_21065/reclaim_energy.png">Existing energy overlay</a></li>
+<li><a href="../../data/processed/strategy_collection_1v1/10838_21065/automatic_layers.npz">Three air-analysis families</a></li>
+<li><a href="../../data/processed/strategy_collection_1v1/10838_21065/opportunities.json">Air analysis reasons / scenario</a></li>
+<li><a href="../../data/processed/strategy_collection_1v1/10838_21065/routes.json">Historical battle routes</a></li>
+</ul>
+<h3 id="methodology-notes">Methodology notes</h3>
+<ul>
+<li><a href="../map_layers_v2.md">Map layers</a></li>
+<li><a href="../netlify-overlay-library.md">Questionnaire overlay library</a></li>
+<li><a href="../opportunities_1v1.md">Air/drop opportunities</a></li>
+<li><a href="../map_strategy_overview.md">Strategy overview and version boundaries</a></li>
+<li><a href="../starting_rear_economy.md">Starting/rear economy</a></li>
+<li><a href="../obstacle_separated_routes.md">Obstacle-separated routes</a></li>
+<li><a href="../economic_front_expert_review.md">Economic fronts</a></li>
+</ul>
+<script src="public-links.js" data-public-links></script></body></html>

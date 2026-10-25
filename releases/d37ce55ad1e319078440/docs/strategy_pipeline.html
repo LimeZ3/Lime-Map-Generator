@@ -1,0 +1,263 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>strategy_pipeline.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="versioned-mass-first-strategy-pipeline">Versioned mass-first strategy pipeline</h1>
+<blockquote>
+<p><strong>22 October, version 1.2.0:</strong> <a href="strategy_labeling_v1.md">production labels v1</a>
+add automatic 5% front saturation, three UEF naval estimates, width/control
+aggregation and a reusable 1–5 scoring export. Use
+<code>configs/strategy_labels_v1.json</code> for this fixed policy; the older sensitivity
+configuration remains available. The current authorization is a 100-map batch,
+with independent per-map audits, before the user reviews a full-library run.
+<strong>1.2.1 input patch:</strong> validated and literal start-expanded playable scope;
+independent-reader parity uses that same scope. Complex timed boundary changes
+stay explicit unsupported cases. Algorithms and label thresholds are unchanged.</p>
+</blockquote>
+<blockquote>
+<p><strong>22 October, version 1.1.0:</strong> the <a href="starting_rear_economy.md">whole-side opening economy stage</a>
+includes starting/rear resources and engineer travel in one shared cash/work
+ledger. Four popular-map previews and an independent audit are available. The
+older full-library 1.0.0 plan remains unstarted and needs replanning.</p>
+</blockquote>
+<p>Implemented 19 October 2026. Entry point:
+<code>python -m supmapai.tools.run_strategy_pipeline</code>.
+The <a href="../configs/strategy_pipeline_mass_v1.json">settings file</a> contains the operating
+defaults. This pipeline connects the newer shared mass economy, economic fronts
+and contact-response drop/air calculations without depending on the old 630-map
+report or named-map pilot lists.</p>
+<h2 id="scope">Scope</h2>
+<ul>
+<li>Every supplied <strong>map version</strong> is a separate job. Identity uses parent ID plus
+version ID, source contents, settings, code and pinned dependencies. There is
+no latest-parent deduplication or hidden-map filter.</li>
+<li>The default input is the existing latest-version download catalogue. Additional
+catalogues and local directory trees can include older versions. This does not
+download missing historical versions or retry old map downloads.</li>
+<li>Native structural terrain navigation supports SCMAP 52, 53, 56 and 60 through
+the repaired legacy/modern reader. A corrupt or unknown format is recorded
+explicitly; compatibility is not achieved by silently ignoring terrain codes.</li>
+<li>Default setup is 1v1, slot 1 versus a meaningful terrain-compatible counterpart.
+Explicit setup files can select another real pair. Maps without a meaningful
+default opponent are listed as excluded, without zero opportunity scores.</li>
+<li>Qualified symmetry is enforced through conservative passability intersection
+and exactly reflected fronts. Otherwise a real two-player/explicit pair uses
+two independent own-half fronts; no enemy geometry is invented.</li>
+<li>Land-disconnected maps still receive hover-engineer expansion and generic air
+analysis. Their connecting land-front stage is not applicable, rather than
+an extraction failure. Latest front fitting remains land-only.</li>
+</ul>
+<h2 id="connected-calculation">Connected calculation</h2>
+<pre><code class="language-text">local version + coherent scenario/save/terrain/script family
+    -&gt; structural movement masks + actual two-slot default resources
+    -&gt; configured props / initial wrecks and numerical mass inventory
+    -&gt; fixed 1s-per-entity / three-group collection policy
+    -&gt; one shared construction/reclaim schedule before route fitting
+    -&gt; three mex/reclaim balance settings, contact budgets 1..8
+    -&gt; resource-attracted deployment, shared sections and contact territories
+    -&gt; economic value / deployment time -&gt; normalized route-response budget
+    -&gt; physical walking from stationed contacts, base response and hover access
+    -&gt; strict / medium / permissive expansion, offensive and generic-air targets
+    -&gt; versioned JSON, numerical layers, PNGs, CSV and interactive report
+</code></pre>
+<p>One existing UEF T1 engineer shares a 300-second window across the eligible own-side
+land-front pool, including separately attributed Base-preferred resources. T1 mex
+construction costs/time and income after completion are included. A disclosed
+36-mass capital advance enables the first build and is excluded from gain.
+Reclaim retains <code>mass/25 + 1s</code> work. Equal jobs share expected attribution, so
+task ordering does not invent asymmetric importance.</p>
+<p>Expected collected mass and net constructed-mex returns become spatial values
+<strong>before</strong> optimizing contacts. Adding a contact cannot manufacture engineer work,
+stock or income. Allocation is recomputed on each resulting layout. Existing
+terrain rules, endpoint capture, exact qualified symmetry and shared approaches
+remain in use.</p>
+<p>On qualified symmetric maps the selected own-side economic reference is mirrored
+with the geometry/response allocation. This is explicitly a normalized canonical
+reference, not a claim that slightly different enemy prop stock was independently
+fitted. Asymmetric pairs are evaluated independently on both sides.</p>
+<p>Contact weights are proportional to allocated net mass divided by deployment
+travel time and sum to one route-response budget. The independent base-response
+strength remains available. Defending economic areas use own-half physical walks;
+response across the frontier to an expansion uses the full physical land graph.
+No point along a deployment trace becomes a free stationed army source.</p>
+<h2 id="settings-retained">Settings retained</h2>
+<table>
+<thead>
+<tr>
+<th>Setting</th>
+<th>Defaults / interpretation</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Reclaim versus mex balance</td>
+<td>Three multipliers <strong>0.5 / 1 / 2</strong> on the mex component. <code>alpha = collected_reclaim / (collected_reclaim + multiplier * net_mex_mass)</code>. Lower multiplier favors reclaim. All use the same shared-work window.</td>
+</tr>
+<tr>
+<td>Route-response strength</td>
+<td><strong>25% / 50% / 100%</strong>, plus the automatic connectivity/directness primary setting. This changes assumed suppressive capacity, not physical walking speed.</td>
+</tr>
+<tr>
+<td>Base-response strength</td>
+<td><strong>50% / 100%</strong> retained from the collection sensitivity set.</td>
+</tr>
+<tr>
+<td>Drop opportunity preset</td>
+<td><strong>Strict / medium / permissive</strong>, with existing economic and response gates.</td>
+</tr>
+<tr>
+<td>Contact budget</td>
+<td><strong>1..8</strong> retained; default display is <strong>K4</strong>, an explicit review setting, not a claim that every map has four routes. Actual contacts may be fewer.</td>
+</tr>
+<tr>
+<td>Reclaim policy</td>
+<td><strong>1s acquisition per entity, three map-relative groups</strong>, 25 mass/s processing hypothesis. No new delay or group-count sweeps.</td>
+</tr>
+</tbody></table>
+<p>The balance names <code>early/context/late</code> remain artifact identifiers for the three
+existing settings. In this pipeline their numeric factors adjust the balance of
+the two finite-window mass returns; they do not run three different engineer
+schedules or add independent work budgets. All values/settings are exported.</p>
+<p>The configuration file retains the three tunable balance factors and response
+strength lists. Changing them creates a different run identity. There is no
+automatic search for values that reproduce known player rankings.</p>
+<p><strong>Energy is ignored for scoring.</strong> It cannot change collection order, economic
+return, route attraction, response weights or target flags. Source energy fields
+can remain in the reused entity extraction, but no energy-tier, power-stall or
+mass-to-energy optimization runs. Hydros remain identifiable spatial markers;
+their energy return is not monetized.</p>
+<h2 id="important-interpretation-limits">Important interpretation limits</h2>
+<p>The shared schedule is a feasible mass-return approximation, not optimal play.
+It omits travel, worker production, upgrades, existing base income, combat and
+storage constraints. The independent base and route strengths remain hypotheses
+about available defenders; AA and intel are unknown.</p>
+<p>The calibrated drop reward screen still uses the existing T1 mex saved-income /
+income-denial proxy. The new mass economy changes <strong>front placement and response
+allocation</strong>. It does not pretend that gunships can damage initial rock mass, or
+that the drop&#39;s complete construction/financing/combat ROI is simulated. Regions
+also export known reclaim and unresolved counts for later interpretation.</p>
+<p>Generic air raids include underwater mexes through torpedo aircraft, using the
+agreed representative gunship economics. Numerical naval firing potential is
+not recomputed here; naval support and scripted wall/dynamic hazard collision
+remain explicit limitations. No universal independent-route count or new 1–5
+gameplay rating is inferred.</p>
+<h2 id="running">Running</h2>
+<p>From the workspace, using the existing runtime:</p>
+<pre><code class="language-powershell">$env:PYTHONPATH=&#39;src&#39;
+
+# Freeze a full-library plan and report without starting computation.
+.venv-codex/Scripts/python.exe -m supmapai.tools.run_strategy_pipeline --plan --config configs/strategy_pipeline_mass_v1.json
+
+# Run that selection. The same inputs/settings/code resolve to the same run.
+.venv-codex/Scripts/python.exe -m supmapai.tools.run_strategy_pipeline --config configs/strategy_pipeline_mass_v1.json --workers 2
+
+# Inspect progress; no process-inspection permission is required.
+.venv-codex/Scripts/python.exe -m supmapai.tools.run_strategy_pipeline --status
+
+# Resume a particular saved run using its printed path.
+.venv-codex/Scripts/python.exe -m supmapai.tools.run_strategy_pipeline --run-dir data/processed/strategy_pipeline/v1.0.0/RUN_ID --workers 2
+
+# Regenerate report tables or independently audit completed artifacts.
+.venv-codex/Scripts/python.exe -m supmapai.tools.run_strategy_pipeline --report --run-dir data/processed/strategy_pipeline/v1.0.0/RUN_ID
+.venv-codex/Scripts/python.exe -m supmapai.tools.audit_strategy_pipeline --run-dir data/processed/strategy_pipeline/v1.0.0/RUN_ID
+</code></pre>
+<p>Add repeated <code>--key MAP_ID_VERSION_ID</code> arguments for a smoke cohort, or <code>--limit N</code>
+for a bounded run. Repeated <code>--catalog path.csv</code> arguments combine compatible
+catalogues without collapsing versions. <code>--maps-root path</code> recursively discovers
+local map folders and assigns stable local identities. It can be repeated and
+combined with catalogues; directory discovery does not identify those folders as
+official FAF IDs. Do not include the same physical map through both input methods
+unless separate identities are intentional.</p>
+<p>Compatible catalogue rows use <code>map_id</code>, <code>version_id</code>, <code>display_name</code>, <code>folder_name</code>,
+<code>local_path</code> and JSON path arrays <code>scmap_paths</code>, <code>scenario_paths</code>, <code>save_paths</code>,
+<code>script_paths</code>. Conflicting locations for one official version are rejected.
+Coherent scenario-family selection handles bundled backup files.</p>
+<p>For an explicit pair, use <code>--setups setups.json</code>:</p>
+<pre><code class="language-json">{&quot;maps&quot;:{&quot;MAP_ID_VERSION_ID&quot;:{&quot;active_slots&quot;:[1,2],&quot;evidence&quot;:&quot;Reviewed intended 1v1 pairing&quot;}}}
+</code></pre>
+<p>The slots must really exist. A setup is tied to the versioned run; it does not
+silently reinterpret older results.</p>
+<h2 id="resuming-limits-and-progress">Resuming, limits and progress</h2>
+<ul>
+<li><code>run.json</code> freezes selection, settings, dependencies and code fingerprints.
+<code>latest_run.json</code> points to the most recently prepared run.</li>
+<li>Each version has independently sealed navigation, configured extraction,
+economic-front and opportunity stages. Economy/schedule evidence is included
+in the economic-front stage. Source, auxiliary Lua, map-local blueprint, settings
+and dependency changes invalidate affected saved work.</li>
+<li>Every consumed numerical artifact has an output hash. Cache validation follows
+nested stage manifests and detects a modified/deleted array, not only changed
+metadata. Source hashes are rechecked before committing completed output.</li>
+<li>An OS controller lease prevents duplicate controllers. Worker-slot and per-map
+leases survive controller interruption until existing workers finish and are
+automatically released on process exit. A resumed controller waits for orphan
+workers instead of overlapping them; it does not infer death from denied PID
+inspection.</li>
+<li><code>status.json</code> reports controller heartbeat, queue, checked count and active stages.
+Workers also write independent five-second <code>heartbeat.json</code> files during long
+calculations. A fresh heartbeat means active processing; a stage name need not
+change every few seconds.</li>
+<li>Jobs run in isolated processes, normally two at a time, with a 1,200-second
+timeout. A conservative per-job memory estimate defaults to a 6 GiB ceiling.
+Resource-budget deferral is explicit, rather than silently reducing resolution.
+Larger supported inputs can use a materially larger <code>--memory-gb</code> budget and
+<code>--timeout</code> when the machine can provide it.</li>
+<li><code>--retry-failed</code> is explicit; routine resume does not continually retry failures.
+Changed code/settings create a new reproducible plan rather than overwriting an
+older algorithm&#39;s report. The pipeline has no replay/API/download operation.</li>
+</ul>
+<p>Each completed job stores <code>result.json</code>, <code>navigation/</code>, configured <code>extraction/</code>,
+<code>fronts/fronts.json.gz</code>, primary territory PNG/NPZ files, and
+<code>opportunities/opportunities.json.gz</code>, numerical layers and RGB-encoded target-area
+PNG. Per-scenario exports retain the three balances, all contact budgets, response
+strengths and presets. Primary evaluations retain rejection checks; alternate
+strengths retain scores and per-side target IDs.</p>
+<p>Repeated scenario and entity records use deterministic gzip-compressed JSON.
+The browser decompresses them locally. Python consumers can use
+<code>json.loads(gzip.decompress(path.read_bytes()))</code>. Pipeline extraction skips unused
+pilot renders and gradient tensors; it retains configured entity identities/values,
+reclaim arrays, markers and provenance. Existing annotation assets remain their
+own library, and the pipeline produces its native terrain/target/territory previews.</p>
+<p>The run root contains <code>index.html</code>, <code>report.json</code>, <code>report.md</code>, <code>metrics.csv</code>,
+<code>status.json</code> and, after auditing, <code>validation.json</code>. The CSV is the primary
+balanced/K4/medium view; the full parameter combinations remain per-version JSON.
+Reports distinguish completed, excluded, failed and pending versions. Unknown
+mass is a lower bound, not zero; failed/excluded jobs do not receive fake scores.</p>
+<h2 id="validation">Validation</h2>
+<p>The new unit cases cover version retention, hidden entries, nested-cache corruption,
+exclusive leases, legacy structural navigation, opponent selection, asymmetric and
+reclaim-only fronts, shared mass conservation, ignored-energy invariance and the
+distinction between stationed contacts and deployment pixels. The extraction and
+strategy regression suite passed <strong>256 tests</strong> after integration.</p>
+<p>Real-map validation uses Astro, Seton&#39;s, Drunken Beetles, Morning Prayer, DualGap,
+Adaptive Tabula Rasa and Pandemonium Pass. Recorded run IDs, final audit counts,
+preview links and the prepared full-library plan are appended below after the
+completed smoke and cache-resume checks. This is pipeline verification and a
+review set, not blind gameplay validation.</p>
+<h3 id="recorded-smoke-and-prepared-library-plan">Recorded smoke and prepared library plan</h3>
+<p>The final seven-map run is <strong><code>cecafc8249b05744</code></strong>:</p>
+<ul>
+<li><a href="http://127.0.0.1:5177/strategy_pipeline/v1.0.0/cecafc8249b05744/index.html">Interactive report</a></li>
+<li><a href="../data/processed/strategy_pipeline/v1.0.0/cecafc8249b05744/validation.json">Numerical audit</a></li>
+<li><a href="../data/processed/strategy_pipeline/v1.0.0/cecafc8249b05744/storage_parity_validation.json">Storage/numerical parity</a></li>
+<li><a href="../data/processed/strategy_pipeline/v1.0.0/cecafc8249b05744/cache_resume_validation.json">Cache-resume check</a></li>
+<li><a href="../data/processed/strategy_pipeline/v1.0.0/cecafc8249b05744/metrics.csv">Primary metrics</a></li>
+</ul>
+<p>All seven completed without failures: <strong>336 front configurations</strong> (including
+mirrored side exports), <strong>1,176 response scenarios and 314 scheduled events</strong>
+audited. Actual inputs cover SCMAP 53/56/60;
+reader fixtures cover 52 as well. Compressed front/opportunity payloads, mass
+inventories and primary scores match the preceding uncompressed seven-map run
+exactly. Omitting unused intermediate renders and compressing records reduces
+these seven jobs from 665.4 MB to 22.1 MB, approximately <strong>96.7%</strong>. This is a measured
+storage comparison on the review set, not a promised library-wide size or runtime.
+Resuming the finished run revalidated inputs and nested artifact hashes without
+rewriting any of the <strong>91 checked result, manifest or numerical files</strong>.</p>
+<p>The full existing catalogue has a prepared <strong>14,811-entry</strong> plan,
+<strong><code>863684c86aa606bc</code></strong>, including hidden entries. Its source is the existing
+latest-version catalogue; older versions can be added through additional
+catalogues/folders. The large run is <strong>planned, not started</strong>. Missing local source
+files and unsupported cases will be reported explicitly when attempted.</p>
+<pre><code class="language-powershell">$env:PYTHONPATH=&#39;src&#39;
+.venv-codex/Scripts/python.exe -m supmapai.tools.run_strategy_pipeline --run-dir data/processed/strategy_pipeline/v1.0.0/863684c86aa606bc --workers 2
+</code></pre>
+<p>Its <a href="../data/processed/strategy_pipeline/v1.0.0/863684c86aa606bc/run.json">run contract</a>
+and <a href="../data/processed/strategy_pipeline/v1.0.0/863684c86aa606bc/metrics.csv">initial per-version CSV</a>
+make the selection reviewable before computation. <code>--status</code> uses this prepared
+run through <code>latest_run.json</code>; use <code>--run-dir</code> to inspect the completed smoke.</p>
+<script src="model-atlas/public-links.js" data-public-links></script></body></html>

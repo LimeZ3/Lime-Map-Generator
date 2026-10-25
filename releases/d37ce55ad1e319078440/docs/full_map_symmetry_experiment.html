@@ -1,0 +1,276 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>full_map_symmetry_experiment.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="full-map-symmetry-comparison">Full-Map Symmetry Comparison</h1>
+<p>Return to the existing full-map joint height/water/depth checkpoint. The half-map
+training experiment remains preserved but is not used here. No new training,
+source extraction, resource/prop generation or game export is performed.</p>
+<h2 id="matched-cases">Matched Cases</h2>
+<p>Four seeds (101, 202, 303, 404), three requested water fractions (0%, 20%, 40%),
+and five patterns: 180-degree rotation, X reflection, Z reflection, diagonal and
+antidiagonal reflection. This gives 60 cases. Each case has eight terrain views:</p>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Operation</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Raw</td>
+<td>Unmodified output from the full-map model</td>
+</tr>
+<tr>
+<td>Average</td>
+<td>Average the physical fields with their transformed copies</td>
+</tr>
+<tr>
+<td>Copy A</td>
+<td>Keep one side and transform it onto the other</td>
+</tr>
+<tr>
+<td>Copy B</td>
+<td>The opposite side wins instead</td>
+</tr>
+<tr>
+<td>Water-aware</td>
+<td>Rank complete symmetry orbits to retain the original water amount; reconcile height sign and depth</td>
+</tr>
+<tr>
+<td>Refine 250</td>
+<td>Water-aware candidate, noised to t=250, then 50 constrained denoising steps</td>
+</tr>
+<tr>
+<td>Refine 500</td>
+<td>Same candidate/noise seed, but t=500 and 50 denoising steps</td>
+</tr>
+<tr>
+<td>Projected noise</td>
+<td>Generate a full map from symmetric unit-variance noise, enforcing symmetry throughout 100 denoising steps</td>
+</tr>
+</tbody></table>
+<p>All enforcement methods within a case share exactly the same original full map,
+spawn anchors, requested profile and checkpoint. Projected-from-noise is an
+additional sampling control, not postprocessing of the original map.</p>
+<p>Anchor pairs are chosen so each pattern swaps player A and B. Rotational and
+antidiagonal cases share the same original; other patterns use different anchor
+layouts. Comparing patterns is consequently not an identical-input experiment.
+90-degree/fourfold symmetry is deliberately excluded from this two-player pilot.</p>
+<h2 id="important-details">Important Details</h2>
+<ul>
+<li>All three structural channels receive the same spatial transformation.</li>
+<li>Diffusion noise has unit marginal variance on both paired cells and fixed-axis
+cells; simply averaging independent noise would reduce its variance.</li>
+<li>Water-aware correction preserves the original raw water-cell count to within
+one cell, not the requested profile percentage. Its fixed score is half averaged
+SDF plus half negative height scaled by four. This is a heuristic constrained
+correction, not a learned optimizer. Changed coastlines can still be poor.</li>
+<li>Water distance is recomputed using the existing SciPy distance transform.</li>
+<li>Refinement may change the water amount again. It is not silently calibrated
+afterward, so that effect remains visible.</li>
+<li>No central seam smoothing is applied. Copying is shown honestly, including bad
+rotational joins.</li>
+<li>Every method is also passed through the same existing height/water decoder.
+Field previews and common-decoder previews stay separate.</li>
+<li>Native 513x513 resampling error is measured before exact symmetric projection;
+raw originals are not projected. Generated arrays are preserved with hashes.</li>
+<li>Image height ranges are shared across all eight methods within each case.</li>
+<li>Land routes/buildability are approximate structural tests, not game verification.</li>
+</ul>
+<h2 id="windows-commands">Windows Commands</h2>
+<p>The existing CUDA environment does not include SciPy. Use it for inference, and
+the existing CPU/scientific environment for deterministic processing and reporting.
+No dependency installation or environment changes are needed.</p>
+<pre><code class="language-powershell">$env:PYTHONPATH = &#39;src&#39;
+.venv/Scripts/python.exe -m supmapai.tools.compare_terrain_symmetry generate `
+  --checkpoint data/models/terrain_joint_10km_1v1_long_v1/best.pt `
+  --out data/models/terrain_symmetry_comparison_v1
+.venv-codex/Scripts/python.exe -m supmapai.tools.compare_terrain_symmetry postprocess `
+  --run data/models/terrain_symmetry_comparison_v1
+.venv/Scripts/python.exe -m supmapai.tools.compare_terrain_symmetry refine `
+  --run data/models/terrain_symmetry_comparison_v1
+.venv-codex/Scripts/python.exe -m supmapai.tools.compare_terrain_symmetry report `
+  --run data/models/terrain_symmetry_comparison_v1
+</code></pre>
+<p>Use a new output directory for a new experiment. Refinement can be rerun after an
+interruption: already recorded variants are hash-checked and skipped. Per-phase
+code snapshots, checkpoint identity and environment versions are recorded.</p>
+<h2 id="review">Review</h2>
+<p>Open <code>data/models/terrain_symmetry_comparison_v1/index.html</code> locally. It contains
+pattern, seed, water and field/decoder view selectors, with all eight methods
+alongside each other. No server or deployment is needed. Individual PNGs, wide
+contact sheets, arrays, <code>metrics.csv</code>, <code>metrics.json</code> and <code>report.md</code> accompany it.</p>
+<p>Look for terrain continuity, sensible water basins and shorelines, retained relief,
+and coherent base-to-base geography. Metrics include water IoU/area changes,
+height changes, boundary gradients, water components and approximate land routes.
+No combined mathematical score is claimed to replace player judgment.</p>
+<h2 id="completed-pilot">Completed Pilot</h2>
+<p>All 60 cases and 480 comparison views completed. This includes 60 asymmetric raw
+references and 420 symmetric variants. Every symmetric field and common-decoder
+native vertex grid passed exact symmetry checks; the raw references remain
+unchanged. Water-aware correction met its one-cell area tolerance in all cases.</p>
+<p>Generation took 72.2 seconds for 48 unique originals (rotational and antidiagonal
+cases reuse the same inputs). Diffusion refinement and constrained generation
+took 177.5 seconds. Deterministic processing and reporting are recorded separately
+in their phase JSON files. No training was performed.</p>
+<p>For the 12 rotational cases, pooled across four seeds and three water controls:</p>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th align="right">Mean absolute water-area change</th>
+<th align="right">Mean central height jump</th>
+<th align="right">Mean height edit from original</th>
+<th align="right">Approx land routes</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Raw reference</td>
+<td align="right">0 pp</td>
+<td align="right">0.54</td>
+<td align="right">0</td>
+<td align="right">10/12</td>
+</tr>
+<tr>
+<td>Average</td>
+<td align="right">5.59 pp</td>
+<td align="right">0.42</td>
+<td align="right">2.52</td>
+<td align="right">12/12</td>
+</tr>
+<tr>
+<td>Copy A</td>
+<td align="right">3.43 pp</td>
+<td align="right">6.05</td>
+<td align="right">2.52</td>
+<td align="right">10/12</td>
+</tr>
+<tr>
+<td>Copy B</td>
+<td align="right">3.43 pp</td>
+<td align="right">5.91</td>
+<td align="right">2.52</td>
+<td align="right">8/12</td>
+</tr>
+<tr>
+<td>Water-aware</td>
+<td align="right">&lt;=0.0061 pp</td>
+<td align="right">0.42</td>
+<td align="right">2.52</td>
+<td align="right">12/12</td>
+</tr>
+<tr>
+<td>Refine 250</td>
+<td align="right">0.28 pp</td>
+<td align="right">0.32</td>
+<td align="right">2.92</td>
+<td align="right">12/12</td>
+</tr>
+<tr>
+<td>Refine 500</td>
+<td align="right">0.42 pp</td>
+<td align="right">0.38</td>
+<td align="right">3.43</td>
+<td align="right">12/12</td>
+</tr>
+<tr>
+<td>Projected noise</td>
+<td align="right">2.45 pp</td>
+<td align="right">0.62</td>
+<td align="right">3.30</td>
+<td align="right">9/12</td>
+</tr>
+</tbody></table>
+<p>Height values are world units. Water changes are percentage points relative to
+each raw original, not errors against the requested control. Area preservation
+does not imply shoreline preservation. The common decoder and approximate land
+routes are not a substitute for in-game verification.</p>
+<p>Initial interpretation: direct rotational copying repeats the problematic join.
+Water-aware correction avoids whole-map water loss, while light refinement is a
+promising next candidate for coherent symmetric terrain. Stronger refinement
+changes more of the original without a clear benefit in these diagnostics.
+Constrained-from-noise is not clearly superior. No permanent default was changed.</p>
+<p>Axis-aligned reflection has zero difference across its central cell pair by
+construction, including for copying. That value does not establish the absence of
+artificial ridges or valleys. Height-change MAE and water IoU also must not be used
+as standalone quality rankings: symmetric projection inevitably modifies an
+asymmetric source.</p>
+<p>Twenty-nine focused terrain tests passed. Browser QA covered all 120 combinations
+of pattern/seed/water/view with eight successfully loaded images each, no JavaScript
+errors, and no horizontal overflow at a 390-pixel mobile viewport. Desktop/mobile
+screenshots and the check result are saved under the experiment&#39;s <code>qa/</code> folder.</p>
+<h2 id="native-game-export-pilot">Native Game Export Pilot</h2>
+<p>On 23 October 2026, four newer full-map symmetry samples were exported and
+installed in the active FAF maps directory:</p>
+<table>
+<thead>
+<tr>
+<th>In-game name</th>
+<th>Source case</th>
+<th>Method</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>MapGen Symmetry Rot101 Average</td>
+<td>rotate180_seed101_water20</td>
+<td>average</td>
+</tr>
+<tr>
+<td>MapGen Symmetry Rot101 Refine250</td>
+<td>rotate180_seed101_water20</td>
+<td>refine250</td>
+</tr>
+<tr>
+<td>MapGen Symmetry Mirror202 Copy</td>
+<td>mirror_x_seed202_water20</td>
+<td>copy_a</td>
+</tr>
+<tr>
+<td>MapGen Symmetry Rot303 Water</td>
+<td>rotate180_seed303_water40</td>
+<td>water_aware</td>
+</tr>
+</tbody></table>
+<p>Outputs and file hashes are recorded in
+<code>data/exports/symmetry_native_v1/manifest.json</code>. These exports use the saved
+513x513 common-decoder heights, not a template&#39;s terrain. Source arrays are
+hash-checked. Native uint16 heights, water elevation, preview, normal maps, water
+masks and terrain types are rebuilt. Old template props, decals and waves are
+removed; base materials and lighting are inherited from Adaptive Canis River.
+No texture model is involved. Sea level is translated to 128 world units without
+rescaling relative relief.</p>
+<p>Each 10x10 km map has two symmetric spawn markers, 16 mexes and two hydros.
+These are deterministic test placements, not model output. Small dry, flat
+footprints are repaired locally; there is no reclaim. Exact height/marker symmetry,
+dry flat footprints and binary height read-back passed on all four maps.
+Approximate land connectivity passed too, but does not certify engine pathing or
+competitive balance. Four new export tests and 29 existing terrain tests passed.</p>
+<p>Reproduce in a new output directory (the exporter refuses existing map folders):</p>
+<pre><code class="language-powershell">$env:PYTHONPATH = &#39;src&#39;
+.venv-codex/Scripts/python.exe -m supmapai.export.symmetry_maps `
+  --comparison data/models/terrain_symmetry_comparison_v1 `
+  --template &#39;C:/Program Files (x86)/Steam/steamapps/common/FAF_modsmaps/maps/adaptive_canis_river.v0002/adaptive_canis_river.scmap&#39; `
+  --out-root data/exports/symmetry_native_v1/maps --pilot
+./scripts/Install-SymmetryMaps.ps1
+</code></pre>
+<p>The installer verifies all source hashes, refuses existing destinations and checks
+installed hashes. It does not overwrite or remove community maps.</p>
+<p>After closing any running game, launch one directly without the FAF lobby:</p>
+<pre><code class="language-powershell">./scripts/Launch-FAFMap.ps1 `
+  -Scenario &#39;/maps/mapgen_sym_rot101_refine250.v0001/mapgen_sym_rot101_refine250_scenario.lua&#39;
+</code></pre>
+<p>The launcher refuses to terminate another session. It uses the FAF-patched
+<code>C:/ProgramData/FAForever/bin/ForgedAlliance.exe</code> with <code>/map</code> and <code>/noAi</code>, so only
+one commander is expected in this offline smoke test. It records a unique log
+under <code>data/exports/launch_logs/</code>.</p>
+<p>Rot101 Refine250 successfully loaded: the intended scenario, commander, resource
+markers, native terrain and visible water were confirmed in-game. Its log is
+<code>mapgen_sym_rot101_refine250_scenario_20261023_193023_905_utc.log</code>. The initial
+camera was too close to the elevated terrain; zooming out showed the map normally.
+Some hills look angular/terraced, the minimap appears contour-only, and the log
+contains empty texture-name fallback warnings. These remain cosmetic follow-ups;
+the successful launch is not a claim that all visuals or gameplay are validated.
+Only Refine250 has been game-tested in this pilot; the other three passed the
+automated checks and are installed for review. No symmetry default was changed.</p>
+<p>The subsequent <a href="terrain_smoothing.md">smoothing investigation</a> isolates coarse-grid
+faceting from the separate square resource-pad artifacts, with optional terrain
+filters and a rounded-pad export candidate. To reproduce the original pilot&#39;s
+repair profile with the newer exporter, add <code>--pad-profile legacy</code>.</p>
+<script src="model-atlas/public-links.js" data-public-links></script></body></html>
