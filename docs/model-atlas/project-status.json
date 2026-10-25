@@ -1,0 +1,107 @@
+{
+  "schema": "mapgen_project_status_v1",
+  "recorded_at": "2026-10-25T12:52:30+00:00",
+  "repository": "https://github.com/LimeZ3/Lime-Map-Generator",
+  "atlas_url": "https://mapgen-project-atlas.elven-bowl-7506.chatgpt.site",
+  "phase": "Research prototype — playable exports; competitive quality unproven",
+  "source_of_truth": "docs/model-atlas: catalog, controls, saved receipts, map comparisons and extraction work queue",
+  "metrics": {
+    "selected_trained_stages": 4,
+    "checkpoint_runs": 41,
+    "curated_train": 1020,
+    "curated_validation": 97,
+    "texture_maps": 1117,
+    "fully_resolved_albedo_maps": 929,
+    "comparison_maps": 5,
+    "layer_families": 19,
+    "joint_channels": 13,
+    "joint_train": 782,
+    "joint_validation": 69
+  },
+  "completed": [
+    {
+      "title": "Map extraction and source representations",
+      "text": "Terrain/water, starts, resource markers, natural energy/mass, wrecks, civilians and surface material representations have source receipts. Unknown values and unsupported runtime rules remain explicit.",
+      "evidence": "docs/map_layers_v2.md"
+    },
+    {
+      "title": "Four selected generation stages",
+      "text": "Terrain/water, resource markers, natural reclaim allocation and wreck allocation have selected checkpoints. Deterministic finishing/composition exports geometry, markers and entities.",
+      "evidence": "docs/model-atlas/catalog.json"
+    },
+    {
+      "title": "Dataset and texture preparation",
+      "text": "The selected curated cohort contains 1,020 training and 97 validation maps. Texture extraction completed 1,117 maps with no decode failures; 929 albedo sources are fully resolved. Extraction success does not certify every shader’s training semantics.",
+      "evidence": "docs/map_texture_tensors.md"
+    },
+    {
+      "title": "Gameplay-analysis and annotation pipeline",
+      "text": "Versioned route/front, resource-economy and air/drop analyses exist. The 3,108-version annotation-pool milestone reports 2,764 scored maps, 329 exclusions and 15 failures. These are heuristic 1v1 observations, not map-quality ground truth.",
+      "evidence": "docs/map-rating-extraction/README.md"
+    },
+    {
+      "title": "Joint source-layer experiment and diagnostics",
+      "text": "A separate 73.3M-parameter network jointly predicts 13 source channels from noise and 12 rating controls. The 782/69 cohort and completed diagnostic arms are experimental; they do not replace the selected stages.",
+      "evidence": "docs/joint_source_diagnostics.md"
+    },
+    {
+      "title": "Navigable project atlas",
+      "text": "Five exact FAF map versions, 19 comparison families, source/method links, model contracts, archived runs, global preview sliders and explicit extraction TODOs now organize the project.",
+      "evidence": "docs/model-atlas/index.html"
+    }
+  ],
+  "results": [
+    "Selected terrain geometry and natural reclaim composition have been observed in game; resource markers were exported and playtested, with balance still unproven.",
+    "Wreck allocation is trained and exported, but its current runtime behavior is not yet verified.",
+    "The joint one-map baseline reproduced a spatial template (height correlation 0.9980 at update 2,365), while sparse-density totals remained badly biased (Start A integral 139.6 instead of one). This is memorization evidence, not generalization.",
+    "The joint-source continuation ended by user request at update 22,947. The separate baseline/lower-LR/balanced one-map and lower-LR full-cohort diagnostic arms have saved completed receipts."
+  ],
+  "planned": [
+    "Correct DualGap Adaptive’s archived air pair (slot 12 used where the intended comparison needs slot 2).",
+    "Improve main-base/rear/forward zoning, define contestability coherently and fill missing exact-version outputs.",
+    "Add hover/navy battle-path comparisons and newer frontier coverage for FAF Beetles.",
+    "Diagnose sparse-density/background errors and held-out behavior before selecting any joint-source checkpoint.",
+    "Learned texture painting, civilian composition and spawn-layout generation remain planned or experimental, with exact boundaries in the catalog.",
+    "Continue structuring completed work and the TODO list in this atlas; validate exports and gameplay rather than equating loss with playability."
+  ],
+  "runs": [
+    {
+      "id": "joint_sources",
+      "title": "All source layers together",
+      "state": "paused_by_request",
+      "stage": "preparing_or_finished",
+      "stages": [],
+      "evidence": "docs/joint_sources_12h.md"
+    },
+    {
+      "id": "joint_source_diagnostics",
+      "title": "Joint source diagnosis",
+      "state": "completed",
+      "stage": "batch_finished",
+      "stages": [
+        {
+          "id": "one_map_baseline",
+          "status": "completed",
+          "step": 2365
+        },
+        {
+          "id": "one_map_lower_lr",
+          "status": "completed",
+          "step": 2340
+        },
+        {
+          "id": "one_map_balanced",
+          "status": "completed",
+          "step": 2367
+        },
+        {
+          "id": "full_lower_lr",
+          "status": "completed",
+          "step": 4971
+        }
+      ],
+      "evidence": "docs/joint_source_diagnostics.md"
+    }
+  ],
+  "update_contract": "Progress must be recorded in the atlas, then published as a GitHub codex/atlas-live snapshot. Open pages check for a newer snapshot every 60 seconds. Uncommitted local work is not automatically visible."
+}

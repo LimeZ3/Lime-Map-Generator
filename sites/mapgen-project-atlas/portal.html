@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>MapGen project atlas</title><meta name="description" content="Lime Map Generator project status, map layers, datasets, models, experiments, evidence and next work."><style>html,body{margin:0;height:100%;font:13px system-ui;background:#f6f7f7;color:#23392e}body{display:flex;flex-direction:column}.portal-bar{flex-shrink:0;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:8px 14px;background:#edf4ef;border-bottom:1px solid #cfdbd3}.portal-bar a{color:#176953}.portal-bar nav{display:flex;gap:14px;align-items:center}#publication{font-size:11px;color:#52685b}#atlas-frame{border:0;flex:1;min-height:0;width:100%;background:white}#error{padding:24px;display:none}button{border:1px solid #b4c7ba;border-radius:3px;padding:4px 8px;color:#225d46;background:white;cursor:pointer}</style></head><body>
+<header class="portal-bar"><div><strong>MapGen project atlas</strong><br><span id="publication" role="status">Loading the published project record…</span></div><nav><a href="/">Project status</a><a href="https://github.com/LimeZ3/Lime-Map-Generator" target="_blank" rel="noopener">GitHub</a><button id="refresh" type="button">Check updates</button></nav></header>
+<p id="error"></p><iframe id="atlas-frame" title="MapGen project atlas"></iframe>
+<script>
+const remote='https://raw.githubusercontent.com/LimeZ3/Lime-Map-Generator/refs/heads/codex/atlas-live/';
+const frame=document.getElementById('atlas-frame'),label=document.getElementById('publication');
+let current=null,currentBase=null,polling=false;
+const params=new URLSearchParams(location.search);const file=params.get('view')||'docs/model-atlas/index.html';
+if(!/^[a-zA-Z0-9_./-]+\.html$/.test(file)||file.split('/').includes('..'))throw Error('Invalid document path');
+const anchor=params.get('anchor');
+function inlineJS(code){return code.replace(/<\/script/gi,'<\\/script');}
+async function text(url){const r=await fetch(url,{cache:'no-store'});if(!r.ok)throw Error('HTTP '+r.status);return r.text();}
+async function display(pointer,base){
+ const sourceBase=base+pointer.prefix;
+ let html=await text(sourceBase+file);const docBase=new URL(file,sourceBase).href;
+ const scriptTags=[...html.matchAll(/<script\b[^>]*\bsrc="([^"]+)"[^>]*><\/script>/gi)];
+ const scripts=await Promise.all(scriptTags.map(async x=>({tag:x[0],code:await text(new URL(x[1],docBase))})));
+ for(const tag of scripts)html=html.replace(tag.tag,'');
+ const styles=[...html.matchAll(/<link\b[^>]*rel="stylesheet"[^>]*href="([^"]+)"[^>]*>/gi)];
+ for(const match of styles){const css=await text(new URL(match[1],docBase));html=html.replace(match[0],()=>'<style>'+css+'</style>');}
+ const setup='window.MAPGEN_PUBLIC_VIEW=true;window.MAPGEN_PORTAL_ORIGIN='+JSON.stringify(location.origin)+';window.MAPGEN_DOCUMENT_PATH='+JSON.stringify(file)+';';
+ html=html.replace(/<head([^>]*)>/i,'<head$1><base href="'+docBase.replace(/[^/]*$/,'')+'">');
+ html=html.replace('</body>',()=>'<script>'+inlineJS(setup)+'</'+'script>'+scripts.map(s=>'<script>'+inlineJS(s.code)+'</'+'script>').join('')+'</body>');
+ const scroll=current?frame.contentWindow.scrollY:0;
+ frame.onload=()=>{try{if(file==='docs/model-atlas/index.html'&&location.hash)frame.contentWindow.location.hash=location.hash;else if(anchor)frame.contentDocument.getElementById(anchor)?.scrollIntoView();else if(scroll)frame.contentWindow.scrollTo(0,scroll);}catch{}};
+ frame.srcdoc=html;current=pointer;currentBase=base;
+ const when=new Date(pointer.recorded_at).toLocaleString('en-GB',{timeZone:'Europe/Amsterdam'});
+ label.textContent=(base===remote?'GitHub-connected':'Published fallback')+' · record '+when+' Amsterdam · checks every minute';
+}
+async function check(){
+ if(polling)return;polling=true;
+ try{
+  let pointer,base=remote;
+  try{pointer=JSON.parse(await text(remote+'latest.json?check='+Date.now()));}
+  catch{base=location.origin+'/';pointer=JSON.parse(await text('/latest.json'));}
+  if(!/^[a-f0-9]{20}$/.test(pointer.revision)||pointer.prefix!=='releases/'+pointer.revision+'/'){throw Error('Invalid snapshot manifest');}
+  if(pointer.revision!==current?.revision||base!==currentBase)await display(pointer,base);
+  document.getElementById('error').style.display='none';
+ }catch(error){if(!current){const el=document.getElementById('error');el.textContent='The atlas could not be loaded. Retry Check updates or visit the GitHub repository.';el.style.display='block';}label.textContent=current?'Retaining last loaded atlas · update check unavailable':'Atlas temporarily unavailable';}
+ finally{polling=false;}
+}
+window.addEventListener('message',event=>{if(event.source===frame.contentWindow&&event.origin===location.origin&&event.data?.type==='mapgen-route'&&typeof event.data.hash==='string')history.replaceState(null,'',location.pathname+location.search+event.data.hash);});
+document.getElementById('refresh').addEventListener('click',check);document.addEventListener('visibilitychange',()=>{if(!document.hidden)check();});setInterval(()=>{if(!document.hidden)check();},60000);check();
+</script></body></html>

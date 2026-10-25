@@ -4,6 +4,12 @@ An open-source study project for the AI Systems course at Fontys in the Netherla
 
 **Status: experimental research software, not a finished or competitively validated map generator.**
 
+**[MapGen project atlas — live project status](https://mapgen-project-atlas.elven-bowl-7506.chatgpt.site)** is now the main source of truth for map layers, data, selected models, experiments, results and next work. It is hosted with ChatGPT Sites and reads versioned public snapshots from this GitHub repository.
+
+Read the [25 October 2026 progress update](docs/progress/2026-10-25-project-update.md), the [maps extraction work queue](docs/map-extraction-todos.md), and the [publication/update workflow](docs/atlas-publication.md). The atlas checks for new published snapshots every minute; uncommitted local files are not monitored.
+
+The recorded progress includes four selected trained stages, a 1,020 train / 97 validation curated cohort, 1,117 texture extractions, and separate joint-generation/diagnostic experiments. These are experimental results, with unproven balance and explicit runtime/data limitations. No experimental joint checkpoint is promoted to a selected release by this update.
+
 ## Who is building this, and how?
 
 I am a mechatronics student with student-level C++ experience. My current Python and general software development skills are not sufficient to build this entire project independently, so I rely heavily on AI coding agents for implementation. I guide that work through development strategy and planning informed by my course. Learning to direct, inspect, and evaluate AI-assisted development is part of the study project.
