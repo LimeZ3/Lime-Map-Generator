@@ -1,0 +1,85 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>reclaim_front_weighting.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="separate-mex-and-reclaim-fronts">Separate mex and reclaim fronts</h1>
+<p>This experiment adds initial mass reclaim as a separate spatial objective to
+the accepted own-half frontier-contact model. It preserves the earlier mex-only
+collection and does not set a new route-count cutoff.</p>
+<h2 id="economic-scale">Economic scale</h2>
+<p>The map supplies a stock of reclaim and a flow of mex income. Comparing a stock
+with a count of mexes requires an economic time window; geometry alone cannot
+identify the unique correct window or actual match economy.</p>
+<ul>
+<li><code>R</code>: known initial mass stock within the playable rectangle.</li>
+<li><code>I</code>: summed T1 income proxy of all configured active mex markers, including
+starting economy and underwater mexes. This remains an explicit proxy, not
+actual occupied, upgraded or growing economy.</li>
+<li><code>A</code>: playable area in world units squared.</li>
+<li><code>T = sqrt(A) / 3.4</code>: reference map-length travel window, using the existing
+model&#39;s land response speed. It is not an engineer trip or collection-time
+simulation.</li>
+<li><code>R / I</code>: how many seconds of that mex income the known stock represents.</li>
+<li><code>R / (I T)</code>: dimensionless stock/flow balance over this window.</li>
+<li><code>w = R / (R + I T)</code>: bounded reclaim weight. Above one half means the known
+stock exceeds the reference-window production; it does not establish greater
+gameplay importance in every stage of the match.</li>
+</ul>
+<p>The land-front objective uses eligible stock on both actual sides, <code>R_front</code>,
+instead of the whole-map <code>R</code>. It excludes protected starting economy, rear
+expansions, neutral frontier cells and targets disconnected within their half.
+Water/blocked origins are accessible only if a legal land tile lies within the
+recorded five-unit reclaim reach. Every known mass unit appears exactly once in
+the scope ledger. The global whole-map weight and land-front weight are both
+exported so that a water-rich map is not described as reclaim-poor overall.</p>
+<p>The viewer compares <code>0.5T</code>, <code>T</code> and <code>2T</code>, as well as pure mex and pure reclaim
+controls. Windows are explicit sensitivity settings, not fitted thresholds.
+No weights were adjusted to force an expected number of corridors.</p>
+<h2 id="spatial-density">Spatial density</h2>
+<p>Raw mass is preserved per world-unit grid cell; stacked objects add their full
+known values. There is no clipping of rich piles or cap on target count. Mass
+distribution directly affects the reclaim-access objective, so an equal stock
+concentrated in one place and spread across several flanks can require different
+contact counts.</p>
+<p>Density diagnostics use a scale equal to half mean mex spacing,
+<code>sigma = sqrt(A/N_mex)/2</code>. The local stock/flow field is:</p>
+<p><code>local_w = smoothed_mass / (smoothed_mass + smoothed_mex_income * T)</code></p>
+<p>Orange indicates local stock exceeds local production over the same window;
+blue indicates the reverse. Empty influence regions are marked separately.
+The export also records mean mass and mex density, effective occupied density
+area, concentration relative to uniform stock, and the fraction of mass in
+reclaim-dominant regions. These are descriptive fields, not an additional
+multiplier rewarding the same mass twice.</p>
+<h2 id="contact-objective">Contact objective</h2>
+<p>Each layer keeps an independent base-response baseline. Let <code>G_mex</code> and
+<code>G_reclaim</code> be the respective income- or mass-weighted fractional response-cost
+reductions. The combined objective is:</p>
+<p><code>G = (1-w) * G_mex + w * G_reclaim</code></p>
+<p>Both component scores, response times and per-contact allocations remain
+visible. Mex marker counts are distinct from their income-weighted values.
+Reclaim allocation is mass, not prop count. Base-preferred value remains
+explicit and allocations conserve each layer&#39;s total.</p>
+<p>The budget table evaluates every layout at the same default map-context weight
+for fair comparisons. The CSV also retains the score under each profile&#39;s own
+optimization weight. Scores computed at different weights must not be ranked
+as though they shared one objective.</p>
+<p>The physical movement graph, first-frontier-contact termination, exact primary
+symmetry and shared deployment trunks remain unchanged. Reclaim attraction uses
+a spatial Gaussian with the existing 64-unit attraction scale; it can prefer
+nearby stock across a barrier but cannot open an edge or change physically
+scored walking distance. Candidate-to-target graph distances are streamed and
+cached by physical graph and target coordinates, without retaining a full grid
+for every prop.</p>
+<h2 id="pilot-and-limits">Pilot and limits</h2>
+<p>Seven contrasting maps: original Loki v3, Adaptive Pyramid, Pandemonium Pass,
+Morning Prayer, DualGap Adaptive, Wonder Open and Setons. Each has five weight
+profiles and budgets one through eight. See
+<a href="../data/processed/reclaim_front_comparison/report.md">the local report</a>.</p>
+<p>Numerical extraction reuses the pinned blueprint index and FAF wreck rules,
+with the same two active slots and selected defaults. Initial props and
+supported wreck groups are valued; live units are not turned into wrecks.
+Future battle wrecks, runtime-created reclaim, regrowth, collection throughput,
+technology, economy growth and army-strength dilution are not simulated.
+Unresolved values remain unknown. Original Loki&#39;s scripted permanent wall
+collision is still absent from the terrain navigation estimate.</p>
+<p>This is an inspectable weighting hypothesis. Validation of geometry and
+arithmetic does not establish that these economic windows predict player
+decisions; compare the sensitivity profiles and community feedback before
+turning the blend into training labels.</p>
+<script src="model-atlas/public-links.js" data-public-links></script></body></html>

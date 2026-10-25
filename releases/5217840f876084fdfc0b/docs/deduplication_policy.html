@@ -1,0 +1,48 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>deduplication_policy.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="deduplication-and-originality-policy">Deduplication And Originality Policy</h1>
+<p>The dataset should keep enough information to learn from variants, but avoid letting clones, backups, old versions, and reskins dominate training.</p>
+<p>For FAF downloads, one map means one immediate folder under:</p>
+<pre><code class="language-text">C:\Program Files (x86)\Steam\steamapps\common\FAF_modsmaps\maps
+</code></pre>
+<p>Nested <code>Backup_*</code> or version folders inside that folder are candidate versions of the same map, not independent maps.</p>
+<h2 id="first-pass-signals">First-Pass Signals</h2>
+<p>Use name-family detection before expensive terrain similarity:</p>
+<pre><code class="language-powershell">python -m supmapai.extract.canonical_inventory --maps-root &quot;C:\Program Files (x86)\Steam\steamapps\common\FAF_modsmaps\maps&quot; --out data\manifests\faf_modsmaps_canonical_inventory.json
+python -m supmapai.extract.metadata_from_inventory --inventory data\manifests\faf_modsmaps_canonical_inventory.json --out data\interim\faf_modsmaps_canonical_metadata.csv
+</code></pre>
+<pre><code class="language-powershell">python -m supmapai.extract.name_families --metadata data\interim\faf_modsmaps_canonical_metadata.csv --out data\interim\faf_modsmaps_canonical_name_families.csv --summary-out data\interim\faf_modsmaps_canonical_name_families_summary.json
+</code></pre>
+<p>The report groups maps by a normalized name and flags:</p>
+<ul>
+<li>version tokens such as <code>v2</code>, <code>.v0004</code>, <code>final</code></li>
+<li>variant tokens such as <code>adaptive</code>, <code>faf</code>, <code>flooded</code>, <code>winter</code>, <code>1v1</code>, <code>teamplay</code></li>
+<li>nested backup paths</li>
+<li>families with different player counts or map sizes</li>
+</ul>
+<p>The canonical source pass also records simple name signals for survey display and filtering:</p>
+<ul>
+<li><code>adaptive</code>: generally a useful/generated map family signal</li>
+<li><code>crater</code>: likely similar naming family, often worth quality review</li>
+<li><code>gap</code>: likely similar naming family, often worth quality review</li>
+<li><code>pass</code>: includes <code>pass</code> and <code>passage</code>, likely similar naming family, often worth quality review</li>
+</ul>
+<h2 id="recommended-handling">Recommended Handling</h2>
+<ul>
+<li><strong>Exact old versions:</strong> keep metadata, train on the newest/best-known version unless the old version is intentionally different.</li>
+<li><strong>Backup folders:</strong> exclude from training by default.</li>
+<li><strong>Adaptive/AI variants:</strong> keep as variants, but do not let them form independent train/test examples against their base map.</li>
+<li><strong>Special terrain variants:</strong> keep if they meaningfully change gameplay, for example flooded/naval versions.</li>
+<li><strong>Reskins:</strong> keep for visual/style studies, but avoid overcounting them for structure training.</li>
+<li><strong>Bad maps:</strong> keep if labeled as low quality. They can be useful negative examples.</li>
+</ul>
+<h2 id="human-review-fields">Human Review Fields</h2>
+<p>The crowd labeling app should occasionally ask:</p>
+<ul>
+<li>Is this a clone, remake, or reskin of a better-known map?</li>
+<li>What map does it resemble?</li>
+<li>Is this the version people should usually play?</li>
+<li>How original is this map?</li>
+</ul>
+<p>These answers should become review signals, not automatic deletion rules.</p>
+<h2 id="training-split-rule">Training Split Rule</h2>
+<p>All maps in the same duplicate/version family should stay in the same train/validation/test split. Otherwise the model can see one version during training and appear to perform well on a near-copy during validation.</p>
+<script src="model-atlas/public-links.js" data-public-links></script></body></html>

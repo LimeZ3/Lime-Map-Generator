@@ -1,0 +1,154 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>learned_resources_v1.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="learned-resource-placement-v1">Learned Resource Placement V1</h1>
+<h2 id="scope">Scope</h2>
+<p>The user-approved terrain generator is frozen. The next learned stage places
+mexes and hydros given terrain and two planned base locations. This is not a
+rule-based resource generator. Spawns remain the terrain model&#39;s input anchors
+for this first experiment; moving them independently would break that contract.</p>
+<p>Reclaim/prop generation follows this stage. Texture generation is a separate
+last stage. Neither is trained in this pilot. No rule-based resource, reclaim,
+or texture replacement has been added.</p>
+<h2 id="dataset">Dataset</h2>
+<p><code>data/tensors/resources_curated_256_v1</code> inherits the reviewed terrain cohort:</p>
+<ul>
+<li>1,020 training maps, 97 held-out maps, one representative per curated family.</li>
+<li>Human exclusions remain excluded; unreviewed maps remain retained.</li>
+<li>Active 1v1 adaptive configurations and exact mex/hydro coordinates are reused.</li>
+<li>Coordinates are rasterized directly at 256x256, not upscaled from old tensors.</li>
+<li>Each marker is a Gaussian with a four-world-unit standard deviation.</li>
+<li>No imposed resource symmetry, template layout, or resource snapping in targets.</li>
+<li>Terrain encoding is frozen; count normalization is fitted on training maps only.</li>
+<li>All packed arrays, source archives, and metadata have recorded checksums.</li>
+</ul>
+<p>Terrain conditioning has seven channels: relative height, water signed distance,
+water depth, land passability, hover passability, and the two planned base fields.
+Targets have two channels: mex heatmap and hydro heatmap. Counts and water state
+provide three scalar conditions. There are no target resource channels in the
+spatial input.</p>
+<h2 id="model-and-pilot">Model And Pilot</h2>
+<p><code>supmapai.ml.resource_diffusion</code> reuses the existing five-scale U-Net blocks in a
+separate model with 4,999,842 parameters. No terrain-model weights are changed.
+It uses velocity-prediction diffusion, foreground-weighted denoising loss for
+sparse peaks, joint rotations/reflections, base-channel swaps, and EMA weights.</p>
+<p>The first run has a 600-second wall-clock budget, microbatch four, accumulation
+two, bfloat16, periodic validation, atomic checkpoints, and a GPU memory guard.
+<code>progress.json</code> reports elapsed/remaining time. A <code>pause.request</code> file asks it to
+checkpoint and stop. A matching <code>--resume</code> continues within the original budget.
+This is a short feasibility run, not a claim that the model is fully trained.</p>
+<pre><code class="language-powershell">$env:PYTHONPATH = &#39;src&#39;
+.venv-codex\Scripts\python.exe -m supmapai.tensors.resources build `
+  --source data\tensors\terrain_curated_20261024_v1 `
+  --out data\tensors\resources_curated_256_v1
+
+.venv\Scripts\python.exe -m supmapai.ml.resource_diffusion `
+  --dataset data\tensors\resources_curated_256_v1 `
+  --out data\models\resources_curated_256_pilot_v1 --seconds 600
+</code></pre>
+<h2 id="evaluation-before-export">Evaluation Before Export</h2>
+<p>The generated-terrain test uses the exact native terrain from seed 303, water
+20%, without the old deterministic test resource pads. Four independent resource
+seeds receive the same terrain, planned bases, and requested resource counts.
+Four randomly selected held-out maps provide original-marker comparisons.</p>
+<p>The diagnostic gallery shows raw heatmaps and local-maxima decoded points.
+There is no fallback placement, terrain repair, or forced symmetry. A missing
+peak stays missing. Decoding caps the number of peaks at the requested count,
+so matching that count is not proof that count conditioning works. An uncapped
+heatmap integral is also reported, with noise/overlap limitations.</p>
+<p>Static footprint checks distinguish dry hydros from dry or submerged mexes.
+They are candidates only: they do not prove engine buildability or competitive
+balance. Held-out proximity to author positions is informative but not an
+absolute quality score, since several resource layouts can suit the same terrain.</p>
+<p>Before an MVP game export, inspect: concentrated starting economy at both bases,
+useful expansions, count and water compatibility, symmetry enforcement effects,
+and the size of any validator corrections. Reject or retrain poor predictions;
+do not hide model failures behind a procedural replacement.</p>
+<h2 id="completed-pilot-results">Completed Pilot Results</h2>
+<p>The initial pilot was paused at step 1,857 at the user&#39;s request, then resumed
+and completed at step 3,265. Total budgeted training time was approximately ten
+minutes, excluding the time it remained paused. Peak GPU allocation was 2.3 GB.
+The best EMA checkpoint is <code>data/models/resources_curated_256_pilot_v1/best.pt</code>.</p>
+<p>Results gallery: <code>data/models/resources_curated_256_results_v1/index.html</code>.
+It contains four resource seeds on the approved seed-303/water-20 terrain,
+requesting 48 mexes and two hydros, plus four fixed randomly selected held-out
+maps with original-marker comparisons. These previews are not game exports.</p>
+<ul>
+<li>Best held-out weighted velocity loss: 0.05247; this is not a gameplay score.</li>
+<li>Generated-terrain static footprint candidates: 155/192 mexes (80.7%), 4/8
+hydros (50%). No points were repaired or replaced to improve these numbers.</li>
+<li>Mexes within 48 world units of the two bases vary from two to five per base.</li>
+<li>Uncapped heatmap integrals suggest roughly 217-224 mexes and 86-96 hydros
+despite requests for 48 and two. Diffuse positive background and peak width
+affect this estimator, but count calibration is clearly not yet convincing.</li>
+<li>Decoded counts equal the request only because maxima are capped at that count.</li>
+<li>On the four held-out examples, mex proximity precision within eight world
+units is 13.5-25%; hydro precision is 0-16.7%. Other valid layouts are possible,
+so these are reconstruction diagnostics, not balance scores.</li>
+<li>As an encoding check, original target heatmaps recovered all 2,214 resources
+across 24 randomly sampled held-out maps. This is not a model prediction score.</li>
+<li>Thirty resource-related unit tests pass, including joint augmentation,
+family-leakage rejection, seeded sampling, and no fallback for flat heatmaps.</li>
+</ul>
+<p>The experiment establishes a working separate learned resource stage, not a
+playable learned-resource MVP. Next work should compare sparse-target/loss and
+count-calibration alternatives, then evaluate starting economy and native
+footprints. Foreground-weighted denoising may contribute to overprediction;
+this is a hypothesis to test, not an established cause. Keep exact symmetry and
+bounded validator corrections explicit when exporting learned predictions.
+Do not claim that more compute alone will solve these issues. No training is
+left running after this pilot.</p>
+<h2 id="sparse-medium-rich-comparison">Sparse / Medium / Rich Comparison</h2>
+<p><code>data/models/resource_count_comparison_v1/index.html</code> compares 24 / 32 / 48 total
+mexes on the approved terrain, with two requested hydros and resource seeds
+11, 22, 33, and 44. Each seed uses identical initial noise across count settings.
+The top row changes model conditioning; the control row reuses the rich output
+and only changes the decoder cap. Raw heatmaps and per-seed PNG overviews are
+included. No new training or game launch was performed.</p>
+<p>The conditioning genuinely changes raw heatmaps and selected locations. Mean
+uncapped heatmap-integral proxies are 148.8 / 165.6 / 220.4 respectively; these
+are not actual marker counts and remain far above requests. Exact decoded
+counts still follow from the decoder cap. Static mex footprint candidates are
+83/96, 102/128, and 155/192 across the four seeds. Starting economy remains
+inconsistent; near-base mex counts range from zero to five depending on seed.</p>
+<p>Only 30 / 63 / 196 of 1,020 training maps have at most 24 / 32 / 48 mexes.
+These are relative MVP comparison presets, not training-cohort quantile tiers.
+Sparse conditioning is therefore supported by relatively few examples.
+All four rich/control image pairs match exactly, verifying the control setup;
+all 40 PNGs decode successfully. Thirty-two resource-related tests pass.</p>
+<h2 id="post-generation-resource-symmetry">Post-Generation Resource Symmetry</h2>
+<p>Resources now follow the terrain workflow: generate the full map first, then
+apply a hard symmetry constraint. No half-map model or retraining is involved.</p>
+<p><code>supmapai.export.resource_symmetry</code> supports the same five two-part raster
+symmetries as terrain. The current terrain uses <code>rotate180</code>. The default
+projection method is <code>average</code>; <code>copy_a</code> and <code>copy_b</code> are alternatives. Both
+resource channels use the same chosen plane and method. Water-area-preserving
+terrain logic is not applied to resource heatmaps.</p>
+<p>Decoding selects whole marker pairs, not independent top-K pixels. One decoded
+subpixel peak and its exact world-coordinate counterpart are kept together.
+Coordinates use a 1/1024-world-unit binary grid so reflecting them introduces
+no floating-point pair error. The terrain and planned bases must already share
+the chosen symmetry. Close or fixed-axis pairs are rejected, not duplicated.
+V1 requires even mex/hydro budgets; odd budgets need future explicit fixed-point
+handling. Insufficient peaks yield a recorded shortfall, never rule-based fill.</p>
+<p>The standard sampler retains raw research output by default. Enable paired
+symmetry explicitly for generated terrain with no asymmetric held-out examples:</p>
+<pre><code class="language-powershell">$env:PYTHONPATH = &#39;src&#39;
+.venv\Scripts\python.exe -m supmapai.tools.sample_resources `
+  --checkpoint data\models\resources_curated_256_pilot_v1\best.pt `
+  --condition data\models\resources_curated_256_pilot_v1\seed303_water20_condition.npz `
+  --out data\models\resources_symmetric_example `
+  --mexes 32 --hydros 2 --seeds 22 --held-out 0 `
+  --symmetry rotate180 --symmetry-method average
+</code></pre>
+<p>Cached comparison: <code>data/models/resource_symmetry_v1/index.html</code>. It includes
+12 original seed/preset combinations, with raw vs average and copy alternatives.
+All 36 symmetric variants meet their requested counts and have zero measured
+world-coordinate pair error. The source arrays and terrain are unchanged;
+all 60 comparison PNGs decode successfully. No underwater filter or build-pad
+repair is introduced. Averaging retains four submerged mex occurrences across
+the comparison, demonstrating that underwater resources remain possible.</p>
+<p>An end-to-end standard-sampler check for seed 22 medium produces 32 paired
+mexes and two paired hydros: five mexes and one hydro in each near-base ring.
+Only 28/32 mex footprints are static candidates, so symmetry does not replace
+buildability/access validation. Forty-one resource tests and six native-export
+tests pass. No training or game session was started for this symmetry step;
+the sampler check performs inference only.</p>
+<script src="model-atlas/public-links.js" data-public-links></script></body></html>

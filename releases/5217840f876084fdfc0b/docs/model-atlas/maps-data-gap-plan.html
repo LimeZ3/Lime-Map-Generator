@@ -1,0 +1,235 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>maps-data-gap-plan.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="model-data-work-plan-owner-decisions-25-october-2026">Model-data work plan — owner decisions, 25 October 2026</h1>
+<p>This revision supersedes the earlier easy-first order. The owner has made
+<strong>EXTRACT-07 symmetry the highest-priority TODO</strong>. The atlas documents inputs,
+targets, supervision, masks and validation needed by models; display-only work
+is deferred. Decisions recorded here do not imply implementation, extraction,
+a newly frozen dataset, or a new training run. Selected checkpoints and their
+actual loaders/receipts are unchanged.</p>
+<p>The original <a href="review-notes/2026-10-25-maps.json">22 review flags and 12 written notes</a>
+remain preserved. The later owner decisions in this plan take precedence over
+that earlier planning interpretation. Shared owner flags have not been changed.
+<a href="../map-extraction-todos.md">Task register</a> ·
+<a href="extraction-work.json">Structured queue</a>.</p>
+<h2 id="1-first-priority-symmetry-and-corresponding-1v1-starts">1. First priority: symmetry and corresponding 1v1 starts</h2>
+<p>The <a href="symmetry-representation.md">extracted representation</a> now has saved
+terrain-first extraction for all 1,310 audit maps: 72.9 seconds, no failures,
+1,282 experimental geometry-gate passes and 28 provisional cases. See the
+<a href="symmetry-receipt.json">receipt</a> and <a href="../terrain_symmetry_detection.md">method</a>.
+The owner&#39;s confirmation supersedes metadata-first acquisition: editor symmetry
+does not survive export, so explicit symmetry metadata searching is skipped.</p>
+<ul>
+<li><strong>EXTRACT-07 partially implemented.</strong> Native-height candidate comparisons,
+multiple mirror axes, rotation/sector orders 2–16, source-start/default-mex
+checks and 28-value sidecars exist. Tests and full source/encoding validation
+passed. Geometry eligibility is experimental; no selected loader was changed.</li>
+<li><strong>EXTRACT-01 selection/repair pending.</strong> All source correspondence candidates
+are recorded, including 68 existing pairs without a detected matching transform.
+Multiple mates require an explicit policy. No source ARMY names/positions or
+scenarios were changed and historical analyses were not regenerated.</li>
+<li><strong>Remaining review:</strong> tolerances, sampling, partial/radial domains, order ceiling,
+layer/configuration disagreements and source-cohort bias. The parent cohort
+inherited a half-map filter excluding 548 earlier candidates. The audit is not
+an unbiased vault-wide survey. Preserve raw source data and all split identities.</li>
+<li><strong>Future training integration:</strong> wire the reviewed condition into a new compatible
+loader/checkpoint and transform it alongside augmentations. Existing 21-value
+profiles and checkpoints remain unchanged. No new training was started.</li>
+</ul>
+<h2 id="2-solidify-the-10x10-km-1v1-dataset">2. Solidify the 10x10 km / 1v1 dataset</h2>
+<ul>
+<li><strong>EXTRACT-06b — Audit and freeze an identifiable dataset release. Pending.</strong>
+Start from the existing curated cohort: <strong>1,117 maps, 1,020 train / 97
+validation</strong>. This is a source candidate, not a newly audited release. Give the
+next frozen dataset a display name, stable ID, version and release manifest.
+Working proposal: <em>MapGen 10km 1v1 Core</em>, <code>mapgen_10km_1v1_core</code>; assign its
+release version only when its audit/inclusion rules are frozen.</li>
+<li><strong>Publish field-level readiness and omissions.</strong> For each field and map, record
+source/version, map configuration/default resolution, representation/shape,
+units, valid domain, coverage, extraction status, semantic validation, tensor
+encoding, loader use and missing/rebuild requirements. Distinguish known-zero
+from unknown, current training inputs from future/analysis-only fields, and
+role-specific eligible subsets from the master map count. Verify boundaries,
+coordinates, physical scaling, source hashes, family splits and default 1v1
+scenario identity. A rendered preview alone does not validate a field.</li>
+<li><strong>EXTRACT-06a — Add a non-square size class. Implementation pending.</strong> Record
+native and playable width and height independently, aspect ratio, footprint
+class (square/non-square), bounds and padding validity. Non-square maps such
+as a 20x10 km playable area must not be portrayed as square terrain. Do not
+squash them or silently include them in a square 10x10 km release; representation
+and eligibility must be explicit. This is a data-domain task, not just a label.</li>
+<li><strong>EXTRACT-05 — Calculate slope and include it where relevant alongside terrain.
+Decision accepted; implementation pending.</strong> Candidate field: physical
+steepness <code>1 x 256 x 256</code>, with world-unit spacing and neighborhood validity.
+Use it as an explicit downstream terrain-derived input where relevant, and
+consider auxiliary physical-slope supervision for the terrain model. Preserve
+height as authoritative geometry and generation-time availability: do not
+condition terrain generation on a clean target slope it cannot obtain at
+inference. The exact loss/weight and loader integration still need validation.
+The existing encoded-gradient loss is not a dedicated physical-slope target.
+Match supervision to the represented height resolution; native-only slope
+summaries are separate evidence. A separate atlas image is not the goal.</li>
+</ul>
+<h2 id="3-dataset-wide-settings-defaults-and-configuration-variants">3. Dataset-wide settings, defaults and configuration variants</h2>
+<ul>
+<li><strong>EXTRACT-14 — Inventory settings/defaults for every map in the dataset.
+Large planned research task, not a five-atlas-map checklist.</strong> Count declared
+options and supported values, preserve original setting IDs/names/types, locate
+choices/ranges and source code, and report parsing/dynamic unknowns. Distinguish
+lobby-declared defaults, script fallback defaults and the effective resolved
+default. Do not infer defaults from a player&#39;s last lobby selection. Authors
+use different conventions and custom logic; a name alone does not establish
+behavior. Record dependencies and the fields/entities actually affected.</li>
+<li><strong>EXTRACT-11 — Resolve setting-dependent entities and possible training
+variants. Planned, linked to EXTRACT-14.</strong> Determine which resources, props,
+wrecks and civilians exist under defaults and how supported option/slot choices
+change their presence or quantities. Low/medium/rich are examples, not assumed
+universal settings. A map with few resources and the same map with rich
+resources could become distinct configuration examples with their own extracted
+tensors and optional training conditions. Do not merely relabel identical arrays.</li>
+<li><strong>Keep identities separate.</strong> Original map author-version, dataset release,
+settings-variant ID and augmentation transform are different things. Variant
+identity includes source version/checksum, resolved settings and active starts.
+Every configuration/augmentation of one source family stays in the same split.
+Option counts do not establish the number of valid combinations; do not blindly
+take a Cartesian product of interacting settings. Unknown runtime behavior is
+not silently counted as the default or as zero entities.</li>
+<li><strong>Static map generation remains the model scope.</strong> Investigating source-map
+settings and later extracting configured examples does not authorize or imply
+an adaptive-map generator, configurable generated-map export or exhaustive
+configuration enumeration. Those outputs are out of current scope.</li>
+</ul>
+<h2 id="4-new-appearance-data-special-effects">4. New appearance data: special effects</h2>
+<ul>
+<li><strong>EXTRACT-12a — Research and specify a separate Special effects in map appearance
+tensor. Planned; not extracted or trained.</strong> Determine how source maps record
+effects: serialized records, markers, scripts, asset/blueprint references or
+runtime emitters. Preserve effect IDs/pool references and instance coordinates,
+plus available scale, orientation, speed and other parameters/defaults. These
+are candidate fields, not a claim that every effect stores all of them directly.
+Most maps may have no effects; distinguish verified absence from unsupported
+extraction. Keep effect instances and asset definitions separate from textures,
+resource props, gameplay scripts and sampled appearance frames.</li>
+<li><strong>EXTRACT-12b — Heatmap representation saved for later.</strong> Heatmaps are a
+candidate spatial representation. Preserve IDs and instance parameters first
+so spatial aggregation does not discard identity. Channels, animation/time
+treatment, conditioning and model role remain undecided. Do not equate a
+fixed preview frame with a completed effects tensor.</li>
+</ul>
+<h2 id="5-deferred-difficult-rules-and-explicit-scope-exclusions">5. Deferred difficult rules and explicit scope exclusions</h2>
+<ul>
+<li><strong>EXTRACT-09 — Access structure, hover and drop-only regions:</strong> moved to the
+difficult/explicit-rules queue. Review definitions after symmetry and scenario
+identity; unwalkable terrain is not automatically a valid landing destination.</li>
+<li><strong>EXTRACT-13 — Full battle-path continuity:</strong> hard; discuss later. Preserve
+passable connectivity, shared sections and route/contact distinctions.</li>
+<li><strong>EXTRACT-03 + EXTRACT-04 — Economy zones and contestability:</strong> hard; discuss
+later. First test improvements from symmetry enforcement. Remaining zone
+definitions/risks may still require rules; symmetry is not assumed to prove
+safety. Mex and reclaim distinctions remain part of that later discussion.</li>
+<li><strong>EXTRACT-08 — Air drop/raid scoring:</strong> very hard; deferred. Good versus bad
+opportunities require benefit/response assumptions, weighting and scoring
+decisions. No new score or calibration is approved by this plan.</li>
+<li><strong>EXTRACT-10 — Team-game scenarios:</strong> postponed. Current scope is <strong>1v1 only</strong>.
+Retain the future 2v2/3v3/4v4/6v6 layout task without implementing or labeling
+current outputs as team-game evidence.</li>
+<li><strong>EXTRACT-02 — Specific atlas-map extraction reruns:</strong> out of current scope.
+Preserve existing missing-version/movement evidence as history; do not schedule
+Setons FAF/FAF Beetles or other particular-map jobs to fill presentation rows.
+Dataset-wide inventory/audits are not limited to those examples.</li>
+<li><strong>EXTRACT-15 — Optional artificial augmentation:</strong> low priority; keep as an
+anti-memorization option. The current terrain loader already performs random
+quarter-turn rotations/reflections; verify all relevant channels and other
+model loaders before claiming new coverage. Pixel shifts are a separate future
+option with explicit padding/cropping, coordinate/metadata transforms and
+validity/relabeling rules. Avoid toroidal wraparound and accidental resource/
+spawn loss. Apply transformations consistently to spatial data, directional
+features, symmetry descriptors and entity coordinates. They add presentations,
+not independent map families, and do not guarantee prevention of memorization.</li>
+</ul>
+<h2 id="before-another-training-run">Before another training run</h2>
+<ul>
+<li>Establish symmetry and scenario mappings, then audit the named dataset/field
+contracts. Source-only, uncertain, unsupported and planned data stay explicit.</li>
+<li>Rebuild only approved affected data under a new release with tracked provenance;
+preserve historical releases and family separation, including future variants.</li>
+<li>Check loaders and training receipts against actual channel roles and shapes.
+Every conditioning input must be available through the generation pipeline.</li>
+<li>Record/publish readiness and review before further training. This planning
+update launches no extraction, model run, configuration expansion or automation.</li>
+</ul>
+<h2 id="coverage-of-every-written-note">Coverage of every written note</h2>
+<table>
+<thead>
+<tr>
+<th>Stable review key</th>
+<th>Requested work</th>
+<th>Tasks</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>layers:layer-terrain</code></td>
+<td>Terrain/Slope split; nonstandard dimensions and unused area</td>
+<td>05, 06</td>
+</tr>
+<tr>
+<td><code>layers:section:1-map-decomposition</code></td>
+<td>Determine symmetry and enforce it throughout measurements</td>
+<td>07</td>
+</tr>
+<tr>
+<td><code>layers:layer-starts</code></td>
+<td>Common game-mode slot layouts</td>
+<td>10</td>
+</tr>
+<tr>
+<td><code>layers:layer-appearance</code></td>
+<td>Clouds and static effects</td>
+<td>12</td>
+</tr>
+<tr>
+<td><code>layers:layer-scenario</code></td>
+<td>Props/wrecks/civilians attached to settings or spawns</td>
+<td>11</td>
+</tr>
+<tr>
+<td><code>layers:layer-air_expansion</code></td>
+<td>Mirrored areas and correct opposing starts</td>
+<td>01, 07</td>
+</tr>
+<tr>
+<td><code>layers:layer-air_offensive</code></td>
+<td>Mirrored results and good/better spot weights across air analyses</td>
+<td>07, 08</td>
+</tr>
+<tr>
+<td><code>layers:layer-air_raids</code></td>
+<td>Symmetry and raid scores</td>
+<td>07, 08</td>
+</tr>
+<tr>
+<td><code>layers:layer-battle_paths</code></td>
+<td>Complete, connected base-to-base battle paths</td>
+<td>02, 13</td>
+</tr>
+<tr>
+<td><code>layers:layer-access</code></td>
+<td>Merge access views; hover-access and air-only layers</td>
+<td>09</td>
+</tr>
+<tr>
+<td><code>layers:layer-resource_zones</code></td>
+<td>Correct main-base/safe/own-expansion/contestable/hot-zone assignments</td>
+<td>03, 04</td>
+</tr>
+<tr>
+<td><code>layers:layer-contested_resources</code></td>
+<td>Unify with economy zoning; separate mex and reclaim views</td>
+<td>03, 04</td>
+</tr>
+</tbody></table>
+<p>The seven green flags are retained: Water, Markers, Natural reclaim Energy,
+Natural reclaim Mass, Wrecks Mass, Civilians, and Pathing &amp; connectivity. They
+are owner-accepted views, not proof that every runtime setting or map version
+has been validated. Access structure, the derived-gameplay header and the page
+also have non-green flags without additional written notes; their scope is
+covered by the access/derived work above. No owner flag is automatically closed.</p>
+<script src="public-links.js" data-public-links></script></body></html>

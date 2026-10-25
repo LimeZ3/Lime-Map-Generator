@@ -1,0 +1,212 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>terrain_symmetry.py | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="../docs/model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1>terrain_symmetry.py</h1><p class="meta">Saved public evidence snapshot: src/supmapai/extract/terrain_symmetry.py</p><pre>&quot;&quot;&quot;Terrain-first experimental symmetry discovery; never changes source geometry.&quot;&quot;&quot;
+from dataclasses import dataclass,asdict
+import math
+
+import numpy as np
+from scipy import ndimage,optimize
+from scipy.spatial import cKDTree
+
+VERSION='terrain_symmetry_v1'
+
+
+@dataclass(frozen=True)
+class Settings:
+    coarse_grid:int=40
+    verify_grid:int=161
+    angle_step:float=3.
+    max_order:int=16
+    center_search_fraction:float=.025
+    screening_error:float=.22
+    acceptance_error:float=.055
+    p95_error_limit:float=.12
+    min_overlap:float=.72
+    domain_preservation:float=.995
+    minimum_relief:float=.05
+    max_reflections:int=16
+    point_tolerance:float=3.
+
+
+def rotation(center,degrees):
+    t=math.radians(degrees);c,s=math.cos(t),math.sin(t)
+    matrix=np.eye(3);matrix[:2,:2]=[[c,-s],[s,c]]
+    center=np.asarray(center,float);matrix[:2,2]=center-matrix[:2,:2]@center
+    return matrix
+
+
+def reflection(center,degrees,offset=0.):
+    t=math.radians(degrees);u=np.array([math.cos(t),math.sin(t)])
+    normal=np.array([-u[1],u[0]]);point=np.asarray(center,float)+offset*normal
+    matrix=np.eye(3);matrix[:2,:2]=2*np.outer(u,u)-np.eye(2)
+    matrix[:2,2]=point-matrix[:2,:2]@point
+    return matrix
+
+
+def overlap_fraction(bounds,matrix):
+    &quot;&quot;&quot;Continuous rectangle overlap; sampled endpoint counts bias tiny offsets.&quot;&quot;&quot;
+    x0,z0,x1,z1=bounds
+    points=np.asarray([[x0,z0],[x1,z0],[x1,z1],[x0,z1]])@matrix[:2,:2].T+matrix[:2,2]
+    polygon=[p for p in points]
+    for axis,value,direction in [(0,x0,1),(0,x1,-1),(1,z0,1),(1,z1,-1)]:
+        clipped=[]
+        if not polygon:return 0.
+        for a,b in zip(polygon,polygon[1:]+polygon[:1]):
+            inside_a=direction*(a[axis]-value)&gt;=-1e-8;inside_b=direction*(b[axis]-value)&gt;=-1e-8
+            if inside_a:clipped.append(a)
+            if inside_a!=inside_b:
+                t=(value-a[axis])/(b[axis]-a[axis]);clipped.append(a+t*(b-a))
+        polygon=clipped
+    if len(polygon)&lt;3:return 0.
+    p=np.asarray(polygon);area=.5*abs(np.dot(p[:,0],np.roll(p[:,1],-1))-np.dot(p[:,1],np.roll(p[:,0],-1)))
+    return float(np.clip(area/((x1-x0)*(z1-z0)),0,1))
+
+
+class Comparison:
+    def __init__(self,height,bounds,grid,scale):
+        self.height=height;self.bounds=bounds;self.scale=scale
+        x0,z0,x1,z1=bounds
+        x,z=np.meshgrid(x0+(np.arange(grid)+.5)*(x1-x0)/grid,z0+(np.arange(grid)+.5)*(z1-z0)/grid)
+        self.points=np.stack([x.ravel(),z.ravel()])
+        self.values=ndimage.map_coordinates(height,[self.points[1],self.points[0]],order=1,prefilter=False,mode='nearest')
+        self.median=float(np.median(self.values))
+
+    def score(self,matrix,details=False):
+        xy=matrix[:2,:2]@self.points+matrix[:2,2,None]
+        x0,z0,x1,z1=self.bounds
+        valid=(xy[0]&gt;=x0-1e-6)&amp;(xy[0]&lt;=x1+1e-6)&amp;(xy[1]&gt;=z0-1e-6)&amp;(xy[1]&lt;=z1+1e-6)
+        coverage=float(valid.mean())
+        if coverage&lt;.1:return dict(error=1e6,coverage=coverage) if details else 1e6
+        a=self.values[valid]
+        b=ndimage.map_coordinates(self.height,[xy[1,valid],xy[0,valid]],order=1,prefilter=False,mode='nearest')
+        delta=(a-b)/self.scale
+        # Small/featureless backgrounds must not drown out the actual formations.
+        weights=.15+np.clip((abs(a-self.median)+abs(b-self.median))/(2*self.scale),0,2)
+        error=float(np.sqrt(np.average(delta*delta,weights=weights)))
+        if not details:return error
+        return dict(error=error,normalized_mae=float(np.average(abs(delta),weights=weights)),
+            normalized_p95=float(np.quantile(abs(delta),.95)),physical_mae=float(np.mean(abs(a-b))),
+            coverage=overlap_fraction(self.bounds,matrix),sample_coverage=coverage,samples=int(valid.sum()),
+            interpretation='Feature-weighted height RMSE / robust relief; overlap domain, not a probability')
+
+
+def accepted(score,settings):
+    return score['coverage']&gt;=settings.min_overlap and score['error']&lt;=settings.acceptance_error and score['normalized_p95']&lt;=settings.p95_error_limit
+
+
+def angle_distance(a,b):return abs((a-b+90)%180-90)
+
+
+def match_points(points,matrix,tolerance):
+    if not points:return dict(status='empty',count=0,matches=[])
+    coords=np.asarray([[p['x'],p['z']] for p in points],float)
+    mapped=coords@matrix[:2,:2].T+matrix[:2,2]
+    distances,indices=cKDTree(coords).query(mapped)
+    matches=[dict(source=p.get('name',str(i)),target=points[int(j)].get('name',str(int(j))),
+        distance=float(d),matched=bool(d&lt;=tolerance),self_match=bool(i==j)) for i,(p,j,d) in enumerate(zip(points,indices,distances))]
+    return dict(status='measured',count=len(points),matched_fraction=float((distances&lt;=tolerance).mean()),
+        unique_targets=int(len(set(indices[distances&lt;=tolerance].tolist()))),p95_distance=float(np.quantile(distances,.95)),matches=matches)
+
+
+def calculate(height,*,bounds=None,spawns=(),mexes=(),settings=None):
+    settings=settings or Settings();height=np.asarray(height,float)
+    if height.ndim!=2 or min(height.shape)&lt;9 or not np.isfinite(height).all():raise ValueError('Finite native height vertices required')
+    if not (2&lt;=settings.max_order&lt;=32 and settings.angle_step&gt;0 and settings.coarse_grid&gt;=9 and settings.verify_grid&gt;=9):raise ValueError('Invalid symmetry search settings')
+    bounds=list(map(float,bounds or [0,0,height.shape[1]-1,height.shape[0]-1]))
+    x0,z0,x1,z1=bounds
+    if not (0&lt;=x0&lt;x1&lt;=height.shape[1]-1 and 0&lt;=z0&lt;z1&lt;=height.shape[0]-1):raise ValueError('Bounds outside height vertices')
+    sample=height[int(z0):int(z1)+1,int(x0):int(x1)+1]
+    q=np.quantile(sample,[.05,.95]);relief=float(q[1]-q[0]);maximum=float(np.ptp(sample))
+    center=np.array([(x0+x1)*.5,(z0+z1)*.5]);extent=max(x1-x0,z1-z0)
+    base=dict(schema=VERSION,settings=asdict(settings),bounds=bounds,center=center.tolist(),
+        height_source='native physical height vertices; no imposed symmetry or encoded-height comparison',
+        robust_relief=relief,height_range=maximum,search='All scanned candidates; not first matching preset',
+        classification=None,model_condition_valid=False,reflections=[],rotations=[],transforms=[],
+        limits=['Bounded rotational orders and angle/center search; no universal absence proof',
+                'Angled/radial overlap is distinguished from preserved full playable domain',
+                'Terrain class does not certify resource/default-setting symmetry or unique 1v1 pair'])
+    if maximum&lt;settings.minimum_relief or relief&lt;max(settings.minimum_relief,.002*maximum):
+        base.update(classification='unknown_uninformative',reason='Too little robust terrain variation; does not imply absence or every symmetry')
+        return base
+    scale=max(relief,settings.minimum_relief)
+    coarse=Comparison(height,bounds,settings.coarse_grid,scale)
+    fine=Comparison(height,bounds,settings.verify_grid,scale)
+    shift=extent*settings.center_search_fraction
+    # Reflect about an axis with a small offset from the declared domain centre.
+    angles=np.arange(0,180,settings.angle_step)
+    errors=np.array([coarse.score(reflection(center,a)) for a in angles])
+    peaks=[i for i,e in enumerate(errors) if e&lt;=np.roll(errors,1)[i] and e&lt;=np.roll(errors,-1)[i] and e&lt;settings.screening_error]
+    peaks=sorted(peaks,key=lambda i:errors[i])[:settings.max_reflections]
+    for i in peaks:
+        initial=float(angles[i])
+        def objective(v):return coarse.score(reflection(center,v[0],v[1]))
+        result=optimize.minimize(objective,[initial,0.],method='Powell',
+            bounds=[(initial-settings.angle_step,initial+settings.angle_step),(-shift,shift)],options=dict(xtol=.015,ftol=1e-5,maxiter=25))
+        options=[(initial,0.),(float(result.x[0]),float(result.x[1]))]
+        angle,offset=min(options,key=lambda v:objective(v))
+        matrix=reflection(center,angle,offset);score=fine.score(matrix,True)
+        canonical=angle%180
+        point=.5*(center+matrix[:2,:2]@center+matrix[:2,2])
+        normal=np.array([-math.sin(math.radians(canonical)),math.cos(math.radians(canonical))])
+        item=dict(axis_angle_degrees=canonical,axis_offset=float(np.dot(point-center,normal)),axis_point=point.tolist(),matrix=matrix.tolist(),**score,accepted=accepted(score,settings))
+        if not any(angle_distance(item['axis_angle_degrees'],p['axis_angle_degrees'])&lt;.5 and abs(item['axis_offset']-p['axis_offset'])&lt;1 for p in base['reflections']):base['reflections'].append(item)
+    for n in range(2,settings.max_order+1):
+        theta=360/n;initial_error=coarse.score(rotation(center,theta))
+        if initial_error&gt;=settings.screening_error and n!=2:continue
+        def objective(v):return coarse.score(rotation(v,theta))
+        result=optimize.minimize(objective,center,method='Powell',bounds=[(center[0]-shift,center[0]+shift),(center[1]-shift,center[1]+shift)],
+            options=dict(xtol=.015,ftol=1e-5,maxiter=25))
+        fitted=min([center,result.x],key=objective)
+        scores=[fine.score(rotation(fitted,k*theta),True) for k in range(1,n)]
+        base['rotations'].append(dict(order=n,center=np.asarray(fitted).tolist(),generator_angle=theta,
+            accepted=all(accepted(s,settings) for s in scores),error=max(s['error'] for s in scores),
+            coverage=min(s['coverage'] for s in scores),power_scores=scores))
+    rotations=[r for r in base['rotations'] if r['accepted']]
+    mirrors=sorted([r for r in base['reflections'] if r['accepted']],key=lambda r:r['error'])
+    transforms=[];family='none';order=1;orientation=None;selected_center=center
+    if rotations:
+        selected=max(rotations,key=lambda r:r['order']);order=selected['order'];selected_center=np.asarray(selected['center'])
+        family='rotation'
+        transforms=[dict(kind='rotation',angle_degrees=k*360/order,matrix=rotation(selected_center,k*360/order).tolist()) for k in range(1,order)]
+        for mirror in mirrors:
+            theta=mirror['axis_angle_degrees']
+            candidates=[dict(kind='reflection',angle_degrees=(theta+k*180/order)%180,matrix=reflection(selected_center,theta+k*180/order).tolist()) for k in range(order)]
+            if all(accepted(fine.score(np.asarray(t['matrix']),True),settings) for t in candidates):
+                orientation=theta;family='rotation_with_reflection';transforms+=candidates;break
+    elif mirrors:
+        chosen=mirrors[0];family='reflection';orientation=chosen['axis_angle_degrees']
+        selected_center=np.asarray(chosen['axis_point'])
+        transforms=[dict(kind='reflection',angle_degrees=orientation,matrix=chosen['matrix'])]
+    for transform in transforms:
+        matrix=np.asarray(transform['matrix']);transform['score']=fine.score(matrix,True)
+        transform['spawns']=match_points(spawns,matrix,settings.point_tolerance)
+        transform['mexes']=match_points(mexes,matrix,settings.point_tolerance)
+    domain_preserved=all(t['score']['coverage']&gt;=settings.domain_preservation for t in transforms)
+    extra_mirrors=[]
+    for m in mirrors:
+        if not any(t['kind']=='reflection' and angle_distance(m['axis_angle_degrees'],t['angle_degrees'])&lt;1 for t in transforms):extra_mirrors.append(m['axis_angle_degrees'])
+    base.update(classification=family,rotation_order=order,center=selected_center.tolist(),reference_axis_degrees=orientation,
+        transforms=transforms,domain_preserved=domain_preserved,unrepresented_mirror_candidates=extra_mirrors,
+        model_condition_valid=bool(domain_preserved and not extra_mirrors),
+        status='experimental_verified_samples' if domain_preserved and not extra_mirrors else 'partial_domain_or_inconsistent_candidates')
+    source_pairs=[]
+    for t in transforms:
+        for match in t['spawns']['matches']:
+            if match['matched'] and not match['self_match']:source_pairs.append(dict(transform=t['kind'],angle_degrees=t['angle_degrees'],**match))
+    base['spawn_correspondences']=source_pairs
+    base['pair_policy']='Candidate correspondences only; no source-slot rename, active-scenario rewrite or forced unique 1v1 choice'
+    return base
+
+
+def encode(result,max_order=16):
+    &quot;&quot;&quot;Experimental sidecar: family4 + order(max_order) + center2 + phase2 + masks4.&quot;&quot;&quot;
+    vector=np.zeros(4+max_order+2+2+4,np.float32)
+    valid=bool(result.get('model_condition_valid'))
+    if not valid:return vector
+    families=['none','reflection','rotation','rotation_with_reflection'];family=result['classification'];n=result['rotation_order']
+    vector[families.index(family)]=1;vector[4+n-1]=1
+    pos=4+max_order;x0,z0,x1,z1=result['bounds']
+    if family!='none':vector[pos:pos+2]=[(result['center'][0]-x0)/(x1-x0)*2-1,(result['center'][1]-z0)/(z1-z0)*2-1]
+    theta=result.get('reference_axis_degrees')
+    if theta is not None:vector[pos+2:pos+4]=[math.cos(2*n*math.radians(theta)),math.sin(2*n*math.radians(theta))]
+    vector[-4:]=[1,1,float(family!='none'),float(theta is not None)]
+    return vector
+</pre><script src="../docs/model-atlas/public-links.js" data-public-links></script></body></html>
