@@ -1,0 +1,234 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>reclaim_value_heatmaps.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="learned-reclaim-value-heatmaps">Learned Reclaim Value Heatmaps</h1>
+<h2 id="current-contract">Current Contract</h2>
+<p>The neural network learns <strong>where</strong>, the future composer decides <strong>what and how
+much</strong>. Begin with two joint output roles:</p>
+<ul>
+<li>Tree reclaim energy allocation, weighted by extracted energy values.</li>
+<li>Natural-rock reclaim mass allocation, weighted by extracted mass values.</li>
+</ul>
+<p>These are not entity-count PDFs. A large energy-bearing tree group or rich rock
+contributes proportionally to its physical value. Wreck mass and living civilian
+structures are later roles, not folded into the natural-rock target.</p>
+<p>No blueprint-ID, orientation or instance-pose learning is needed for this MVP.
+The earlier asset-learning proposal in <code>entity_asset_learning_plan.md</code> is now
+an alternative, not the active plan.</p>
+<h2 id="existing-data-no-raw-map-rerun">Existing Data, No Raw-Map Rerun</h2>
+<p>Source: <code>data/tensors/reclaim_props_curated_256_v1</code>. Use <strong>unclipped physical</strong>
+channels 2 (<code>trees_energy</code>) and 4 (<code>rocks_mass</code>), never the old clipped log targets.
+Both channels have fully known values in the curated cohort.</p>
+<p>Sum-pool 256 to 128, then divide each nonempty role by its per-map total. A field
+therefore describes the share of the map&#39;s tree energy or rock mass allocated to
+each cell. Multiplying by any chosen budget restores a physical target grid.
+The sums, unknown-value masks, file hashes and family splits are checked during
+preparation. Totals are retained for audit, <strong>not fed to the network</strong>.</p>
+<p>The frozen 1,020 training / 97 validation map split remains unchanged. Human
+exclusions and preferred-version deduplication are inherited. Raw maps and prior
+models are untouched. A 128 grid represents four world units per cell on these
+512-world-unit (10km) maps. Original small source raster blur is retained;
+there is no clipping, new broad smoothing or inferred asset painting.</p>
+<h2 id="first-model">First Model</h2>
+<p><code>supmapai.ml.reclaim_heatmaps</code> is a 4.72M-parameter, two-output multiscale U-Net.
+Inputs: encoded height, water distance/depth, land/hover passability, the two
+planned spawn fields, and mex/hydro fields. No source reclaim target is an input.</p>
+<p>The bounded first pilot runs for 300 seconds after loading. It minimizes spatial
+cross entropy, Hellinger distance and sum-pooled allocation cross entropy at
+multiple scales. Roles are balanced; empty source categories have no spatial
+loss. A user-selected zero budget will produce no objects; this network does
+not predict category absence or total quantities.</p>
+<p>This is a <strong>deterministic conditional allocation baseline</strong>, not diffusion and
+not an autoencoder fed its own target. It can learn terrain-dependent spatial
+preferences, but ambiguous training layouts can average into broad fields.
+It does not yet produce different neural heatmaps for the same terrain/seed.
+Do not hide that failure mode by sharpening, filtering or placing props before
+reviewing the raw outputs. If coherence remains weak, a stochastic, cluster-scale
+heatmap model is the next architectural experiment, not asset-ID supervision.</p>
+<h2 id="evaluation">Evaluation</h2>
+<p>Review six reproducibly sampled held-out maps beside their extracted targets,
+plus the approved generated seed-303 terrain conditioned on learned mex/hydro
+positions. The generated example has no ground-truth reclaim layout. Show raw
+predictions and the existing 180-degree average symmetry projection separately.</p>
+<p>All PNG panels use one fixed logarithmic color scale, zero to 32 times uniform
+allocation. White saturates above that scale; the saved float arrays do not.
+No independent panel contrast stretching. No terrain mask, placement validator,
+asset sampling, quantity matching or shoreline rejection is applied.</p>
+<p>Full validation measurements include spatial NLL, Hellinger distance, source
+allocation captured by the hottest predicted 10% of area, and predicted
+allocation within nonzero source support. Also compare wrong-map conditioning
+and a train-only mean-map baseline. Beating uniform alone is not enough.
+These are allocation metrics, not predicted entity counts or gameplay balance.</p>
+<h2 id="windows-commands">Windows Commands</h2>
+<pre><code class="language-powershell">$env:PYTHONPATH = &#39;src&#39;
+$env:OPENBLAS_NUM_THREADS = &#39;1&#39;
+$env:OMP_NUM_THREADS = &#39;1&#39;
+.venv-codex/Scripts/python.exe -m supmapai.tensors.reclaim_heatmaps --source data/tensors/reclaim_props_curated_256_v1 --out data/tensors/reclaim_value_heatmaps_128_v1
+.venv/Scripts/python.exe -m supmapai.ml.reclaim_heatmaps --dataset data/tensors/reclaim_value_heatmaps_128_v1 --out data/models/reclaim_value_heatmaps_128_pilot_v1 --seconds 300
+.venv/Scripts/python.exe -m supmapai.tools.review_reclaim_heatmaps --checkpoint data/models/reclaim_value_heatmaps_128_pilot_v1/best.pt --out data/models/reclaim_value_heatmaps_review_v1
+</code></pre>
+<p>Choose new output folders for repeat experiments. Frozen source-code and dataset
+hashes are recorded in checkpoints; do not edit training modules during a run.
+Progress is written to the run&#39;s <code>progress.json</code>. Creating <code>pause.request</code> in the
+run folder requests a checkpointed pause at the next update boundary.</p>
+<h2 id="composer-boundary-next-stage">Composer Boundary, Next Stage</h2>
+<p>Preserve generated allocation maps when selecting low/medium/high budgets.
+Use compatible stock asset pools and actual blueprint reclaim values. Account
+for tree mass as well as energy, use seeded nested candidate order where
+practical, apply requested prop footprint/spacing constraints, and report any
+unmet local/global budget instead of filling unrelated regions. Living civilian
+units must remain save-Lua entities, not <code>.scmap</code> prop blueprints.</p>
+<p>No composer is added or run by this pilot. The existing raw mex/spawn/hydro
+export contract stays unchanged; no terrain repair is reintroduced.</p>
+<h2 id="pilot-result-24-october-2026">Pilot Result, 24 October 2026</h2>
+<p>Training completed 4,397 updates in 300.55 seconds, peak allocated GPU memory
+1,072 MB. Best composite validation checkpoint: update 3,533. Preparation used
+all 1,117 curated maps; 992 have positive tree energy, 997 positive rock mass.
+Both physical channels were fully resolved. Maximum relative L1 error when
+reconstructing pooled physical fields from allocations and totals: 2.65e-8.</p>
+<table>
+<thead>
+<tr>
+<th>Role</th>
+<th align="right">Model NLL</th>
+<th align="right">Train-mean NLL</th>
+<th align="right">Wrong-map inputs NLL</th>
+<th align="right">Source value in hottest predicted 10%</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Tree energy</td>
+<td align="right">9.338</td>
+<td align="right">9.700</td>
+<td align="right">10.448</td>
+<td align="right">26.1%</td>
+</tr>
+<tr>
+<td>Rock mass</td>
+<td align="right">9.343</td>
+<td align="right">9.632</td>
+<td align="right">10.001</td>
+<td align="right">33.9%</td>
+</tr>
+</tbody></table>
+<p>Lower NLL is better; uniform NLL is 9.704. The wrong-map comparison changes all
+nine condition fields together, so it demonstrates dependence on map/layout
+inputs, not a separate causal proof for terrain alone.</p>
+<p>Gallery: <code>data/models/reclaim_value_heatmaps_review_v1/index.html</code>, with six
+random held-out source comparisons and the generated seed-303 example. The
+source panels are visibly patchier than predictions. The first generated and
+held-out previews follow some shore/cliff features but remain diffuse, with a
+repeated central rock hotspot and some bright tree-edge bias. Do not call this
+finished forest/rock-region generation or solve those artifacts with hidden
+postprocessing. Player review should decide whether to proceed to a stochastic,
+cluster-scale allocation model before composing individual assets.</p>
+<p>Validation: 66 reclaim-related unit tests passed; scoped fatal/unused-import
+lint checks passed. Nothing was launched in-game or deployed online.</p>
+<h2 id="larger-30-minute-experiment">Larger 30-Minute Experiment</h2>
+<p>User review accepts center attraction and terrain-feature attachment as useful,
+not artifacts to automatically remove. Trees may be evenly spread or patchy.
+Sparse source placement is not necessarily the desired aesthetic result, and
+reconstruction metrics measure source agreement, not ultimate gameplay quality.
+No map is removed or downweighted based on this feedback in this run. Underwater
+reclaim remains an unconstrained prediction; the model may inherit the source
+dataset&#39;s scarcity of underwater natural reclaim.</p>
+<p>The frozen targets and all nine condition fields remain unchanged. Train a
+fresh base-64 U-Net (17,857,858 parameters, 3.78 times the pilot&#39;s capacity) for
+1,800 seconds with batch 8, BF16 and the same objective/augmentation. A synthetic
+GPU preflight passed; the live run&#39;s observed peak allocation was about 2.3 GB,
+within the existing 5 GB guard. Retain per-minute validation, best and final
+checkpoints. The best checkpoint may precede the final update; show both if
+their behavior diverges. More time does not guarantee better unseen-map results.</p>
+<p>Run folder: <code>data/models/reclaim_value_heatmaps_128_30min_v1</code>.</p>
+<pre><code class="language-powershell">.venv/Scripts/python.exe -m supmapai.ml.reclaim_heatmaps --dataset data/tensors/reclaim_value_heatmaps_128_v1 --out data/models/reclaim_value_heatmaps_128_30min_v1 --seconds 1800 --batch-size 8 --base 64
+.venv/Scripts/python.exe -m supmapai.tools.review_reclaim_heatmaps --checkpoint data/models/reclaim_value_heatmaps_128_30min_v1/best.pt --out data/models/reclaim_value_heatmaps_30min_review_v1
+.venv/Scripts/python.exe -m supmapai.tools.compare_reclaim_heatmaps --candidate data/models/reclaim_value_heatmaps_30min_review_v1 --out data/models/reclaim_value_heatmaps_30min_comparison_v1
+</code></pre>
+<p>The comparison requires identical target and condition arrays and the same
+frozen dataset release. Source, small pilot and larger model panels share one
+color scale. No prop composer, sharpening or terrain rejection is added.</p>
+<p>The six bright rock spots on <code>heritage_of_ancestorsv3.v0003</code> correspond to six
+natural-rock records in the stored extraction, each with 75 mass (450 total),
+not six arbitrary peaks introduced by heatmap encoding. Four are GeoRock07,
+two SeaRock01. This is an unusually sparse role target, not by itself proof of
+extraction failure or a bad map. Its tree layer is independently much denser.</p>
+<h3 id="safely-paused-for-user-review">Safely Paused For User Review</h3>
+<p>The user requested an early checkpointed stop. The run paused normally at
+20,657 updates / 1,261.812 seconds (21.03 minutes), not the full 30-minute budget.
+<code>progress.json</code> records <code>status: paused</code> and <code>reason: pause_request</code>. The
+<code>pause.request</code> marker remains in the original run folder intentionally.</p>
+<table>
+<thead>
+<tr>
+<th>Checkpoint</th>
+<th align="right">Update</th>
+<th align="right">Training minutes</th>
+<th align="right">Held-out NLL</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Small pilot best</td>
+<td align="right">3,533</td>
+<td align="right">about 4</td>
+<td align="right">9.341</td>
+</tr>
+<tr>
+<td>Larger best</td>
+<td align="right">4,809</td>
+<td align="right">5.05</td>
+<td align="right">9.333</td>
+</tr>
+<tr>
+<td>Larger latest, paused</td>
+<td align="right">20,657</td>
+<td align="right">21.03</td>
+<td align="right">9.855</td>
+</tr>
+</tbody></table>
+<p>The larger best offers only a small source-agreement improvement. Continued
+training lowered training loss but worsened validation, consistent with
+overfitting. This is not a verdict on aesthetic quality: inspected latest PNGs
+have sharper cliff/shore-associated bands and patches than the pilot, while
+source placements can be unconventional. Review those separately from NLL.</p>
+<ul>
+<li>Latest versus pilot: <code>data/models/reclaim_value_heatmaps_paused21min_comparison_v1/index.html</code></li>
+<li>Best versus pilot: <code>data/models/reclaim_value_heatmaps_large_best_comparison_v1/index.html</code></li>
+<li>Detailed latest review: <code>data/models/reclaim_value_heatmaps_paused21min_review_v1/index.html</code></li>
+<li>Detailed best review: <code>data/models/reclaim_value_heatmaps_large_best_review_v1/index.html</code></li>
+</ul>
+<p><code>last.pt</code> contains model parameters, EMA, AdamW optimizer state, update count,
+config and metrics. Model and optimizer restoration was tested on CPU without
+executing a training update; all 240 optimizer entries restored at step 20,657
+with finite first/second moments. EMA restoration is exercised by review
+inference. Training has <strong>not</strong> resumed.</p>
+<p>The existing trainer CLI does not yet accept <code>--resume</code>. A resume path must
+restore these states and the learning-rate schedule/elapsed offset, continue
+update numbering, and write to a new run folder to preserve reviewed checkpoint
+hashes and outputs. The original checkpoint does not store PyTorch dropout RNG
+state, so a continuation cannot claim bit-for-bit identity with an uninterrupted
+run. Dataset batches are derived from seed and global update number, which can
+be retained. Further unchanged training is not recommended solely to improve
+source-agreement metrics given this validation trend.</p>
+<p>All 69 reclaim-related tests pass, including comparison alignment tests. No
+raw maps, targets, old model code, export rules or online deployments changed.</p>
+<h3 id="human-selection-latest-checkpoint-preferred">Human Selection: Latest Checkpoint Preferred</h3>
+<p>On 24 October 2026 the user preferred the paused update-20,657 predictions:
+sharper heatmaps attach reclaim to hills, cliffs and mountains and suppress
+allocation over flat plains. The small pilot&#39;s broad rock allocation across
+the battlefield is less desirable. For the MVP, this terrain selectivity is
+more useful than closely reproducing every source map&#39;s particular placement.</p>
+<p>The selected visual candidate is the <strong>EMA state</strong> from
+<code>data/models/reclaim_value_heatmaps_128_30min_v1/last.pt</code>, as used in the review
+PNGs (checkpoint SHA-256
+<code>8038f47bab4cb044a886097e76a6dd721184a176bc8fab7e7cccdf1495f441be</code>).
+Retain <code>best.pt</code> as the best source-agreement checkpoint, not the preferred
+visual output. No checkpoint files, training defaults or dataset weights have
+been changed by this selection, and training remains paused.</p>
+<p>Continue tracking validation as a generalization diagnostic, but do not use
+NLL alone to rank generated-map quality. Next evaluation should compose trees
+and rocks from these selected allocation maps at fixed physical budgets and
+inspect terrain attachment and clear plains in-game. Do not add a terrain
+placement mask to manufacture that behavior. Sharpness alone is also not a
+complete quality metric; player review of multiple terrains remains important.</p>
+<p>The first physical-value composer and native low/medium/high exports are now
+implemented. See <code>reclaim_composer.md</code> for the allocation contract, actual
+blueprint values, residual-budget reporting and local review gallery. The model
+checkpoint and training targets are unchanged.</p>
+<script src="model-atlas/public-links.js" data-public-links></script></body></html>

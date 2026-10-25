@@ -1,0 +1,149 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>reclaim_collection_effort.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="entity-aware-reclaim-collection-effort">Entity-aware reclaim collection effort</h1>
+<p>The second reclaim pilot preserves every known initial mass amount and entity
+identity while testing how per-target handling overhead changes collection
+priority. It uses the user&#39;s reference rate of 25 mass/s. Acquisition delays of
+0, 0.25, 0.5, 1 and 2 seconds are sensitivity scenarios, not measured FAF values.</p>
+<h2 id="per-entity-calculation">Per-entity calculation</h2>
+<p>For mass <code>m</code>, reclaim rate <code>r</code> and acquisition delay <code>d</code>:</p>
+<ul>
+<li>Processing time: <code>m / r</code>.</li>
+<li>Handling time: <code>m / r + d</code>.</li>
+<li>Throughput: <code>m / (m / r + d)</code>.</li>
+<li>Relative throughput efficiency: <code>m / (m + r*d)</code>.</li>
+<li>Collection priority: <code>m * m / (m + r*d)</code>.</li>
+</ul>
+<p>The score is calculated for each entity <strong>before</strong> adding values into spatial
+cells. Ten stacked objects remain ten handling operations. Tree groups are
+counted by actual extracted entity identity, not the number of visual branches
+or trees in their mesh. Individual wreck/unit identities and blueprint fields
+remain available in the original extraction and new per-entity CSV.</p>
+<p>Priority has mass-like units but is a convenience proxy. It is not physical
+mass, lost mass or a prediction of how much will be recovered. The per-entity
+weighting allows high-throughput chunks to attract attention without requiring
+the player to clear every small prop in the same area. Total handling time for
+clearing the entire eligible pool is separately reported; its throughput need
+not equal the mass-weighted average convenience of the individual chunks.</p>
+<p>At 0.5 seconds per target, one100-mass object requires4.5 engineer-seconds,
+ten10-mass objects require9, and one hundred1-mass objects require54. Each case
+still contains100 actual mass. These values include acquiring the first target;
+subtract one delay if measuring only subsequent switches. The relative extra
+cost between equal-mass groups is unaffected by that convention.</p>
+<h2 id="interaction-with-the-frontier-model">Interaction with the frontier model</h2>
+<p>Five delay profiles replace the raw-mass priority field with collection
+priority and use the same contextual stock/flow equation with the priority sum
+as its input. An additional0.5-second profile retains the original raw-stock
+mex/reclaim blend, isolating spatial priority changes from blend changes.</p>
+<p>All six profiles retain budgets1–8. The budget table evaluates every layout at
+the same0.5-second priority distribution and adjusted blend; this is a common
+comparison reference, not a selected best delay. Component metrics expose raw
+mass-weighted army response, priority-weighted army response, mex response,
+physical allocated mass, positive-mass entity count and handling work.</p>
+<p>The old physical mass field, default two-slot configuration, land movement
+graph, protected/rear exclusions, exact primary symmetry and frontier stopping
+rule remain unchanged. The zero-delay profile must reproduce the prior
+mass-only contextual model. Per-entity overhead does not create additional
+passable paths or alter army response speed.</p>
+<p>Exports are at
+<a href="../data/processed/reclaim_collection_comparison/index.html">reclaim_collection_comparison</a>.
+Each map has per-entity CSV rows, raw/count/work/priority NPZs for every delay,
+scope ledgers in their respective units, per-contact metrics and PNGs. Heat
+colours show collection priority; the original physical-mass heatmap is linked
+separately. Unknown mass remains unknown, inactive entities and live units are
+excluded, and zero-mass objects incur no mass-collection work because a
+mass-focused engineer would skip them.</p>
+<h2 id="limits-and-calibration">Limits and calibration</h2>
+<p>This round isolates handling overhead. Engineer travel between objects,
+target-order scanning, animations, reclaim-distance changes, parallel engineer
+coordination and actual collection schedules are not simulated. Sparse layout
+still changes spatial coverage and army access, but its additional engineer
+travel cost remains unmeasured. All previous extraction limitations remain,
+including original Loki&#39;s omitted scripted wall collision and ten unresolved
+naval-wreck values in DualGap.</p>
+<p>An in-game calibration can compare equal-total-mass groups within one
+engineer&#39;s reclaim reach, using the same engineer, command method and game
+speed. With movement minimized, the difference between completion times for
+one object and ten objects estimates nine additional target acquisitions:
+<code>d ≈ (time_10 - time_1) / 9</code>. Repeat measurements and compare medians; if movement
+occurs, this estimates combined overhead rather than the switching pause alone.
+No in-game timing measurement has been performed by this pipeline.</p>
+<h2 id="four-map-follow-up">Four-map follow-up</h2>
+<p>The requested follow-up uses Twin Rivers (<code>129_156</code>, <code>twin rivers.v0001</code>),
+Adaptive Diversity (<code>4619_6828</code>, <code>adaptive_diversity.v0002</code>), Adaptive Monument
+Valley (<code>4813_8047</code>, <code>adaptive_monument_valley.v0005</code>) and Adaptive Tabula Rasa
+(<code>9675_18616</code>, <code>adaptive_tabula_rasa.v0007</code>). The last is distinct from the
+non-adaptive Tabula Rasa in the earlier geometry comparison. Default two-slot
+resources and the actual mirrored opponent are retained. All six profiles and
+budgets 1–8 run unchanged; the original seven pilot results are preserved.</p>
+<p>An explanatory category breakdown uses existing prop type labels, with initial
+wreckage overriding appearance-based tree/rock labels. Categories do not affect
+the objective: mass and per-entity handling determine priority. The per-map
+<code>category_comparison.json</code> and <code>category_metrics.csv</code> distinguish all known
+playable-area stock, eligible land-front stock on both sides and own-half stock.
+Their eligible mass/count/priority totals must agree with the saved model.</p>
+<p>At the unmeasured 0.5-second acquisition probe, eligible-front tree shares are:</p>
+<table>
+<thead>
+<tr>
+<th>Map</th>
+<th align="right">Share of physical reclaim mass</th>
+<th align="right">Share of collection priority</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Twin Rivers</td>
+<td align="right">47.7%</td>
+<td align="right">6.3%</td>
+</tr>
+<tr>
+<td>Adaptive Diversity</td>
+<td align="right">33.6%</td>
+<td align="right">21.5%</td>
+</tr>
+<tr>
+<td>Adaptive Monument Valley</td>
+<td align="right">5.4%</td>
+<td align="right">2.7%</td>
+</tr>
+<tr>
+<td>Adaptive Tabula Rasa</td>
+<td align="right">44.0%</td>
+<td align="right">12.2%</td>
+</tr>
+</tbody></table>
+<p>Tabula&#39;s eligible front contains 18,630 tree entities averaging 1.17 mass,
+258 rocks averaging 10 mass and 167 initial wrecks averaging 151.31 mass.
+Wrecks contain 50.8% of its physical front stock and receive 83.7% of priority
+at the 0.5-second probe. Whole playable-area shares differ: trees hold 48.7%
+of known mass and receive 13.6% of priority; wrecks hold 46.4% and receive
+82.2%. Thus the expected preference for large chunks arises without a
+tree-specific penalty. It persists across all nonzero probes: Tabula front
+tree priority shares are 17.3%, 12.2%, 8.1% and 5.2% at 0.25/0.5/1/2 seconds.
+Ten Tabula wreck entities still have unknown mass and are explicitly excluded
+from known totals; this is not a complete known-value inventory.</p>
+<p>The strong category shift need not produce a large movement in every frontier
+contact: large chunks and trees may lie within the same served region, terrain
+constrains contacts, and mexes remain a separate objective. No best delay or
+automatic contact count is selected from these results. Monument Valley&#39;s
+dominant <code>other</code> category is retained as extracted rather than relabelled to
+match a visual expectation.</p>
+<p>The follow-up adds 24 profiles, 192 configurations and 384 path/territory PNGs.
+The combined pilot now has 11 maps, 66 profiles, 528 configurations, 1,056 PNGs
+and 141,518 positive-entity CSV records. All 155 targeted tests pass. Independent
+artifact audits pass for both the raw-mass comparison (11 maps / 55 profiles /
+440 configurations) and collection comparison; zero-delay control gain delta
+is exactly zero. Browser checks cover all four new maps, six profiles, budget
+controls, fixed/adjusted blend comparison, category tables and loaded images.
+No gameplay timings were measured, no thresholds changed and no hosted release
+was made.</p>
+<h2 id="selective-collection-curves">Selective collection curves</h2>
+<p>Per-contact next-chunk collection-rate curves are now available for all 11 maps.
+They distinguish first and largest rate declines and count qualifying mass above
+a movable mass/engineer-second probe, without changing the route objective or
+selecting a good-mass threshold. See <a href="reclaim_selective_collection.md">the method and validation</a>.</p>
+<h2 id="relative-tiers-and-energy-readiness">Relative tiers and energy readiness</h2>
+<p>Map-relative two/three-group inspection and automatic selection now summarize
+stock/work per contact for the11-map pilot. Whole playable-area reference stock
+sets common boundaries; existing route scoring stays unchanged. Energy-only
+entities are retained in a joint resource inventory, with energy timing and grades
+explicitly pending. See <a href="reclaim_relative_tiers.md">relative tiers and economic interpretation</a>.</p>
+<script src="model-atlas/public-links.js" data-public-links></script></body></html>

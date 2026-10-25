@@ -1,0 +1,147 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>reclaim_relative_tiers.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="map-relative-reclaim-tiers">Map-relative reclaim tiers</h1>
+<p><strong>Operating-policy update:</strong> the user fixed1s acquisition overhead and3 groups for
+subsequent work. Automatic-count and delay comparisons below are research history.
+See <a href="reclaim_operating_policy.md">the current operating policy</a>.</p>
+<p>The local collection viewer now has <strong>Relative tiers: Automatic / Inspect two
+groups / Inspect three groups</strong>. Every nonzero-delay profile on the 11-map pilot
+has a map-level fit and a mass/work breakdown for each saved contact. Colored
+curve bands use the selected fit. The independent absolute rate probe remains
+available. No contact search, geometry, mass stock or mex/reclaim objective
+weight was changed. Zero delay remains a validation control without fitted tiers.</p>
+<h2 id="reference-and-method">Reference and method</h2>
+<p>Reference stock is all known positive initial mass inside the playable bounds,
+under the same default active configuration. It includes starting/rear stock;
+route tables retain their earlier eligible own-side land-front scope. Common
+map boundaries prevent the same entity from changing tier merely because it
+belongs to a different path. Unknown values remain unknown and zero-mass objects
+are not classified as poor mass reclaim.</p>
+<p>Use the existing mass-only timing hypothesis <code>q=m/(m/25+d)</code> and delays
+0.25/0.5/1/2 seconds. Fit exact ordered one-dimensional breaks in <code>log(q)</code> by
+minimizing mass-weighted squared dispersion. Weight by mass rather than object
+count, without requiring any prescribed population fraction. Boundaries are
+geometric midpoints between adjacent observed groups. Preserve candidate fits
+for one, two and three groups.</p>
+<p>Automatic selection uses explicit provisional dimensionless rules:</p>
+<ul>
+<li>Weighted distribution silhouette at least 0.5.</li>
+<li>Adjacent geometric rate centers separated by at least 1.5 times.</li>
+<li>A third group improves silhouette by at least 0.05 over a supported two-group
+fit. If two groups fail but three pass the first two checks, retain three.</li>
+<li>Otherwise keep two supported groups, or one unsplit group when neither split
+is supported. This is not a statistically calibrated confidence test.</li>
+</ul>
+<p>The silhouette averages log-rate distances between quantity-weighted stock
+distributions, including zero distances for equal-rate stock. These selection
+constants are not learned gameplay thresholds. Two-group labels are Best
+available / Low priority; three-group labels add Okay. An inspected fit can fail
+automatic checks; the viewer states that explicitly. Low priority is relative
+opportunity, not zero utility or a measured player-APM/patrol recommendation.</p>
+<h2 id="first-results">First results</h2>
+<p>At 0.5s, auto selects three groups for Pandemonium Pass, Twin Rivers, Adaptive
+Diversity and Adaptive Monument Valley; the other seven maps select two. At 2s,
+Pandemonium and Adaptive Tabula Rasa select three; the other nine select two.
+Thus automatic group count still needs interpretation and sensitivity review.</p>
+<p>Twin Rivers&#39; top-group boundary is about 3.28 mass/engineer-s at 0.5s, versus
+16.75 for Wonder Open. The relative method promotes modest chunks when the
+map&#39;s alternatives are poor without changing their absolute collection rates.</p>
+<p>Adaptive Tabula&#39;s three-group interpretation is particularly useful. Despite
+auto choosing two at 0.5s and three at 2s, the inspected three-group fits retain
+the same mass proportions throughout 0.5/1/2s: <strong>46.44% best, 14.27% okay,
+39.29% low priority</strong>. At 0.5s its map-level boundaries are about 15.49 and
+4.76 mass/engineer-s. The own-side four-contact breakdown is:</p>
+<table>
+<thead>
+<tr>
+<th>Contact</th>
+<th align="right">Best mass / work</th>
+<th align="right">Okay mass / work</th>
+<th align="right">Low-priority mass / work</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>F1</td>
+<td align="right">3375 / 143</td>
+<td align="right">1184 / 112</td>
+<td align="right">2296 / 1299</td>
+</tr>
+<tr>
+<td>F2</td>
+<td align="right">0 / 0</td>
+<td align="right">791 / 74</td>
+<td align="right">1497 / 816</td>
+</tr>
+<tr>
+<td>F3</td>
+<td align="right">5659 / 245</td>
+<td align="right">128 / 12</td>
+<td align="right">87 / 50</td>
+</tr>
+<tr>
+<td>F4</td>
+<td align="right">2026 / 92</td>
+<td align="right">793 / 76</td>
+<td align="right">3450 / 2018</td>
+</tr>
+</tbody></table>
+<p>Work is reference engineer-seconds with no travel. Shares/stock for the complete
+playable area and quantities for individual own-side contacts are different
+scopes and must not be added together. Full results are in
+<code>data/processed/reclaim_collection_comparison/relative_tiers_report.md</code>.</p>
+<h2 id="balancing-against-mexes-and-energy">Balancing against mexes and energy</h2>
+<p>Tier quality, resource quantity and economic significance are distinct. The
+viewer exposes each tier&#39;s mass, work and mass-equivalent configured T1 income
+seconds (<code>stock / active-map T1 mex income proxy</code>). This is a descriptive stock
+versus flow comparison; it assumes neither immediate collection nor a universal
+reclaim:mex exchange rate. Current objective weights remain unchanged.</p>
+<p>The next balance experiment should choose an economic window <code>T</code> and explicit
+engineer work budget <code>B</code> (eventually accounting for travel). Compare collectable
+mass <code>M(B)</code> with continuing production <code>I_mass*T</code>, rather than counting all raw
+stock as immediately available. Existing stock/flow weighting can then be tested
+with this collectable stock. Neither tier ordinal numbers nor automatic group
+count should become arbitrary objective multipliers. Keep best/okay/low amounts
+separate so a large cheap tree tail cannot hide a valuable core.</p>
+<p>Energy needs the same inventory -&gt; per-entity work -&gt; reward curves -&gt; map-level
+tiers -&gt; economic-context stages, but shares physical collection work with mass.
+The reusable tier fitter accepts any positive resource rate and quantity, with
+no hard-coded mass units. Inventory CSVs now include energy-only objects, zero
+values and unknowns. Across these maps there are <strong>8419 known zero-mass,
+positive-energy entities</strong>; 7241 are in Pandemonium and contain all its known
+energy reclaim (30849 energy). The playable-area Diversity inventory contains
+634 energy-only objects (2400 energy); the earlier extraction-wide count of650
+also included objects outside playable bounds.</p>
+<p>Do not compute energy work as <code>energy/25</code> or add a second acquisition charge.
+The inspected current <a href="https://github.com/FAForever/fa/blob/develop/lua/sim/Prop.lua#L245-L267">FAF Prop.lua</a>
+describes one operation whose source estimate uses the larger mass/energy value,
+the reclaimer&#39;s build rate and the prop&#39;s reclaim-time multiplier. Blueprint
+timing fields and the matching pinned source rule need a source-audited timing
+pass before publishing energy efficiency tiers. This also motivates comparing
+the current user-supplied mass/25 hypothesis with a joint-resource timing model;
+we have not silently replaced the reviewed mass model with a new one.</p>
+<p>An entity should ultimately carry a joint reward <code>(mass, energy)</code> with one shared
+work cost. Mass-first and energy-first collection schedules can differ, so their
+separate best-first curves cannot both be claimed simultaneously for one engineer
+budget. Compare mass-limited, energy-limited and balanced economic scenarios;
+energy income/storage assumptions must be explicit, without a fixed mass:energy
+exchange rate. Overflow and shortages affect usefulness even when stock quality
+is unchanged. No energy efficiency tier or energy-aware route weight is claimed
+complete in this round.</p>
+<h2 id="exports-and-validation">Exports and validation</h2>
+<p>Each map has <code>relative_tiers.json</code>, <code>relative_tier_metrics.csv</code> and
+<code>resource_inventory.csv</code>. Models retain their selection evidence and exact
+reference scope. All sources, existing result/curve inputs and tier code are
+fingerprinted. Route/base/all-pool stock, work and fractional entity ownership
+are conserved for every candidate model.</p>
+<p>With <code>PYTHONPATH=src</code>:</p>
+<pre><code>.venv-codex/Scripts/python.exe -m supmapai.tools.build_reclaim_tiers
+.venv-codex/Scripts/python.exe -m supmapai.tools.audit_reclaim_tiers
+.venv-codex/Scripts/python.exe -m supmapai.tools.compare_reclaim_collection --report
+</code></pre>
+<p>All176 targeted tests pass, including13 new tier/inventory tests. Independent
+audit passes11 maps,440 nonzero-delay configurations and17160 tier CSV rows.
+Checks cover source provenance, scope, mass/energy identity and unknown values,
+weighted group arithmetic/selection, shared map boundaries, per-tier mass/work/
+count conservation and CSV parity. Browser checks cover all11 maps, all six
+existing profiles, automatic and inspected fits, both curve axes and contact
+budgets, with no console errors or page overflow. No hosted release, download,
+game execution or full-cohort route rerun occurred.</p>
+<script src="model-atlas/public-links.js" data-public-links></script></body></html>
