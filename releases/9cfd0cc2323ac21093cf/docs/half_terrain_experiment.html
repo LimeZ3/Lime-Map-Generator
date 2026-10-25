@@ -1,0 +1,136 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>half_terrain_experiment.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="half-map-terrain-experiment">Half-Map Terrain Experiment</h1>
+<p>Generate a north half at 64x128 cells, then rotate it 180 degrees to construct the
+south half. Height, signed water boundary and depth are generated simultaneously.
+This is rotational symmetry, not a reflection across a horizontal axis.</p>
+<p>The full-map model and its existing results remain untouched. No resources,
+props, textures or playable FAF export are part of this experiment.</p>
+<h2 id="data">Data</h2>
+<p>The audited joint-terrain dataset is the source. Select compatible maps using
+fixed, approximate thresholds: encoded height rotational MAE &lt;= 0.04, water-mask
+disagreement &lt;= 3%, and opposite-spawn displacement &lt;= 12 world units. This is
+not a quality classification. Some good asymmetric maps are intentionally excluded.</p>
+<p>Only train and validation manifests are read. Their original family splits and
+train-fitted normalization are preserved. Test data stays at the source and is
+not inspected. Archives are referenced by absolute path and verified by SHA-256,
+not copied or modified. The selection records accepted and rejected maps.</p>
+<p>Training rotates/flips full source arrays, then takes the north half. Thus each
+batch remains 64x128 while augmentation can expose either source half. Two source
+spawns are adjusted to an exactly opposite pair by their midpoint discrepancy;
+their combined Gaussian field is cropped to one half as a single input channel.
+Spawns are input anchors, not generated predictions.</p>
+<p>Water fraction and relief controls are recomputed for the selected half, whose
+rotated completion has the same statistics. Legacy economic controls are masked
+out because they need not describe that completion. Source terrain is not averaged
+or otherwise forced into symmetry before cropping.</p>
+<h2 id="join-and-diagnostics">Join And Diagnostics</h2>
+<p>Raw assembly copies model predictions exactly and preserves their water fraction.
+It guarantees 180-degree raster symmetry but not a smooth central join. A separate
+optional decoder linearly interpolates four rows on each side of the join: an
+eight-cell / 32-world-unit band. It operates on all three physical fields. The
+repaired signed-distance field is an approximation within that band.</p>
+<p>A third view reconciles height with water boundary and depth using the existing
+joint projection. Raw, repaired and projected arrays/previews remain separate.
+Metrics report central height jumps, interior height differences, water-mask
+changes, correction magnitude, approximate connectivity and symmetry error.
+Native 513x513 vertices explicitly handle their odd centre row to preserve symmetry.
+These structural checks do not establish in-game balance or pathability.</p>
+<h2 id="windows-commands">Windows Commands</h2>
+<pre><code class="language-powershell">$env:PYTHONPATH = &#39;src&#39;
+.venv/Scripts/python.exe -m supmapai.ml.half_terrain prepare `
+  --source data/tensors/terrain_joint_10km_1v1 `
+  --out data/tensors/terrain_half_10km_1v1_v1
+.venv/Scripts/python.exe -m supmapai.ml.half_terrain train `
+  --dataset data/tensors/terrain_half_10km_1v1_v1 `
+  --out data/models/terrain_half_10km_1v1_v1 `
+  --max-steps 12000 --batch-size 16 --base-channels 48 `
+  --eval-every 1000 --sample-every 2000
+</code></pre>
+<p>The run trains from scratch with the existing U-Net, velocity objective, EMA,
+bfloat16, family-weighted sampling and checkpoint/resume machinery. It does not
+reuse full-map weights. Loss values are not directly comparable across different
+cohorts and tensor shapes. Periodic previews use seeds 101/202; the final gallery
+adds 303/404. Each seed is tested with requested water fractions 0%, 20%, 40%.</p>
+<p>Check <code>progress.json</code> while training; <code>last.pt</code> allows <code>--resume</code> with the same
+configuration and code. Training outputs and datasets remain gitignored.</p>
+<p>Fresh galleries from an existing checkpoint (use a new output folder):</p>
+<pre><code class="language-powershell">.venv/Scripts/python.exe -m supmapai.tools.sample_half_terrain `
+  --checkpoint data/models/terrain_half_10km_1v1_v1/best.pt `
+  --out data/models/terrain_half_10km_1v1_v1/fresh_samples `
+  --seeds 505 606 707 808
+.venv/Scripts/python.exe -m supmapai.tools.evaluate_half_terrain `
+  --checkpoint data/models/terrain_half_10km_1v1_v1/best.pt `
+  --dataset data/tensors/terrain_half_10km_1v1_v1 `
+  --out data/models/terrain_half_10km_1v1_v1/validation_diagnostics
+.venv/Scripts/python.exe -m supmapai.tools.report_half_terrain `
+  --run data/models/terrain_half_10km_1v1_v1 `
+  --dataset data/tensors/terrain_half_10km_1v1_v1
+</code></pre>
+<p>These are the commands used for the completed pilot. Existing sample folders are
+preserved: choose a different <code>--out</code> for another sampling run.</p>
+<h2 id="pilot-results">Pilot Results</h2>
+<p>Completed 12,000 updates on 1,200 training maps / 110 validation maps in 463.6
+seconds (7.7 minutes), excluding initial data loading. Peak allocated training GPU
+memory was 970.5 MiB. The model has 2,986,307 parameters. Best EMA validation
+objective was 0.013371 at the final update; it is not a gameplay-quality metric.</p>
+<p>Generated 24 final samples across eight seeds and three requested water settings:</p>
+<table>
+<thead>
+<tr>
+<th>Requested water</th>
+<th align="right">Raw assembled mean</th>
+<th align="right">Join-repaired mean</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>0%</td>
+<td align="right">0.2%</td>
+<td align="right">0.2%</td>
+</tr>
+<tr>
+<td>20%</td>
+<td align="right">16.3%</td>
+<td align="right">16.2%</td>
+</tr>
+<tr>
+<td>40%</td>
+<td align="right">45.0%</td>
+<td align="right">44.9%</td>
+</tr>
+</tbody></table>
+<p>All 24 archives passed explicit finite-value, half-shape, bit-exact rotational
+symmetry and water-area-preservation checks. Symmetry error is zero in raw,
+repaired, projected and native 513x513 fields. This is guaranteed by assembly,
+not evidence that the network independently learned full-map symmetry.</p>
+<p>The original four-seed final gallery illustrates the remaining join problem:
+mean raw central height jump 6.315 world units, reduced to 0.651 by the narrow
+repair. Mean repair height correction over the whole map was 0.137 world units;
+at most 1.31% of water-mask cells changed in an individual sample. Reference
+validation sources average 0.4958 world units across a copied-half join. These
+are adjacent-row differences on the model grid, not native game slope limits.</p>
+<p>Approximate base-to-base land connectivity in that 12-sample gallery was 10/12
+raw and 9/12 after repair/projection. Repair is therefore not a playability
+guarantee and can damage a route. The raw central discontinuity remains a real
+model limitation; interpolation does not mean the model learned a good join.</p>
+<p>Held-out one-pass reconstruction across all 110 validation halves achieved mean
+height error 0.963 world units and wet-map water IoU 0.925 at timestep 100; at
+timestep 500 these were 2.443 and 0.787. These are noised-source denoising checks,
+not fresh-generation scores. Seventeen focused unit tests passed, and reloading
+the completed run with <code>--resume</code> returned its saved summary without retraining.</p>
+<p>Outputs are under <code>data/models/terrain_half_10km_1v1_v1/</code>:</p>
+<ul>
+<li><code>half_terrain_report.md</code> and <code>.json</code>: metrics and caveats.</li>
+<li><code>samples/step_012000/</code>: four primary seeds, raw/repaired/projected previews and arrays.</li>
+<li><code>fresh_samples/</code>: four additional seeds with checkpoint provenance.</li>
+<li><code>validation_diagnostics/</code>: held-out reconstruction checks.</li>
+<li><code>validation_source_half_comparison.png</code>: original source versus copied-half reference.</li>
+</ul>
+<p>Conclusion: half-map generation solves exact terrain symmetry without whole-map
+averaging, but does not by itself solve the central boundary or water calibration.
+Keep the full-map model as the baseline. The next half-model improvement should
+target compatible central boundaries, rather than treating larger smoothing
+bands as evidence of better generation. No playable FAF map was exported here.</p>
+<p>The next dataset version has been relabeled with direct terrain controls; see
+<a href="terrain_control_relabeling.md">the relabeling run and training handoff</a>. This
+changes the conditioning architecture from 13 to 21 inputs. The results above
+remain a record of the original model and are not results from the new labels.</p>
+<script src="model-atlas/public-links.js" data-public-links></script></body></html>

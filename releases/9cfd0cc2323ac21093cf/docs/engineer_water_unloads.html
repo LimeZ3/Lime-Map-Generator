@@ -1,0 +1,55 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>engineer_water_unloads.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="engineer-water-unload-correction">Engineer water-unload correction</h1>
+<p>15 October 2026. Current viewer: <a href="http://127.0.0.1:5177/drop_response_strength_1v1/index.html">http://127.0.0.1:5177/drop_response_strength_1v1/index.html</a></p>
+<p>Engineers now use the hover navigation layer and may unload on either land or water. The old amphibious engineer model and dry-shore landing requirement were incorrect for this calculation. Hover movement ignores seabed slope and the amphibious 25-unit depth limit; those existing amphibious-unit masks remain unchanged for their own uses.</p>
+<h2 id="implementation">Implementation</h2>
+<ul>
+<li><code>strategy/opportunities.py</code> builds separate dry ground-payload and hover-engineer unload masks and candidate points.</li>
+<li>Engineer walking, post-unload travel, both sides&#39; expansion arrival races and territory access use the hover graph.</li>
+<li>Water resource areas group and measure local travel through hover connectivity. Land/island resource grouping remains as before. For a land target, engineer landing access is calculated separately from the dry land-payload field, allowing an engineer to unload in adjacent water and then move onto accessible shore.</li>
+<li>Ground attack payloads still use dry unload points and land movement. Static AA placements also remain dry.</li>
+<li><code>engineer_landing</code> is exported alongside the original dry <code>landing</code> mask in both baseline and strength-scenario NPZ files.</li>
+<li>Resources expose <code>site_surface</code>; regions and score rows expose <code>water_mexes</code>; raw rows identify <code>engineer_navigation_layer=hover</code> and <code>expansion_landing_surface=water|land</code>.</li>
+<li>Summary JSON/CSV and the viewer report underwater mex counts. Area details show the selected unload surface.</li>
+</ul>
+<p>The footprint remains a static feasibility approximation: a 7x7 open patch in the payload&#39;s movement layer, sampled in 8x8 tiles. Engine collision and detailed transport unload behavior are not simulated. No attack-route geometry, economic threshold, route/base strength or naval reach setting was changed.</p>
+<h2 id="current-beetles-results">Current Beetles results</h2>
+<p>All <strong>32</strong> underwater mex areas now have feasible <strong>water</strong> unload points. None requires a nearby dry shore. With slot 1 attacking, route strength 25% (also the same permissive water count at 50%), base strength 100%:</p>
+<table>
+<thead>
+<tr>
+<th>Preset</th>
+<th align="right">Expansion destinations</th>
+<th align="right">Resource patches</th>
+<th align="right">Total mexes</th>
+<th align="right">Underwater mexes</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Strict</td>
+<td align="right">5</td>
+<td align="right">6</td>
+<td align="right">26</td>
+<td align="right">0</td>
+</tr>
+<tr>
+<td>Medium</td>
+<td align="right">5</td>
+<td align="right">7</td>
+<td align="right">28</td>
+<td align="right">0</td>
+</tr>
+<tr>
+<td>Permissive</td>
+<td align="right">16</td>
+<td align="right">29</td>
+<td align="right">51</td>
+<td align="right">14</td>
+</tr>
+</tbody></table>
+<p>The strict/medium resource-count floors still reject these isolated single-mex areas. That is an economic screen, not a water-access exclusion. Eligibility also depends on side, distance, resource value and response checks. Faster hover walking can reduce transport value on some land/island targets, which is why the corrected model may remove a previous expansion flag while adding offshore flags.</p>
+<p>The full-strength control now has 14 underwater mexes qualifying in the permissive preset as well. Astro and the selected original Seton&#39;s version have no underwater resource areas in these inputs; their attack predictions remain unchanged. All three map outputs, nine response-strength scenarios, PNG overlays and CSV exports were refreshed.</p>
+<h2 id="validation">Validation</h2>
+<p>All <strong>52</strong> targeted tests passed. The new regression places two mexes far offshore, beyond any dry shore, with the amphibious mask blocked and the hover mask open. It verifies finite hover travel, a direct water unload, a valid medium expansion opportunity and no land-payload unload at that water target.</p>
+<p>Actual-map checks verify every engineer unload against the hover footprint and every attack unload against the dry footprint; water-mex summary totals agree with scored areas. Existing checks still pass for candidate nesting, response-strength monotonicity, conserved resource/destination membership, source hashes and PNG/numerical-layer alignment.</p>
+<p>Audit: <code>data/processed/drop_response_strength_1v1/water_unload_validation.json</code>. Reproduction remains the normal <code>inspect_opportunities</code> followed by <code>reweight_drop_responses</code> commands with <code>PYTHONPATH=src</code>.</p>
+<script src="model-atlas/public-links.js" data-public-links></script></body></html>

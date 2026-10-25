@@ -1,0 +1,184 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>layer-methods.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="maps-layers-and-tensors-current-presentation-methods">Maps, Layers and Tensors — current presentation methods</h1>
+<p>Draft display update, 25 October 2026. This note describes the updated atlas;
+<a href="layer-review.md">layer-review.md</a> preserves the earlier review and evidence inventory.</p>
+<h2 id="map-identity-and-background-rule">Map identity and background rule</h2>
+<p>Every row uses this fixed order: Setons FAF <code>8553_17709</code>, Adaptive Canis River
+<code>4617_6826</code>, Adaptive Tabula Rasa <code>9675_18616</code>, DualGap Adaptive by Robustness
+<code>8070_26498</code> (v0014, uploaded 2 July 2023), FAF Beetles <code>10838_21065</code>.</p>
+<p>Entity/marker and analytical overlay previews use a <strong>separate official FAF vault
+image at 10% brightness</strong> by default. It is context only, never a tensor contribution.
+The global Background brightness slider at 0 hides context. Full-resolution layer PNG links open the
+transparent 1024² layer alone, excluding the vault picture. Each contextual panel
+labels the background. Registration between custom vault artwork and extracted
+world coordinates is unverified. The same separate context is available behind every map-layer preview, including
+terrain, water, pathing, access bodies and surface albedo. Opaque source images
+become translucent through the mask slider, revealing the context underneath.</p>
+<h2 id="slot-identity-mask-opacity-and-extraction-todos">Slot identity, mask opacity and extraction TODOs</h2>
+<p>Air masks are slot-relative, not neutral whole-map fields. Both saved sides are
+shown: blue SLOT 1, orange SLOT 2 for four maps, violet overlap. DualGap’s archived
+air pair is SLOT 1 vs SLOT 12: it is flagged as incorrect for the intended SLOT 2
+scenario, without moving or relabeling the old masks. Newer frontier paths use
+the expected SLOT 1 vs SLOT 2. See the <a href="../map-extraction-todos.md">maps extraction work queue</a>.</p>
+<p>Global sliders range from <strong>0 to 100</strong>: Background brightness defaults to <strong>10</strong>,
+and Mask opacity defaults to <strong>100</strong>. They stay at the bottom of the desktop
+sidebar, apply across atlas sections (including model tensor galleries), and
+remember selections locally when browser storage is available. The former fixed
+50% mask-fill rule is superseded. Layer PNGs retain full base opacity; CSS applies
+the selected display alpha. Background and data remain separate; source tensors,
+classes, scalar values and extraction results are unchanged.</p>
+<p>Resource-zone quality, missing exact versions, contestability definitions and
+hover/navy path coverage are open extraction/analysis tasks, with warnings beside
+the affected atlas rows. Walk access and access structure retain their accepted
+meaning.</p>
+<h2 id="reproduce-the-display">Reproduce the display</h2>
+<p>From the project root in PowerShell:</p>
+<pre><code class="language-powershell">$env:PYTHONPATH = &#39;src&#39;
+.venv/Scripts/python.exe -m supmapai.tools.atlas_layers
+.venv/Scripts/python.exe -m supmapai.tools.build_model_atlas
+</code></pre>
+<p>The comparison renderer reads saved extraction/analysis files and produces only
+atlas PNGs and comparison JSON/JavaScript under <code>docs/model-atlas/generated</code>.
+It does not rewrite source tensors or run extraction, training, inference,
+route optimization, opportunity scoring or economic simulation. Point rasterization,
+4-unit display aggregation, color mapping and joining saved IDs are rendering
+operations. Model-atlas refresh uses the GPU Python environment for metadata only.</p>
+<p>Terrain, water and surface albedo previews are rendered without baked-in title/legend frames, with full base opacity and separate vault context.
+The separate explicit <code>--prepare</code> option remains available for initial local
+source preparation; it was not used for this display correction. Do not invoke it
+merely to redraw these views.</p>
+<h2 id="units-scenarios-and-unavailable-outputs">Units, scenarios and unavailable outputs</h2>
+<p>Native source grids are 512² or 1024² cells. Reclaim PNGs sum <strong>known</strong> values per
+4×4 world-unit tile (128² or 256² display cells), then expand with nearest-neighbor
+sampling to 1024² PNGs. Energy, natural mass and wreck mass have separate shared
+log scales. Missing amounts remain reported; unknown is not zero. Natural mass
+includes all natural prop types, whereas the current model&#39;s rock-mass role is
+narrower. Native entity/array values remain linked.</p>
+<p>Physical source comparisons show all source slots with saved defaults. Air/drop
+and contested-region panels use the actual historical collection scenario and
+medium preset for all five maps; DualGap there uses ARMY_1 versus ARMY_12, while
+the other four use ARMY_1 versus ARMY_2. Newer whole-economy and frontier results
+have their own saved setup, which can differ (e.g. DualGap ARMY_1 versus ARMY_2).
+Do not compare these releases as if they shared every assumption.</p>
+<p>Main battle paths now show both saved K3 approaches: own_points in blue and
+mirror_points (or the saved joined counterpart segment) in orange. Separate
+rotational contacts are not joined. Historical FAF Beetles paths are colored by
+endpoint side, with the different method labeled. Hover/navy comparisons remain
+explicit TODOs.</p>
+<p>Main-base/rear/forward fields use existing v1.2.1 whole-economy outputs for Canis,
+Tabula and DualGap. The exact Setons FAF and FAF Beetles outputs were not found
+in the checked runs: those two panels explicitly show <strong>TODO / unavailable</strong>.
+Stock Setons or stock Beetles are not substituted. Contestable resource regions
+are a separate saved historical territory classification, not a relabeling of
+forward/flank or neutral access.</p>
+<p>The former atlas air-distance proxy and duplicate Resource abundance stock row
+have been removed from the displayed section. The old numeric diagnostic archive
+is preserved as historical data. Access &amp; economy is renamed Walk access from
+spawn; Gameplay structure is Access structure.</p>
+<h2 id="remaining-work">Remaining work</h2>
+<p>The <a href="maps-data-gap-plan.md">prioritized owner-note plan</a> covers all 12 written
+live review notes, ordered from quick presentation/evidence work to scientific
+decisions. It is a plan, not an extraction repair or training receipt. The
+<a href="../map-extraction-todos.md">task register</a> retains stable issue IDs.</p>
+<ul>
+<li>Exact-version whole-economy outputs for Setons FAF and FAF Beetles.</li>
+<li>Matching newer frontier output for FAF Beetles; choose future releases explicitly.</li>
+<li>Unsupported spawn→prop/group associations. Existing global option dependencies
+and spawn→resource edges are exposed, but not misrepresented as prop ownership.</li>
+<li>Validate unsupported adaptive scripts, unknown values and runtime entities.</li>
+</ul>
+<h2 id="terrain">terrain</h2>
+<p>Native cell height is displayed on a scale shared across all five maps. Height vertices remain separate in the source archive.</p>
+<p><strong>Reproduce:</strong> run the display commands above; <code>terrain</code> is a rendering branch in <a href="../../src/supmapai/tools/atlas_layers.py">atlas_layers.py</a>.</p>
+<p><strong>Continue / modify:</strong> Check bounds and native quantization when changing extraction.</p>
+<p><a href="../map_layers_v2.md">Research note</a> · <a href="index.html#layers/terrain">Atlas section</a> · <a href="../map-extraction-todos.md">Extraction work queue</a></p>
+<h2 id="water">water</h2>
+<p>Depth follows the serialized water surface and terrain. The shared scale preserves cross-map interpretation.</p>
+<p><strong>Reproduce:</strong> run the display commands above; <code>water</code> is a rendering branch in <a href="../../src/supmapai/tools/atlas_layers.py">atlas_layers.py</a>.</p>
+<p><strong>Continue / modify:</strong> Validate unsupported custom water rules before treating them as known.</p>
+<p><a href="../water_metrics_refresh.md">Research note</a> · <a href="index.html#layers/water">Atlas section</a> · <a href="../map-extraction-todos.md">Extraction work queue</a></p>
+<h2 id="starts">starts</h2>
+<p>All numbered source ARMY slots are shown. The marker PNG is transparent; the dim vault preview is a separate context image and can be hidden. Starts remain supplied generation anchors.</p>
+<p><strong>Reproduce:</strong> run the display commands above; <code>starts</code> is a rendering branch in <a href="../../src/supmapai/tools/atlas_layers.py">atlas_layers.py</a>.</p>
+<p><strong>Continue / modify:</strong> Choose explicit active slots for each analytical scenario; do not treat one pair as team-game coverage.</p>
+<p><a href="../map_layers_v2.md">Research note</a> · <a href="index.html#layers/starts">Atlas section</a> · <a href="../map-extraction-todos.md">Extraction work queue</a></p>
+<h2 id="markers">markers</h2>
+<p>Mex and hydro coordinates are drawn independently from the vault background. Source settings and unsupported runtime effects are retained in the receipts.</p>
+<p><strong>Reproduce:</strong> run the display commands above; <code>markers</code> is a rendering branch in <a href="../../src/supmapai/tools/atlas_layers.py">atlas_layers.py</a>.</p>
+<p><strong>Continue / modify:</strong> Extend unsupported activation rules without inventing ownership from proximity.</p>
+<p><a href="../map_layers_v2.md">Research note</a> · <a href="index.html#layers/markers">Atlas section</a> · <a href="../map-extraction-todos.md">Extraction work queue</a></p>
+<h2 id="natural_energy">natural_energy</h2>
+<p>Known energy from natural entity records is summed per 4×4 world-unit tile. Zero tiles are transparent; the vault is context only. Shared log-scale colors describe physical energy, not asset count.</p>
+<p><strong>Reproduce:</strong> run the display commands above; <code>natural_energy</code> is a rendering branch in <a href="../../src/supmapai/tools/atlas_layers.py">atlas_layers.py</a>.</p>
+<p><strong>Continue / modify:</strong> Retain unknown values and entity identity. Current model tree-energy allocation is a narrower role than this all-natural-energy observation.</p>
+<p><a href="../reclaim_value_heatmaps.md">Research note</a> · <a href="index.html#layers/natural_energy">Atlas section</a> · <a href="../map-extraction-todos.md">Extraction work queue</a></p>
+<h2 id="natural_mass">natural_mass</h2>
+<p>Known mass from all identified natural props is summed per 4×4 world-unit tile, with a scale shared across the five maps. Wreck mass is excluded.</p>
+<p><strong>Reproduce:</strong> run the display commands above; <code>natural_mass</code> is a rendering branch in <a href="../../src/supmapai/tools/atlas_layers.py">atlas_layers.py</a>.</p>
+<p><strong>Continue / modify:</strong> Distinguish total natural mass from the selected allocation model’s rock-only mass target.</p>
+<p><a href="../reclaim_value_heatmaps.md">Research note</a> · <a href="index.html#layers/natural_mass">Atlas section</a> · <a href="../map-extraction-todos.md">Extraction work queue</a></p>
+<h2 id="wrecks">wrecks</h2>
+<p>Only identified wreckage enters this separate mass layer. Existing pinned FAF tier/submerged rules and entity identities remain unchanged. Four-unit display aggregation replaces the coarse sixteen-unit preview.</p>
+<p><strong>Reproduce:</strong> run the display commands above; <code>wrecks</code> is a rendering branch in <a href="../../src/supmapai/tools/atlas_layers.py">atlas_layers.py</a>.</p>
+<p><strong>Continue / modify:</strong> Resolve optional/runtime wreck groups before treating unclassified placed units as confirmed wreckage.</p>
+<p><a href="../wreck_reclaim.md">Research note</a> · <a href="index.html#layers/wrecks">Atlas section</a> · <a href="../map-extraction-todos.md">Extraction work queue</a></p>
+<h2 id="civilians">civilians</h2>
+<p>Pink points are identified civilian records. The underlying dim vault picture is context only; source glyphs and coordinates are separate.</p>
+<p><strong>Reproduce:</strong> run the display commands above; <code>civilians</code> is a rendering branch in <a href="../../src/supmapai/tools/atlas_layers.py">atlas_layers.py</a>.</p>
+<p><strong>Continue / modify:</strong> Preserve the difference between living entities and potential future wreck value.</p>
+<p><a href="../entity_asset_learning_plan.md">Research note</a> · <a href="index.html#layers/civilians">Atlas section</a> · <a href="../map-extraction-todos.md">Extraction work queue</a></p>
+<h2 id="appearance">appearance</h2>
+<p>Saved paint weights and palette assets compose an unlit diagnostic with validity masks. No learned texture painting is claimed.</p>
+<p><strong>Reproduce:</strong> run the display commands above; <code>appearance</code> is a rendering branch in <a href="../../src/supmapai/tools/atlas_layers.py">atlas_layers.py</a>.</p>
+<p><strong>Continue / modify:</strong> Keep unsupported shaders and unresolved assets masked.</p>
+<p><a href="../map_texture_tensors.md">Research note</a> · <a href="index.html#layers/appearance">Atlas section</a> · <a href="../map-extraction-todos.md">Extraction work queue</a></p>
+<h2 id="scenario">scenario</h2>
+<p>Colored lines connect source slots to resources using saved script-declared association records. Canis, Tabula and DualGap have supported edges. Option/entity dependencies are linked separately and do not imply spawn→prop ownership.</p>
+<p><strong>Reproduce:</strong> run the display commands above; <code>scenario</code> is a rendering branch in <a href="../../src/supmapai/tools/atlas_layers.py">atlas_layers.py</a>.</p>
+<p><strong>Continue / modify:</strong> TODO: extend unsupported slot→prop/group rules. Global multipliers and regrowth metadata are not ownership edges.</p>
+<p><a href="../future_work.md">Research note</a> · <a href="index.html#layers/scenario">Atlas section</a> · <a href="../map-extraction-todos.md">Extraction work queue</a></p>
+<h2 id="pathing">pathing</h2>
+<p>The existing static movement estimate uses the documented slope/depth thresholds. These accepted views are preserved.</p>
+<p><strong>Reproduce:</strong> run the display commands above; <code>pathing</code> is a rendering branch in <a href="../../src/supmapai/tools/atlas_layers.py">atlas_layers.py</a>.</p>
+<p><strong>Continue / modify:</strong> Engine footprint clearance and dynamic blocking require separate verification.</p>
+<p><a href="../map_layers_v2.md">Research note</a> · <a href="index.html#layers/pathing">Atlas section</a> · <a href="../map-extraction-todos.md">Extraction work queue</a></p>
+<h2 id="air_expansion">air_expansion</h2>
+<p>Saved medium-preset expansion-drop masks are SLOT-relative: slot 1 is blue and the opposing recorded slot is orange (normally slot 2; incorrect slot 12 pairing is flagged for DualGap). Both masks are saved observations, with violet overlap and the selected mask opacity. The masks use travel, landing, resource and response assumptions, not the removed atlas distance proxy.</p>
+<p><strong>Reproduce:</strong> run the display commands above; <code>air_expansion</code> is a rendering branch in <a href="../../src/supmapai/tools/atlas_layers.py">atlas_layers.py</a>.</p>
+<p><strong>Continue / modify:</strong> Newer pipeline coverage differs; retain the pinned release/scenario when adding comparisons.</p>
+<p><a href="../opportunities_1v1.md">Research note</a> · <a href="index.html#layers/air_expansion">Atlas section</a> · <a href="../map-extraction-todos.md">Extraction work queue</a></p>
+<h2 id="air_offensive">air_offensive</h2>
+<p>Both saved sides are shown in blue/orange at the selected mask opacity; overlap is violet. Medium-preset offensive-drop masks show modeled landings/regions meeting the stored route-bypass and response gates. Original reasons and selected slots are linked per map.</p>
+<p><strong>Reproduce:</strong> run the display commands above; <code>air_offensive</code> is a rendering branch in <a href="../../src/supmapai/tools/atlas_layers.py">atlas_layers.py</a>.</p>
+<p><strong>Continue / modify:</strong> These are opportunity hypotheses, not predicted combat outcomes or observed army positions.</p>
+<p><a href="../drop_calibration_1v1.md">Research note</a> · <a href="index.html#layers/air_offensive">Atlas section</a> · <a href="../map-extraction-todos.md">Extraction work queue</a></p>
+<h2 id="air_raids">air_raids</h2>
+<p>Blue/orange show the two recorded sides at the selected mask opacity; overlap is violet. Saved medium-preset air-raid masks describe resource-dependent opportunities under the recorded arrival and response assumptions. Underwater economy can be relevant via the documented air-class policy.</p>
+<p><strong>Reproduce:</strong> run the display commands above; <code>air_raids</code> is a rendering branch in <a href="../../src/supmapai/tools/atlas_layers.py">atlas_layers.py</a>.</p>
+<p><strong>Continue / modify:</strong> Keep these separate from offensive and expansion drops, AA burden, and real-time combat influence.</p>
+<p><a href="../opportunities_1v1.md">Research note</a> · <a href="index.html#layers/air_raids">Atlas section</a> · <a href="../map-extraction-todos.md">Extraction work queue</a></p>
+<h2 id="battle_paths">battle_paths</h2>
+<p>Four exact versions show both saved K3 approaches: slot 1 in blue, slot 2 in orange. Separate mirror_points or the counterpart part of a saved joined route supply the second side. Rotated contacts remain unconnected. FAF Beetles shows historical full routes, colored by endpoint side; no new route calculation is performed.</p>
+<p><strong>Reproduce:</strong> run the display commands above; <code>battle_paths</code> is a rendering branch in <a href="../../src/supmapai/tools/atlas_layers.py">atlas_layers.py</a>.</p>
+<p><strong>Continue / modify:</strong> TODO: hover and navy battle-path views, plus matching newer frontier output for FAF Beetles. K3 is an explicit contact budget, not a predicted number of battles.</p>
+<p><a href="../economic_front_expert_review.md">Research note</a> · <a href="index.html#layers/battle_paths">Atlas section</a> · <a href="../map-extraction-todos.md">Extraction work queue</a></p>
+<h2 id="resource_zones">resource_zones</h2>
+<p>Saved v1.2.1 whole-economy roles distinguish near-base, rear and forward/flank, with mex markers overlaid. Fill opacity is controlled by the global sidebar slider (default 100%). The current zoning has user-observed issues awaiting definition/implementation review; these are location roles, not safety grades. Setons FAF and FAF Beetles have no matching saved result in the checked runs and remain TODO.</p>
+<p><strong>Reproduce:</strong> run the display commands above; <code>resource_zones</code> is a rendering branch in <a href="../../src/supmapai/tools/atlas_layers.py">atlas_layers.py</a>.</p>
+<p><strong>Continue / modify:</strong> TODO: exact-version whole-economy coverage for those two FAF maps; do not substitute stock versions.</p>
+<p><a href="../starting_rear_economy.md">Research note</a> · <a href="index.html#layers/resource_zones">Atlas section</a> · <a href="../map-extraction-todos.md">Extraction work queue</a></p>
+<h2 id="contested_resources">contested_resources</h2>
+<p>The saved historical opportunity analysis tags resource regions friendly, enemy or contested for the stated side/pair. This view highlights the contested category using the saved area grid and region identities.</p>
+<p><strong>Reproduce:</strong> run the display commands above; <code>contested_resources</code> is a rendering branch in <a href="../../src/supmapai/tools/atlas_layers.py">atlas_layers.py</a>.</p>
+<p><strong>Continue / modify:</strong> EXTRACTION TODO: clarify why and how contestability differs from main-base/rear/forward zoning, then improve definitions and implementation. Do not equate the existing fields silently.</p>
+<p><a href="../opportunities_1v1.md">Research note</a> · <a href="index.html#layers/contested_resources">Atlas section</a> · <a href="../map-extraction-todos.md">Extraction work queue</a></p>
+<h2 id="access">access</h2>
+<p>The existing atlas diagnostic is the land component connected to the nearest passable seed near A. Only its presentation and title change; it contains no economy calculation.</p>
+<p><strong>Reproduce:</strong> run the display commands above; <code>access</code> is a rendering branch in <a href="../../src/supmapai/tools/atlas_layers.py">atlas_layers.py</a>.</p>
+<p><strong>Continue / modify:</strong> Use the linked source receipt for the original seed-offset limitations.</p>
+<p><a href="../map_layers_v2.md">Research note</a> · <a href="index.html#layers/access">Atlas section</a> · <a href="../map-extraction-todos.md">Extraction work queue</a></p>
+<h2 id="gameplay">gameplay</h2>
+<p>Existing categorical labels distinguish disconnected four-neighbor walkable bodies. Colors identify a body within each map only and repeat after 255.</p>
+<p><strong>Reproduce:</strong> run the display commands above; <code>gameplay</code> is a rendering branch in <a href="../../src/supmapai/tools/atlas_layers.py">atlas_layers.py</a>.</p>
+<p><strong>Continue / modify:</strong> Per-spawn body access and movement-layer distinctions should stay explicit in future views.</p>
+<p><a href="../route_areas_and_widths.md">Research note</a> · <a href="index.html#layers/gameplay">Atlas section</a> · <a href="../map-extraction-todos.md">Extraction work queue</a></p>
+<script src="public-links.js" data-public-links></script></body></html>

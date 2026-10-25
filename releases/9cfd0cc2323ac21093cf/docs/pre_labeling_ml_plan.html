@@ -1,0 +1,234 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>pre_labeling_ml_plan.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="pre-labeling-ml-plan">Pre-Labeling ML Plan</h1>
+<p>This project can still make useful progress before community labels exist. Human labels will improve style, quality, and play-feel conditioning, but the raw map files already contain enough structure for baseline learning experiments.</p>
+<h2 id="current-goal">Current Goal</h2>
+<p>Build a bad-but-real ML loop before human labels:</p>
+<ol>
+<li>Export verified map tensors.</li>
+<li>Train tiny baselines.</li>
+<li>Decode model outputs into concrete points and masks.</li>
+<li>Score the outputs with objective metrics.</li>
+<li>Use the failures to choose the next model, loss, and decoder.</li>
+</ol>
+<p>The target is not a playable map yet. The target is proof that the tensor representation, training split, and model QA loop are sane.</p>
+<h2 id="v0-status">V0 Status</h2>
+<p>The first staged generation loop now exists:</p>
+<ol>
+<li><code>train_terrain_vae</code> trains a small terrain/water VAE on <code>height_norm</code>, <code>water_mask</code>, and <code>water_depth_norm</code>.</li>
+<li><code>sample_terrain_vae</code> can sample either pure random latents or encoded real-map latents with noise.</li>
+<li><code>rule_place_points</code> adds deterministic spawn, mex, and hydro heatmaps to generated terrain.</li>
+<li><code>rule_place_reclaim</code> adds a deterministic reclaim-density layer.</li>
+</ol>
+<p>This V0 is intentionally crude. Pure random VAE samples tend to be too flat and weakly structured; encoded-latent variants are more map-like but still closer to map mutation than true from-scratch generation. That is acceptable for this milestone because it proves the generation, decoding, QA rendering, and metric loop are wired together.</p>
+<h2 id="focused-10km-adaptive-result">Focused 10km Adaptive Result</h2>
+<p>The first narrower dataset slice is:</p>
+<ul>
+<li>size class: <code>10km</code></li>
+<li>audit status: <code>ready</code></li>
+<li>name match: <code>adapt</code></li>
+<li>tensor count: 293</li>
+<li>split counts from the family-safe split: 222 train, 44 validation, 27 test</li>
+</ul>
+<p>This focused slice trained better than the broad all-map run.</p>
+<p>Current observations:</p>
+<ul>
+<li>The 30-epoch terrain VAE reconstructs adaptive 10km terrain/water noticeably better than the broad model.</li>
+<li>Pure random VAE samples are still weak and nearly dry.</li>
+<li>Encoded-latent VAE variants are the best current generated-terrain source: they show recognizable 10km map-like terrain and coherent water bodies.</li>
+<li>A tiny 50-epoch DDPM reduced training/validation loss, but generated water remains fragmented into hundreds of tiny components. It is not yet better than encoded VAE variants.</li>
+</ul>
+<p>Current practical path:</p>
+<ol>
+<li>Use encoded VAE variants for crude generated terrain experiments.</li>
+<li>Use <code>rule_place_points</code> and <code>rule_place_reclaim</code> to create full structural tensors.</li>
+<li>Improve DDPM separately with a better architecture/schedule before trusting it as the main generator.</li>
+</ol>
+<h2 id="preferred-model-strategy">Preferred Model Strategy</h2>
+<p>Use staged generation instead of one giant all-at-once model for V1.</p>
+<h3 id="stage-1-terrain-and-water">Stage 1: Terrain And Water</h3>
+<p>Inputs:</p>
+<ul>
+<li>map size class</li>
+<li>optional player count/team setting</li>
+<li>optional broad style tags later</li>
+</ul>
+<p>Outputs:</p>
+<ul>
+<li>normalized height</li>
+<li>water mask</li>
+<li>water depth</li>
+<li>slope/buildable/passable masks can be derived or predicted</li>
+</ul>
+<p>Why separate it:</p>
+<ul>
+<li>terrain and water are dense continuous fields</li>
+<li>validation is visual and geometric</li>
+<li>it can be trained without needing perfect resource labels</li>
+</ul>
+<h3 id="stage-2-spawn-mex-hydro-placement">Stage 2: Spawn, Mex, Hydro Placement</h3>
+<p>Inputs:</p>
+<ul>
+<li>generated or real terrain/water/passability</li>
+<li>desired player count/team setting</li>
+<li>desired mex/hydro density bucket later</li>
+</ul>
+<p>Outputs:</p>
+<ul>
+<li>spawn heatmap</li>
+<li>mex heatmap</li>
+<li>hydro heatmap</li>
+</ul>
+<p>Decoder:</p>
+<ul>
+<li>greedily extract local maxima</li>
+<li>enforce minimum distances</li>
+<li>snap to valid land/buildable/passable cells</li>
+<li>enforce symmetry when requested</li>
+<li>enforce count constraints from conditioning</li>
+</ul>
+<p>Why separate it:</p>
+<ul>
+<li>these are sparse point decisions, not images</li>
+<li>ordinary MSE/BCE losses tend to produce vague blobs</li>
+<li>point-placement metrics are easy to inspect</li>
+</ul>
+<h3 id="stage-3-reclaim-and-civilian-density">Stage 3: Reclaim And Civilian Density</h3>
+<p>Inputs:</p>
+<ul>
+<li>terrain/water</li>
+<li>decoded spawns/resources</li>
+<li>desired reclaim amount/distribution bucket later</li>
+</ul>
+<p>Outputs:</p>
+<ul>
+<li>reclaim density field</li>
+<li>civilian structure density field</li>
+</ul>
+<p>Decoder:</p>
+<ul>
+<li>sample entity clusters from density</li>
+<li>keep early reclaim near starts and contested reclaim near center/expansion areas</li>
+<li>preserve total mass/energy budget buckets</li>
+</ul>
+<p>Why separate it:</p>
+<ul>
+<li>reclaim is partly decorative and partly gameplay-critical</li>
+<li>total amount matters, but distribution matters more</li>
+<li>it should be constrained by spawn/resource layout</li>
+</ul>
+<h2 id="baseline-experiments-before-labels">Baseline Experiments Before Labels</h2>
+<h3 id="a-reconstruction-autoencoder">A. Reconstruction Autoencoder</h3>
+<p>Purpose:</p>
+<ul>
+<li>proves tensor channels can round-trip through a small network</li>
+<li>catches normalization/channel bugs</li>
+<li>not expected to generate useful maps</li>
+</ul>
+<p>Success signal:</p>
+<ul>
+<li>height/water/passability reconstruct visibly</li>
+<li>sparse channels remain hard, which is expected</li>
+</ul>
+<h3 id="b-terrain-to-gameplay-predictor">B. Terrain-To-Gameplay Predictor</h3>
+<p>Purpose:</p>
+<ul>
+<li>given real terrain, predict likely spawn/mex/hydro/reclaim/civ layers</li>
+<li>tests whether terrain geometry contains useful gameplay-placement signal</li>
+</ul>
+<p>Current observed behavior:</p>
+<ul>
+<li>prediction produces broad low-confidence blobs</li>
+<li>decoded ground truth has crisp points</li>
+<li>decoded predictions are not yet acceptable as map design</li>
+</ul>
+<p>Next fixes:</p>
+<ul>
+<li>evaluate point placement numerically</li>
+<li>train by map size/player-count subset first</li>
+<li>add count/team conditioning</li>
+<li>use point-aware losses instead of only dense heatmap losses</li>
+</ul>
+<h3 id="c-terrainwater-generator">C. Terrain/Water Generator</h3>
+<p>Purpose:</p>
+<ul>
+<li>first actual generative model should produce dense geometry only</li>
+<li>resource placement can come from Stage 2 or deterministic rules</li>
+</ul>
+<p>Recommended first scope:</p>
+<ul>
+<li>train on one size class, probably common 10km/20km maps</li>
+<li>output only height, water depth, land/water</li>
+<li>validate with water-body count, shoreline, buildable percent, passability regions</li>
+</ul>
+<h2 id="objective-metrics-to-track">Objective Metrics To Track</h2>
+<h3 id="dense-terrain-metrics">Dense Terrain Metrics</h3>
+<ul>
+<li>height mean/std/range</li>
+<li>water percent</li>
+<li>water body count and largest water body percent</li>
+<li>shoreline length</li>
+<li>buildable percent</li>
+<li>passable percent</li>
+<li>plateau/access-region count</li>
+<li>base-to-base path availability if spawns exist</li>
+</ul>
+<h3 id="point-metrics">Point Metrics</h3>
+<ul>
+<li>spawn precision/recall within radius</li>
+<li>mex precision/recall within radius</li>
+<li>hydro precision/recall within radius</li>
+<li>mean matched distance</li>
+<li>missed real points</li>
+<li>extra predicted points</li>
+</ul>
+<h3 id="resource-distribution-metrics">Resource Distribution Metrics</h3>
+<ul>
+<li>mexes per player/team</li>
+<li>hydros per player/team</li>
+<li>reclaim mass near spawn</li>
+<li>reclaim mass near center</li>
+<li>contested reclaim fraction</li>
+<li>distribution fairness between predicted teams</li>
+</ul>
+<h2 id="minimum-gate-before-diffusion">Minimum Gate Before Diffusion</h2>
+<p>Do not start a full diffusion run until:</p>
+<ul>
+<li>tensor export is stable</li>
+<li>family-safe train/val/test splits exist</li>
+<li>one baseline can train and save predictions</li>
+<li>point-placement evaluation exists</li>
+<li>terrain/water metrics can compare generated maps to real maps</li>
+<li>we choose one narrow subset, not all 6k maps at once</li>
+</ul>
+<h2 id="first-diffusion-scope">First Diffusion Scope</h2>
+<p>The first diffusion model should probably be terrain/water only.</p>
+<p>Recommended subset:</p>
+<ul>
+<li>one map size class</li>
+<li>ready maps only, or ready + carefully reviewed maps</li>
+<li>no known duplicate leakage</li>
+<li>exclude broken/outlier maps</li>
+</ul>
+<p>Recommended output channels:</p>
+<ul>
+<li>height_norm</li>
+<li>water_depth_norm</li>
+<li>water_mask</li>
+</ul>
+<p>Derived after generation:</p>
+<ul>
+<li>land_mask</li>
+<li>slope_norm</li>
+<li>buildable_mask</li>
+<li>land_passable_mask</li>
+</ul>
+<p>This keeps the first diffusion target dense and visual. Sparse gameplay objects can be placed by a second model or deterministic decoder after the generated terrain is plausible.</p>
+<h2 id="role-of-human-labels-later">Role Of Human Labels Later</h2>
+<p>Community labels should become:</p>
+<ul>
+<li>filter weights: train stronger on maps people rate highly</li>
+<li>conditioning tags: navy-heavy, land-heavy, turtle, aggressive, beautiful, unusual</li>
+<li>negative examples: maps rated bad can be excluded or used to teach quality models</li>
+<li>survey validation: compare algorithmic guesses with human perception</li>
+</ul>
+<p>Human labels are most valuable after the raw parser and baseline loop are stable, because the survey can show useful extracted facts and avoid asking players to do machine-readable bookkeeping.</p>
+<script src="model-atlas/public-links.js" data-public-links></script></body></html>

@@ -1,0 +1,218 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>maps-data-gap-plan.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="maps-layers-and-tensors-prioritized-data-gap-plan">Maps, Layers and Tensors — prioritized data-gap plan</h1>
+<p>Planning review, 25 October 2026. Source: all 22 saved entries in the live atlas&#39;s
+<a href="https://mapgen-project-atlas.elven-bowl-7506.chatgpt.site/api/review-flags">shared review feed</a>,
+including all <strong>12 nonempty notes</strong>. The <a href="review-notes/2026-10-25-maps.json">read-only snapshot</a>
+retains the original wording, stable keys and versions. Shared owner flags have
+not been changed. No extraction repair, tensor rebuild or training was performed
+by making this plan. All tasks below remain open.</p>
+<p>The existing <a href="../map-extraction-todos.md">extraction work queue</a> remains the task
+register. The order below is a recommended sequence, not a promise that every
+item is equally quick. Dependent measurements should not be recomputed across
+the library before their definitions are settled.</p>
+<h2 id="a-quick-well-defined-work">A. Quick, well-defined work</h2>
+<ul>
+<li><strong>EXTRACT-05 — Separate Terrain and Slope views.</strong> Show elevation and slope as
+independent fields, with documented units and a shared cross-map scale. Use
+numeric source heights/slope, not shading from the vault picture. Preserve the
+accepted pathing thresholds. This is primarily a presentation addition; it
+does not by itself introduce a newly validated tensor channel.</li>
+<li><strong>EXTRACT-06a — Show true map/playable dimensions and hide unplayable padding.</strong>
+Label cases such as DualGap&#39;s nonstandard playable footprint explicitly and
+mask outside the serialized playable rectangle. Do not render unused space as
+flat usable terrain. Keep native-file dimensions separate from playable size.
+Auditing numeric measurements and tensor losses against those bounds is the
+separate, more substantial EXTRACT-06b follow-up below.</li>
+<li><strong>EXTRACT-14 — Make an exact-version scenario/coverage checklist.</strong> For each
+of the five atlas maps, list the map key/version, active slots, teams, movement
+profile, adaptive configuration, analysis method/release and coordinate bounds
+for every derived layer. Distinguish missing output, known-wrong scenario and
+merely missing display. This makes the DualGap mismatch and missing Setons
+FAF/FAF Beetles outputs actionable without silently substituting stock maps.</li>
+</ul>
+<h2 id="b-bounded-implementation-and-validation">B. Bounded implementation and validation</h2>
+<ul>
+<li><strong>EXTRACT-01 — Repair the known DualGap air scenario.</strong> Use ARMY_1 versus
+ARMY_2 for <code>8070_26498</code>, verify against source starts, then regenerate expansion,
+offensive-drop and raid outputs in a new release. The historical ARMY_12 masks
+remain history. Moving/relabeling a preview is not the repair. General symmetry
+and opportunity-ranking improvements are separate tasks.</li>
+<li><strong>EXTRACT-06b — Propagate playable bounds into actual data use.</strong> Check array
+registration, coordinate conversion, water/area denominators, route searches
+and learning masks. Add/repair explicit validity masks where padding currently
+contributes. Rebuild only affected datasets after the audit identifies them;
+this is not completed by making the atlas background transparent.</li>
+<li><strong>EXTRACT-09 — Unify the access presentation and add missing access classes.</strong>
+Bring Walk access and Access structure into one coherent section. Keep their
+underlying distance/component fields distinct. Expose land access, extra
+hover access and genuinely drop-only standable/landing areas. A cell is not a
+valid drop destination merely because walking cannot reach it. Retain per-side
+identity and the accepted movement assumptions. Depends on a correct scenario;
+global symmetry enforcement follows the agreed EXTRACT-07 policy.</li>
+<li><strong>EXTRACT-02 — Fill movement-profile and exact-version coverage.</strong> Locate the
+saved hover evidence, identify genuinely missing navy evidence, and fill the
+missing newer frontier inputs for FAF Beetles <code>10838_21065</code>. Fill missing
+exact-version source/whole-economy coverage for Setons FAF <code>8553_17709</code> and FAF
+Beetles when the applicable definitions are fixed. Compare like methods and
+scenarios; old hover routes are not automatically newer frontier results, and
+amphibious routes are not navy. New connected-route calculations depend on
+EXTRACT-13; new zoning outputs depend on EXTRACT-03/04.</li>
+<li><strong>EXTRACT-12a — Inventory appearance records before choosing a learning target.</strong>
+Locate serialized clouds/cirrus, skybox settings, declared static effects and
+map-script effect references. Keep them separate from painted materials,
+decals and the lit preview. Report static, time-dependent and unresolved cases.
+This is the bounded first step toward the requested appearance layers; a
+complete effect renderer/runtime extractor is not assumed to already exist.</li>
+</ul>
+<h2 id="c-more-difficult-work-requiring-explicit-rules">C. More difficult work requiring explicit rules</h2>
+<ul>
+<li><strong>EXTRACT-07 — One symmetry contract for every derived measurement.</strong> Determine
+and display the relevant transform: vertical/horizontal/diagonal or angled
+reflection, 180-degree rotation, another supported transform, or unresolved.
+Use the same accepted transform, active slots and coordinate frame throughout
+access, routes, economy zones and all air analyses, rather than mirroring only
+the picture. <strong>Decide:</strong> tolerances for approximately symmetric maps, how to
+resolve terrain/resource/slot disagreements, treatment of asymmetric maps or
+configurations, and how enforced analysis symmetry relates to preserved raw
+source observations. A symmetric input/scenario must produce correspondingly
+symmetric results; material source data is not silently rewritten as evidence.</li>
+<li><strong>EXTRACT-13 — Turn frontier approaches into valid complete battle paths.</strong>
+Paths must reach the opposing base through actual passable connections, with
+shared trunks/branches explicit. Current K3 frontier approaches can end at
+separate contacts; simply joining their endpoints can invent an impassable
+crossing. <strong>Decide:</strong> how compatible contacts are paired/connected, which
+alternate passages deserve a distinct path, and how disconnected movement
+layers are represented. Keep the distinction between a frontier contact, a
+route witness and an independent attack lane. Validate continuity numerically
+on the selected source grid; a continuous-looking line is insufficient.</li>
+<li><strong>EXTRACT-03 + EXTRACT-04 — Rework economy zoning and contestability together.</strong>
+Merge the confusing presentation, then agree what main base, rear/safe economy,
+own expansion, contestable region and active fight/hot zone actually mean.
+<strong>Decide:</strong> whether location, ownership, access and exposure are separate axes
+or mutually exclusive classes, and which response/arrival assumptions define
+contestability. Give mexes and reclaim separate selectable layers; reclaim is
+finite and collection-dependent, while mexes provide continuing income. Do not
+assume every forward resource is contested or every rear resource safe. Every
+marker/value allocation must reconcile with its source records and chosen
+scenario. Depends on corrected slots, bounds, access, symmetry and routes.</li>
+<li><strong>EXTRACT-08 — Rank air opportunities, rather than marking every spot equally.</strong>
+Add numerical good/better opportunity scores to expansion drops, offensive
+drops and raids, preserving the component evidence. <strong>Decide:</strong> resource
+benefit, engineer travel savings/payback, route/base response, army dispersion
+and assumed defense strength; also whether scores are map-relative rankings,
+cross-map comparable values, or both. Symmetry-equivalent opportunities should
+receive equal scores under equivalent inputs. Do not tune a formula solely to
+reproduce named-map expectations. Calibrate on the corrected five-map scenarios
+before a collection-wide rerun. Actual defenses/intel are not observed from a
+source map and must remain explicit assumptions.</li>
+<li><strong>EXTRACT-10 — Define common slot/team layouts by game mode.</strong> Establish
+intended configurations for 1v1, 2v2, 3v3, 4v4 and 6v6, including mirrored
+counterparts, team membership and ambiguous-map overrides. <strong>Decide:</strong> which
+layouts are canonical/common, when map metadata is sufficient, and how team
+response/resource denominators differ from the current 1v1 assumptions. Do not
+treat all possible slot combinations as equally typical or automatically
+relabel a 1v1 calculation as team-game evidence.</li>
+<li><strong>EXTRACT-11 — Resolve adaptive props, wrecks and civilians.</strong> Extend beyond
+spawn-to-mex/hydro links to option- and slot-dependent entity groups, presence,
+quantity and low/medium/high reclaim/civilian settings. First verify the saved
+default active configuration; keep declared associations, global multipliers
+and runtime-created entities distinct. <strong>Decide:</strong> which script patterns can be
+supported statically and where controlled runtime observation is necessary.
+Do not infer ownership from proximity or enumerate every setting combination
+before defining the supported scope. Preserve entity identity and mass/energy
+accounting when options alter the active population.</li>
+<li><strong>EXTRACT-12b — Decide how clouds/effects belong in the representation.</strong> After
+the inventory, choose separate parameters/event records, separate spatial
+layers, or a fixed-time rendered appearance target. Define the time/camera and
+behavior of animated effects if rendering is chosen. Do not bake weather or
+lighting into the material-weight tensor by default or call a preview-only
+effect a completed scientific extraction.</li>
+</ul>
+<h2 id="coverage-of-every-written-note">Coverage of every written note</h2>
+<table>
+<thead>
+<tr>
+<th>Stable review key</th>
+<th>Requested work</th>
+<th>Tasks</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>layers:layer-terrain</code></td>
+<td>Terrain/Slope split; nonstandard dimensions and unused area</td>
+<td>05, 06</td>
+</tr>
+<tr>
+<td><code>layers:section:1-map-decomposition</code></td>
+<td>Determine symmetry and enforce it throughout measurements</td>
+<td>07</td>
+</tr>
+<tr>
+<td><code>layers:layer-starts</code></td>
+<td>Common game-mode slot layouts</td>
+<td>10</td>
+</tr>
+<tr>
+<td><code>layers:layer-appearance</code></td>
+<td>Clouds and static effects</td>
+<td>12</td>
+</tr>
+<tr>
+<td><code>layers:layer-scenario</code></td>
+<td>Props/wrecks/civilians attached to settings or spawns</td>
+<td>11</td>
+</tr>
+<tr>
+<td><code>layers:layer-air_expansion</code></td>
+<td>Mirrored areas and correct opposing starts</td>
+<td>01, 07</td>
+</tr>
+<tr>
+<td><code>layers:layer-air_offensive</code></td>
+<td>Mirrored results and good/better spot weights across air analyses</td>
+<td>07, 08</td>
+</tr>
+<tr>
+<td><code>layers:layer-air_raids</code></td>
+<td>Symmetry and raid scores</td>
+<td>07, 08</td>
+</tr>
+<tr>
+<td><code>layers:layer-battle_paths</code></td>
+<td>Complete, connected base-to-base battle paths</td>
+<td>02, 13</td>
+</tr>
+<tr>
+<td><code>layers:layer-access</code></td>
+<td>Merge access views; hover-access and air-only layers</td>
+<td>09</td>
+</tr>
+<tr>
+<td><code>layers:layer-resource_zones</code></td>
+<td>Correct main-base/safe/own-expansion/contestable/hot-zone assignments</td>
+<td>03, 04</td>
+</tr>
+<tr>
+<td><code>layers:layer-contested_resources</code></td>
+<td>Unify with economy zoning; separate mex and reclaim views</td>
+<td>03, 04</td>
+</tr>
+</tbody></table>
+<p>The seven green flags are retained: Water, Markers, Natural reclaim Energy,
+Natural reclaim Mass, Wrecks Mass, Civilians, and Pathing &amp; connectivity. They
+are owner-accepted views, not proof that every runtime setting or map version
+has been validated. Access structure, the derived-gameplay header and the page
+also have non-green flags without additional written notes; their scope is
+covered by the access/derived work above. No owner flag is automatically closed.</p>
+<h2 id="before-the-next-training-run">Before the next training run</h2>
+<ul>
+<li>Review the quick batch and the definitions above before launching new training.</li>
+<li>Validate changes first on the five exact atlas versions and explicit scenarios.</li>
+<li>For each approved scientific change, produce versioned outputs, source/setting
+signatures, raw values and validity masks; preserve older releases as history.</li>
+<li>Rebuild only affected learning targets, keeping family separation and train-only
+fitting. Update receipts/control contracts to match actual loaders. Atlas-only
+display improvements do not change dataset version or close scientific tasks.</li>
+<li>Review the resulting data and publish its recorded status before the next
+model run. This plan starts no training, extraction or background automation.</li>
+</ul>
+<script src="public-links.js" data-public-links></script></body></html>
