@@ -1,0 +1,293 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>crowd_labeling_app_spec.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="crowd-labeling-app-spec">Crowd Labeling App Spec</h1>
+<h2 id="purpose">Purpose</h2>
+<p>Build a public questionnaire app that collects community judgments about FAF maps. The output should be a raw response dataset that can later be aggregated into soft labels for ML conditioning and dataset filtering.</p>
+<p>The app is not trying to discover one final truth for each map. It should capture how different players perceive the same map, including disagreement.</p>
+<h2 id="core-principles">Core Principles</h2>
+<ul>
+<li>Keep each session lightweight: show one map, ask 2-3 questions, submit, next map.</li>
+<li>Store every individual answer. Do not overwrite responses with averages.</li>
+<li>Treat labels as continuous or probabilistic, not hard categories.</li>
+<li>Ask about one concept at a time.</li>
+<li>Let respondents say they do not know.</li>
+<li>Separate gameplay, structure, quality, and aesthetics.</li>
+<li>Prefer repeated small judgments from many people over long expert-only forms.</li>
+</ul>
+<h2 id="mvp-user-flow">MVP User Flow</h2>
+<ol>
+<li>User opens the public page.</li>
+<li>App assigns an anonymous browser ID.</li>
+<li>Optional: user enters a FAF/player name.</li>
+<li>App shows a map card.</li>
+<li>App shows 2-3 questions selected from the question pool.</li>
+<li>User answers and submits.</li>
+<li>App stores raw answers.</li>
+<li>App shows another map.</li>
+</ol>
+<p>The page should make it easy to stop after one map. A good community tool feels like &quot;I can do five quick ratings while waiting for a lobby.&quot;</p>
+<h2 id="map-card">Map Card</h2>
+<p>The first version can show:</p>
+<ul>
+<li>map display name</li>
+<li>folder/version name</li>
+<li>map size</li>
+<li>player count</li>
+<li>available preview image, if any</li>
+<li>later: generated structural preview</li>
+</ul>
+<p>The medium-term goal is to generate consistent previews from extracted data:</p>
+<ul>
+<li>height/water image</li>
+<li>spawn markers</li>
+<li>mex markers</li>
+<li>hydro markers</li>
+<li>reclaim density</li>
+<li>land/naval/amphibious path hints where available</li>
+</ul>
+<p>Existing preview images should be treated as helpful UI, not training data ground truth.</p>
+<h2 id="question-types">Question Types</h2>
+<p>Use compact scales. A 0-5 scale is easier than 1-10 and still expressive enough.</p>
+<h3 id="slider-questions">Slider Questions</h3>
+<p>Question format:</p>
+<ul>
+<li><code>0 = not at all</code></li>
+<li><code>5 = extremely</code></li>
+<li>optional <code>I do not know</code></li>
+</ul>
+<p>Examples:</p>
+<ul>
+<li>How navy-heavy is this map?</li>
+<li>How land-focused is this map?</li>
+<li>How important is air control on this map?</li>
+<li>How turtle-friendly is this map?</li>
+<li>How raid-friendly is this map?</li>
+<li>How much does this map reward macro/eco scaling?</li>
+<li>How close-combat is this map?</li>
+<li>How beautiful is this map?</li>
+<li>How readable is this map during play?</li>
+</ul>
+<h3 id="multi-choice-questions">Multi-Choice Questions</h3>
+<p>Examples:</p>
+<ul>
+<li>Which modes matter on this map? <code>land</code>, <code>navy</code>, <code>air</code>, <code>amphibious</code>, <code>transport</code>, <code>eco</code>, <code>turtle</code>, <code>raid</code></li>
+<li>What best describes the layout? <code>open</code>, <code>laned</code>, <code>chokepoint</code>, <code>island</code>, <code>ponds</code>, <code>water center</code>, <code>water sides</code>, <code>asymmetric</code></li>
+<li>What is your familiarity with this map? <code>never played</code>, <code>seen it</code>, <code>played casually</code>, <code>know it well</code></li>
+<li>Is this map generally good? <code>bad</code>, <code>mixed</code>, <code>good</code>, <code>excellent</code>, <code>do not know</code></li>
+</ul>
+<h3 id="free-text">Free Text</h3>
+<p>Keep free text optional and short:</p>
+<ul>
+<li>&quot;Any short note about this map?&quot;</li>
+</ul>
+<p>Free text is useful for spotting missing categories, but it should not be required.</p>
+<h3 id="clone-and-originality-questions">Clone And Originality Questions</h3>
+<p>These questions should appear only occasionally, especially when a map is already in a name-similarity candidate family:</p>
+<ul>
+<li>Does this map feel like a clone, remake, or reskin of a better-known map?</li>
+<li>If yes, what map does it resemble?</li>
+<li>How original is this map?</li>
+<li>Is this the version of the map people should usually play?</li>
+</ul>
+<p>Raw answers should be stored as review signals. They should not automatically delete maps from the dataset.</p>
+<h2 id="initial-question-pool">Initial Question Pool</h2>
+<p>Gameplay:</p>
+<ul>
+<li><code>navy_heavy</code></li>
+<li><code>land_focused</code></li>
+<li><code>air_important</code></li>
+<li><code>turtle_friendly</code></li>
+<li><code>raid_friendly</code></li>
+<li><code>macro_oriented</code></li>
+<li><code>close_combat</code></li>
+<li><code>team_role_dependent</code></li>
+</ul>
+<p>Structure:</p>
+<ul>
+<li><code>open_layout</code></li>
+<li><code>laned_layout</code></li>
+<li><code>chokepoint_heavy</code></li>
+<li><code>island_or_water_split</code></li>
+<li><code>contested_middle</code></li>
+<li><code>safe_back_expansions</code></li>
+</ul>
+<p>Quality:</p>
+<ul>
+<li><code>fun_to_play</code></li>
+<li><code>balanced</code></li>
+<li><code>competitive_quality</code></li>
+<li><code>readability</code></li>
+<li><code>originality</code></li>
+</ul>
+<p>Aesthetic:</p>
+<ul>
+<li><code>beautiful</code></li>
+<li><code>natural_looking</code></li>
+<li><code>visually_noisy</code></li>
+</ul>
+<p>Respondent confidence:</p>
+<ul>
+<li><code>familiarity</code></li>
+</ul>
+<h2 id="response-data-model">Response Data Model</h2>
+<p>Store responses as append-only rows.</p>
+<h3 id="maps"><code>maps</code></h3>
+<pre><code class="language-text">id
+map_dir
+canonical_name
+version
+size_x
+size_z
+player_count
+inventory_source
+preview_url
+structural_preview_url
+created_at
+</code></pre>
+<h3 id="respondents"><code>respondents</code></h3>
+<pre><code class="language-text">id
+anonymous_key_hash
+display_name
+created_at
+last_seen_at
+</code></pre>
+<p>Do not require login for MVP. If FAF OAuth or Discord login is added later, keep anonymous response support unless spam becomes unmanageable.</p>
+<h3 id="question_definitions"><code>question_definitions</code></h3>
+<pre><code class="language-text">id
+key
+prompt
+question_type
+scale_min
+scale_max
+active
+category
+created_at
+</code></pre>
+<h3 id="responses"><code>responses</code></h3>
+<pre><code class="language-text">id
+map_id
+respondent_id
+question_id
+numeric_value
+choice_values
+text_value
+familiarity
+client_session_id
+created_at
+</code></pre>
+<h3 id="aggregated_map_labels"><code>aggregated_map_labels</code></h3>
+<p>This table or view is generated from raw responses:</p>
+<pre><code class="language-text">map_id
+question_key
+response_count
+mean
+median
+stddev
+unknown_count
+weighted_mean
+updated_at
+</code></pre>
+<h2 id="aggregation-rules">Aggregation Rules</h2>
+<p>First pass:</p>
+<ul>
+<li>Average numeric responses per map/question.</li>
+<li>Track <code>response_count</code>, <code>mean</code>, <code>median</code>, and <code>stddev</code>.</li>
+<li>Keep <code>stddev</code> as signal. Disagreement is useful.</li>
+<li>Compute <code>weighted_mean</code> using familiarity:<ul>
+<li><code>never played</code>: 0.5</li>
+<li><code>seen it</code>: 0.75</li>
+<li><code>played casually</code>: 1.0</li>
+<li><code>know it well</code>: 1.5</li>
+</ul>
+</li>
+</ul>
+<p>Later:</p>
+<ul>
+<li>Detect outliers.</li>
+<li>Compare casual vs experienced player labels.</li>
+<li>Avoid training splits where duplicate map families leak across train/test.</li>
+</ul>
+<h2 id="map-selection">Map Selection</h2>
+<p>The app should not always show the same popular maps.</p>
+<p>MVP selection strategy:</p>
+<ul>
+<li>Prefer maps with fewer total responses.</li>
+<li>Prefer active questions with fewer answers for that map.</li>
+<li>Occasionally show known popular maps to calibrate users.</li>
+<li>Avoid repeating the same map to the same respondent too often.</li>
+</ul>
+<h2 id="abuse-and-data-quality">Abuse And Data Quality</h2>
+<p>MVP protections:</p>
+<ul>
+<li>Browser-local anonymous ID.</li>
+<li>One response per respondent/map/question unless explicitly updated.</li>
+<li>Basic rate limit by anonymous ID and IP if the backend supports it.</li>
+<li>Honeypot field on forms.</li>
+<li>Admin export includes timestamps for suspicious bursts.</li>
+</ul>
+<p>Community quality controls:</p>
+<ul>
+<li>Optional FAF/player name.</li>
+<li>Optional &quot;I know this map well&quot; familiarity.</li>
+<li>Keep raw responses so bad batches can be removed later.</li>
+</ul>
+<h2 id="hosting-recommendation">Hosting Recommendation</h2>
+<p>MVP stack:</p>
+<ul>
+<li>Frontend: React, Vite, TypeScript</li>
+<li>Hosting: Vercel, Netlify, or Cloudflare Pages</li>
+<li>Backend/database: Supabase Postgres</li>
+<li>Storage: Supabase Storage for generated preview images</li>
+</ul>
+<p>Why this stack:</p>
+<ul>
+<li>Quick public deployment.</li>
+<li>Simple database exports.</li>
+<li>No server maintenance.</li>
+<li>Good enough for friends and early community testers.</li>
+</ul>
+<p>If the app later needs custom auth, moderation, or high traffic, it can move to a dedicated backend.</p>
+<h2 id="requirements">Requirements</h2>
+<h3 id="functional-requirements">Functional Requirements</h3>
+<ul>
+<li>Import map records from the inventory/label CSV.</li>
+<li>Show one map at a time.</li>
+<li>Ask 2-3 questions per map.</li>
+<li>Support numeric scale questions.</li>
+<li>Support multi-choice questions.</li>
+<li>Support <code>I do not know</code>.</li>
+<li>Capture respondent familiarity.</li>
+<li>Store raw responses append-only.</li>
+<li>Export raw responses as CSV/JSON.</li>
+<li>Export aggregated labels as CSV/JSON.</li>
+<li>Allow an admin to activate/deactivate questions.</li>
+<li>Avoid repeatedly showing the same map/question pair to the same respondent.</li>
+</ul>
+<h3 id="non-functional-requirements">Non-Functional Requirements</h3>
+<ul>
+<li>Public page loads quickly on desktop and mobile.</li>
+<li>No FAF installation required for respondents.</li>
+<li>No required login for MVP.</li>
+<li>Raw map files are never exposed publicly.</li>
+<li>Admin credentials and database keys are never committed.</li>
+<li>UI text is short and plain.</li>
+<li>The app remains useful even when only a preview image is available.</li>
+</ul>
+<h3 id="out-of-scope-for-mvp">Out Of Scope For MVP</h3>
+<ul>
+<li>Training models inside the web app.</li>
+<li>Uploading arbitrary maps from users.</li>
+<li>Full FAF account integration.</li>
+<li>Perfect anti-spam.</li>
+<li>Rich discussion threads.</li>
+<li>Real-time leaderboards.</li>
+</ul>
+<h2 id="first-build-milestones">First Build Milestones</h2>
+<ol>
+<li>Create an app folder with a local mock dataset.</li>
+<li>Build a single-map rating screen.</li>
+<li>Store responses locally or in a simple JSON mock.</li>
+<li>Add Supabase schema and real inserts.</li>
+<li>Add admin export.</li>
+<li>Generate consistent structural previews from map data.</li>
+<li>Invite friends to test the first 279-map dataset.</li>
+</ol>
+<script src="model-atlas/public-links.js" data-public-links></script></body></html>

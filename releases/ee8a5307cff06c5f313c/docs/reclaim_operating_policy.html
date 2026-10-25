@@ -1,0 +1,55 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>reclaim_operating_policy.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="reclaim-operating-policy">Reclaim operating policy</h1>
+<p>The user fixed the operating settings after the sensitivity study:</p>
+<ul>
+<li>One acquisition overhead: <strong>1 second per entity</strong>.</li>
+<li><strong>Three map-relative groups</strong>: Best available / Okay / Low priority.</li>
+<li>Retain the existing25 mass/s reference processing hypothesis for now.</li>
+<li>Use the same whole-playable-area boundaries on all paths.</li>
+<li>No further delay sweeps or automatic group-count selection for production work.</li>
+</ul>
+<p>These constants live in <code>strategy/reclaim_policy.py</code>. New computations must use
+this policy. <code>fixed_three_tiers</code> ignores the historical automatic selection;
+exact weighted ordered breaks still determine the three groups. Fewer than three
+distinct qualities leave empty output tiers rather than arbitrarily assigning
+equal objects different quality. All11 pilot maps have three nonempty groups.</p>
+<p><code>tools/build_standard_reclaim.py</code> materializes the existing1s profile and its
+three-group fit without rerunning extraction, routes or sensitivity searches.
+It exports per-map <code>standard_reclaim.json</code>, root <code>standard_policy.json</code> and
+<code>standard_reclaim_metrics.csv</code>:11 maps,88 saved contact-budget configurations,
+1716 tier rows. Existing research artifacts and their hashes remain untouched.
+The local viewer defaults to the single1s profile with fixed3 groups. Other
+options display cached research and are not instructions to compute more cases.
+Legacy compare/build sensitivity commands remain research-history tools; do not
+use them for new operating runs without an explicit research request.</p>
+<p>Five policy tests cover fixed settings and degenerate stock. All181 targeted
+tests pass. Export audit verifies source hashes, exact selected-profile/model
+parity and all88 configurations. Browser checks confirm one1s card, locked
+three-tier selection, correct current-profile budget gains, no errors/overflow.</p>
+<h2 id="economic-comparison-initial-proposal-construction-aware-test-now-implemented">Economic comparison (initial proposal; construction-aware test now implemented)</h2>
+<p>The first test now includes construction mass/time and a separate energy ledger.
+See <a href="resource_economy_pilot.md">the implemented economic pilot</a>; the proposal below
+records its starting rationale, not a claim that mexes operate immediately.</p>
+<p>Compare a route&#39;s continuing mex income and finite collectable reclaim over one
+fixed early-game window, provisionally300 seconds:</p>
+<p><code>economic_pull_p = income_p * T + collectable_reclaim_p(T)</code></p>
+<p>Use actual configured T1 mex income, not marker count where income differs.
+Collectable reclaim follows best-first per-entity rates under the1s model and
+one explicit map-level engineer-work budget. Shared entities and markers are
+credited once through existing fractional ownership. The same budget is shared
+across paths; adding a contact must not manufacture engineers. Tier labels are
+summaries/collection priority, not arbitrary3:2:1 value multipliers. The initial
+collection-only proxy excludes travel and is economic opportunity, not actual
+match income. Mex capture/build timing and construction costs are not yet part
+of this proposal; they should not be silently claimed simulated.</p>
+<p>Use the same eligible contested-resource scope on both sides of this comparison;
+protected base/rear stock used to calibrate tiers does not thereby enter route
+strength. A resource-class balance can be derived directly:</p>
+<p><code>reclaim_weight = sum(collectable_reclaim) / (sum(collectable_reclaim) + T*sum(income))</code></p>
+<p>Store mex pull, reclaim pull and their combined value separately. Feed this
+economic pull into existing distance/response logic rather than calling it army
+combat strength. Persistent mex pressure remains visible as reclaim depletes.
+The300s horizon and engineer budget are a proposed first baseline, not an
+additional approved settings sweep or a completed reweighting of routes.
+Energy remains a separate reward in a shared collection operation, with its
+matching source-audited time model pending; no universal mass:energy rate is set.</p>
+<script src="model-atlas/public-links.js" data-public-links></script></body></html>

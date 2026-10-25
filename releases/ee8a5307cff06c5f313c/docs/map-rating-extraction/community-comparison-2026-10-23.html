@@ -1,0 +1,38 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>community-comparison-2026-10-23.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="../model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="community-comparison-23-october-2026">Community comparison, 23 October 2026</h1>
+<p>Fresh Netlify export: 388 review revisions, 373 latest participant/map reviews,
+259 reviewed app maps, 27 contributors. The retired chatgpt.site archive is
+retained separately and is not silently merged into this current-site snapshot.</p>
+<p>Compared to pipeline 1.2.1, policy v1, run <code>f1ae04e925f139a8</code> using exact vault
+map/version IDs: 179 scored versions overlap, covering 256 latest reviews.
+65 reviewed maps are outside the selected cohort; 15 are excluded by the run.
+No scored result is invented for those maps.</p>
+<p>The main 1v1 view has 79 scored-map reviews on 68 maps. The played-map 1v1 view
+has 42 reviews on 38 maps. Only six maps have at least two numeric answers on
+any compared axis in the main 1v1 view.</p>
+<p>Findings: air importance is generally higher than the narrower air-mobility
+calculation (+1.35 mean map-level difference in the main 1v1 view). Openness
+differences cancel in the signed average (+0.07), despite a mean absolute
+gap of 1.40. Crimson Feud and Regor VI Highlands merit same-setup audits;
+Aqua World and Cobalt Valley have repeated but preview-only disagreement.
+Astro has many 3v3 reviews disagreeing with openness/navy, which remain separate
+from direct 1v1 interpretation.</p>
+<p>Full results (local, private aggregate artifacts):</p>
+<ul>
+<li><a href="../../exports/review-backups/2026-10-23T13-21-59.695Z/community-vs-calculation/index.html">Interactive comparison</a></li>
+<li><a href="../../exports/review-backups/2026-10-23T13-21-59.695Z/community-vs-calculation/report.md">Written findings</a></li>
+<li><a href="../../exports/review-backups/2026-10-23T13-21-59.695Z/community-vs-calculation/map_axis_comparisons.csv">Every comparison row</a></li>
+<li><a href="../../exports/review-backups/2026-10-23T13-21-59.695Z/netlify-full-dataset.json">Original snapshot</a></li>
+</ul>
+<p>Reproduce locally:</p>
+<pre><code class="language-powershell">.venv-codex/Scripts/python.exe tools/compare_community_strategy_ratings.py --dataset exports/review-backups/2026-10-23T13-21-59.695Z/netlify-full-dataset.json --run data/processed/strategy_annotation_batch/v1.2.1/f1ae04e925f139a8 --output exports/review-backups/2026-10-23T13-21-59.695Z/community-vs-calculation
+</code></pre>
+<p>The report records source hashes, axis alignment, numeric-only aggregation,
+latest-review deduplication, sample size, range, familiarity, configuration,
+model confidence and raw measurements. Means are descriptive ordinal summaries.
+Eco safety, general expansion and quality have no equivalent scored questions.
+Do not refit frozen labels from these audit leads or infer statistical consensus
+from one or two respondents. The original train/test split stays unchanged.</p>
+<p>Five focused comparison tests passed, the heatmap was visually checked, and
+browser filtering by played-map familiarity and map name returned the expected
+results. This extraction/analysis involved no Netlify deployment.</p>
+<script src="../model-atlas/public-links.js" data-public-links></script></body></html>

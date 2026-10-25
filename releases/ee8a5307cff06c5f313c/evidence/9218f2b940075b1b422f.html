@@ -1,0 +1,49 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>README.txt | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="../docs/model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1>README.txt</h1><p class="meta">Saved public evidence snapshot: docs/presentation/README.txt</p><pre>MAPGEN - FIRST PLAYABLE ML MAP
+Milestone: 25 October 2026
+
+Map: MapGen Heatmap Medium 303
+Folder: mapgen_sym_heatmap_medium.v0001
+Size: 10 x 10 km / 2 players / intended 1v1
+32 mex markers, 2 hydro markers, 2,694 trees and 644 natural rocks.
+
+This is the exact staged-pipeline map inspected in game and judged playable
+by the project owner. It is a research demonstration, not a polished,
+competitively balanced or FAF-ranked map. Expect rough gameplay details.
+
+HOW TO PLAY
+Extract the whole mapgen_sym_heatmap_medium.v0001 folder into the custom maps
+directory configured for your FAF/game installation. Do not rename the folder
+or put it inside a second duplicate folder. Restart/refresh your map list,
+then select &quot;MapGen Heatmap Medium 303&quot; for a two-player game.
+
+You need Supreme Commander: Forged Alliance and the FAF game environment.
+This package does not install the game or include a standalone game runtime.
+No Python, CUDA, model checkpoint or generation process is required.
+This is a frozen map, not a portable seed-only generator.
+
+WHAT WAS LEARNED
+- Terrain height and water structure, generated together.
+- Mex and hydro location heatmaps conditioned on terrain and planned starts.
+- Tree-energy and natural-rock-mass distribution heatmaps.
+
+WHAT WAS NOT LEARNED
+- Starting coordinates were supplied.
+- Symmetry, terrain finishing and marker peak decoding are deterministic tools.
+- A composer converts reclaim heatmaps and budgets into actual game props.
+- Textures use inherited stock materials, not learned texture painting.
+- The later wreck/civilian experiments are not included in this map.
+
+All five game files in this archive match the tested export byte-for-byte.
+This README is packaging information only. ML tensors, private paths and
+training data are deliberately excluded. Game assets are referenced through
+the installed game; no separate game-asset library is bundled.
+
+FEEDBACK WELCOME
+Please describe spawn/resource buildability, access, expansion/raid options,
+reclaim distribution and any engine errors. Include this exact map name/version.
+The immediate next work is research and training-data improvements.
+
+Project: https://github.com/LimeZ3/Lime-Map-Generator
+Atlas: https://mapgen-project-atlas.elven-bowl-7506.chatgpt.site
+Original maps and game assets retain their respective owners' rights.
+</pre><script src="../docs/model-atlas/public-links.js" data-public-links></script></body></html>

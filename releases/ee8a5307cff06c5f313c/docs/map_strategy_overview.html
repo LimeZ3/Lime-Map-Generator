@@ -1,0 +1,668 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>map_strategy_overview.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="map-strategy-analysis-implementation-interpretation-and-remaining-work">Map strategy analysis: implementation, interpretation and remaining work</h1>
+<blockquote>
+<p><strong>22 October labeling proposal:</strong> <a href="strategy_labeling_v1.md">Strategy labels v1</a>
+specifies one production configuration, automatic front selection and concrete
+gameplay ratings so research can close and model training can proceed. It is
+a proposed release contract; existing report scores are unchanged.</p>
+</blockquote>
+<blockquote>
+<p><strong>19 October implementation update:</strong> the new
+<a href="strategy_pipeline.md">versioned mass-first pipeline</a> now connects shared mass
+returns, economic-front placement and contact-response drop/air scenarios for
+arbitrary local version inputs. Energy is deliberately deferred. The coverage
+counts below describe the earlier saved reports; a new full-library run has
+not thereby completed. The pipeline document is authoritative for integration
+status and retained settings.</p>
+</blockquote>
+<p>Reviewed 19 October 2026 against the saved results, validation reports and source
+code. This is the current overview; the <a href="strategy_collection_run.md">run log</a>
+preserves the sequence of experiments. Earlier reports remain historical results
+unless explicitly regenerated. No new extraction or strategy calculation was
+performed for this review.</p>
+<h2 id="where-the-project-stands">Where the project stands</h2>
+<p>We can extract useful structural evidence about where players can expand, move
+armies, contest resources and attack economy from the air. The strongest current
+interpretation is <strong>economic opportunity and response burden under a stated
+configuration</strong>. Actual army placement, intel, AA, combat outcomes and player
+choices are not known from map files.</p>
+<p>There are two different levels of coverage:</p>
+<ul>
+<li>The collection-wide drop/air analysis attempted all 630 entries and completed<ol start="602">
+<li>It is a completed <strong>earlier model</strong>, with known pairing and route-response
+limitations.</li>
+</ol>
+</li>
+<li>The newer own-half frontier model has 29 completed comparison maps. Reclaim,
+collection tiers and construction-aware economic interpretation have 11 pilot
+maps. These improvements have <strong>not</strong> been integrated into and rerun across
+the collection-wide drop/air report.</li>
+</ul>
+<p>Consequently, having a new reclaim/economic panel for a map does not mean that
+its older drop score already uses those values.</p>
+<h2 id="scope-and-fixed-operating-choices">Scope and fixed operating choices</h2>
+<table>
+<thead>
+<tr>
+<th>Choice</th>
+<th>Current meaning</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Match setup</td>
+<td>1v1, slot 1 versus a meaningful mirrored opponent; exact slots/version recorded. Supported adaptive defaults resolved for those two active slots.</td>
+</tr>
+<tr>
+<td>Geometry</td>
+<td>Terrain navigation; strict four-corner height-difference test <code>&lt; 0.75</code>, playable bounds and blocking terrain types. Amphibious maximum depth 25.</td>
+</tr>
+<tr>
+<td>Movement layers</td>
+<td>Separate land, naval, amphibious and hover masks. Engineers use hover access, including water unloads. Latest economic-front comparison is land-only.</td>
+</tr>
+<tr>
+<td>Symmetry</td>
+<td>Enforce exact normalized symmetry when the input qualifies; intersect mirrored passability conservatively. Record mismatches/exclusions rather than inventing an opponent or opening blocked terrain.</td>
+</tr>
+<tr>
+<td>Reclaim operation</td>
+<td><strong>1 second per extracted entity</strong>, plus the retained reference processing hypothesis <code>mass / 25</code>.</td>
+</tr>
+<tr>
+<td>Reclaim groups</td>
+<td><strong>Three map-relative groups</strong>: Best available, Okay, Low priority. Common map-level boundaries for all paths; empty groups allowed for degenerate stock.</td>
+</tr>
+<tr>
+<td>Economic test</td>
+<td>One existing UEF T1 engineer, one shared 300-second work budget per own-side eligible pool, T1 mex construction and a separate energy ledger. This is the present pilot baseline, not a calibrated game forecast.</td>
+</tr>
+<tr>
+<td>Air class</td>
+<td>Generic economy-raiding air, including underwater mexes through torpedo aircraft. Representative gunship economics; no gunship/torpedo split.</td>
+</tr>
+<tr>
+<td>Naval representatives</td>
+<td>UEF T1 frigate, T2 destroyer and T2 cruiser missiles. No further per-faction or T3 target enumeration is required.</td>
+</tr>
+</tbody></table>
+<p>The approved reclaim delay and group count are operating decisions. Other fixed
+pilot assumptions, such as a five-minute horizon, one engineer and response
+strengths, still require validation. Historical sensitivity controls in viewers
+are saved research, not instructions to resume parameter sweeps.</p>
+<h2 id="capability-and-evidence-inventory">Capability and evidence inventory</h2>
+<p>“Audited” below means that implementation and saved artifacts passed the recorded
+checks. It does not mean that gameplay predictions were independently confirmed
+in the game.</p>
+<table>
+<thead>
+<tr>
+<th>Stage</th>
+<th>Implemented and available</th>
+<th>Evidence and remaining boundary</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Map inputs and previews</td>
+<td>Terrain/water layers, movement masks, numbered spawns, mexes/hydros, prop and initial-wreck identities/values, variety metrics, registered PNG overlays and numerical exports.</td>
+<td>Legacy-reader and water-enabled corrections are documented. Unsupported runtime scripts, unknown blueprints and live units remain distinct from known zero reclaim.</td>
+</tr>
+<tr>
+<td>Naval range potential</td>
+<td>Archived T1 frigate analysis on all 33 featured maps; reachable basins, candidate launches and firing-position witnesses. Reduced three-profile UEF code is implemented.</td>
+<td>Archived audit: 21,162 witnesses; 30 resolved default-resource sets, three static-marker-potential cases. <strong>No generated T2 representative results</strong> are present in <code>strategic_features_uef</code>. Range potential is not a confirmed hit.</td>
+</tr>
+<tr>
+<td>Expansion/offensive drops and air raids</td>
+<td>Resource-area candidates, response/travel/economic gates, water engineer unloads, overlays and reasons for rejection.</td>
+<td>Three-map calibration and four-map benchmark reviewed by the user. Earlier model completed 602/630 cohort entries. Latest frontier/economic changes are not included collection-wide.</td>
+</tr>
+<tr>
+<td>AA coverage burden</td>
+<td>Greedy coverage of mex sites at representative static-AA ranges 44/50/60.</td>
+<td>Initial two-map pilot. Coverage positions are not required AA combat strength or a proven minimum; not rebuilt as the latest collection-wide model.</td>
+</tr>
+<tr>
+<td>Terrain corridor networks</td>
+<td>Alternative obstacle-separated paths, widths, shared sections, exact symmetry and resource attraction.</td>
+<td>Useful physical topology baseline. Older complete-trace counts and removal cutoffs were sensitive to branch identities and crossings.</td>
+</tr>
+<tr>
+<td>Own-half economic fronts</td>
+<td>Base-to-frontier deployment, contact response territories, shared trunks, K1–8 saturation curves.</td>
+<td>29/30 comparison cases completed; 232 configurations and 464 PNGs audited. One Badlands symmetry exclusion. Separate land fronts; contact count is not full-map independent route count.</td>
+</tr>
+<tr>
+<td>Entity-aware reclaim fronts</td>
+<td>Numerical stock, per-entity handling, spatial priority, collection-effort curves and fixed three-tier summaries.</td>
+<td>11 maps, 88 standard contact-budget configurations. Preserve stock and unknowns separately from priority. Earlier delay/weight experiments remain archived.</td>
+</tr>
+<tr>
+<td>Mex/reclaim economic comparison</td>
+<td>Serial self-financing construction/reclaim schedule, net mass contributions and companion energy ledger.</td>
+<td>11 maps, 88 configurations, 5,896 events and 484 pool rows independently audited; 193 targeted tests recorded. <strong>Attribution on saved layouts</strong>, not a new route optimizer.</td>
+</tr>
+<tr>
+<td>Community comparison</td>
+<td>Exact-version joins, review distributions, setup/suggestion sensitivities and diagnostic discrepancies.</td>
+<td>Historical 15 October snapshot: 44 matched maps/97 reviews, only 14 reviews marked 1v1. Requires refresh after pipeline integration.</td>
+</tr>
+</tbody></table>
+<p>The broad cohort is a frozen 15 October vault membership snapshot: 545 visible
+adaptive-named entries, 33 featured and 93 fixed ladder maps, with overlap.
+Coverage was 520/545, 30/33 and 93/93 respectively. Its 28 exceptions are 19 without
+a meaningful mirror, six unsupported resource scripts and three memory-limited
+4096-square maps. Ten generated 3v3 configurations were not instantiated as fixed
+map files. This is not the entire downloaded library and not a claim about today&#39;s
+live vault membership.</p>
+<h2 id="1-expansion-drops-offensive-drops-and-air-raids">1. Expansion drops, offensive drops and air raids</h2>
+<h3 id="what-each-question-asks">What each question asks</h3>
+<table>
+<thead>
+<tr>
+<th>Analysis</th>
+<th>Useful interpretation</th>
+<th>It does not establish</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Expansion drop</td>
+<td>Can transport delivery claim worthwhile economy earlier than an engineer walking, with enough distance/value to justify the transport?</td>
+<td>That ordinary expansion is valuable only when a drop qualifies, or that the position can be held.</td>
+</tr>
+<tr>
+<td>Offensive drop</td>
+<td>Can a ground payload bypass the likely land response and threaten economic targets before ground defenders can respond effectively?</td>
+<td>That the enemy lacks AA/intel, the payload survives, or the transport/payload investment pays back in actual combat.</td>
+</tr>
+<tr>
+<td>Air raid</td>
+<td>How much economic geography is exposed to fast air attack under the response assumptions?</td>
+<td>Total air-superiority importance, including scouting, army support, transport denial and protection of navy.</td>
+</tr>
+<tr>
+<td>AA burden</td>
+<td>How geographically dispersed are targets, and how many sampled coverage positions cover them at a stated range?</td>
+<td>How many AA units win a fight, their affordability or actual defensive coverage.</td>
+</tr>
+</tbody></table>
+<p>The revised drop model requires both reward and a response opportunity. The first
+speed-only model was rejected because fast flight alone made sites beside Astro&#39;s
+main battle lane look attractive.</p>
+<p>Expansion uses hover-engineer walking and unload access. A water mex can be an
+expansion-drop target without nearby dry shore. Offensive ground payloads still
+need a dry terrain-feasible landing and land access to their target. Generic air
+raids may target underwater mexes; this does not imply gunships can shoot them.</p>
+<p>The shared medium calibration includes a 96-unit base buffer, normally two mexes
+per patch, a 22-second-equivalent ground-response window, 12 seconds enemy-air
+travel and 35 seconds net engineer travel saved after fresh transport production.
+Inaccessible pockets have explicit resource-count exceptions. The T1 UEF transport
+reference is 120 mass and 40 seconds production from an existing unassisted factory.
+Landing patches, clustering and destination grouping remain geometric approximations.</p>
+<h3 id="response-strength-is-an-assumption-about-capacity">Response strength is an assumption about capacity</h3>
+<p>Physical walking ETA and defensive strength are separate. For the older response
+weighting, with a 60-second assessment horizon:</p>
+<p><code>window(t, s) = 60 - s * (60 - min(t, 60))</code></p>
+<p>The limiting base/route window is used. Lower strength admits more opportunity
+without pretending defenders walk more slowly. These seconds-equivalent are not
+predicted undefended seconds. The base response multiplier is also different from
+the route optimizer&#39;s base-attraction/snap cost.</p>
+<p>The user&#39;s resource-distance rule provides a useful land-allocation hypothesis:
+more valuable economy and shorter enemy approach justify more local land pressure;
+many separated valuable areas dilute that response. Fractional allocation avoids
+counting shared economy repeatedly. It still does not reveal actual armies, AA or
+the mass split between land, air and navy.</p>
+<h3 id="evidence-that-the-direction-is-useful">Evidence that the direction is useful</h3>
+<ul>
+<li>Astro has no qualifying expansion/offensive/air targets across the calibrated
+strict/medium/permissive presets. This is a useful compact, well-covered control.</li>
+<li>The original three-map calibration identifies islands and rear economy on
+Seton&#39;s and Drunken Beetles. Weakening the assumed land response on Beetles adds
+targets while retaining a strong base response. This supports separating arrival
+time from available defending strength; it does not measure Beetles&#39; army budget.</li>
+<li>In the four-map benchmark, deduplicated air-exposed mexes were 82/108 on Adaptive
+Maridia and 50/90 on Adaptive Point of Reason; Hilly Plateau and Canis River had
+zero primary-preset targets. The user confirmed the broad contrast, while
+rejecting the absolute 1–5 interpretation. These are benchmark results, not
+a fresh test of the later reclaim model.</li>
+<li>The corrected DualGap slot pair 1/2 reduced targeted offensive/air shares from
+62.3%/76.8% to 18.9%/37.7%. Pair selection can matter more than threshold tuning.</li>
+<li>Pandemonium&#39;s earlier nearest-route model produced zero air opportunities.
+An experimental resource/travel allocation produced 32.3% air exposure. The
+newer frontier model addresses its multiple economic approaches, but that model
+has not yet replaced the collection&#39;s air-response fields.</li>
+</ul>
+<p><strong>Still missing:</strong> the construction-aware mex/reclaim ledger has not replaced the
+older drop payback/denial proxy. Expansion&#39;s saved-income calculation is not the
+new shared-work schedule. Offensive target value is still largely mex-based;
+valuable reclaim, hydros, factories and upgraded economy do not yet form a unified
+raid-value model. Naval fire support and AA are not jointly evaluated as defenses.</p>
+<h2 id="2-from-physical-paths-to-resource-attracted-fronts">2. From physical paths to resource-attracted fronts</h2>
+<h3 id="the-distinction-we-now-preserve">The distinction we now preserve</h3>
+<ol>
+<li><strong>Physical navigation:</strong> where a movement layer can go and its shortest travel
+distance. Eight-direction graph edges reject corner cutting. Raw masks remain
+separate from compressed/culled AI navigation labels.</li>
+<li><strong>Deployment path:</strong> an economical base-to-front approach attracted toward
+resources, rather than necessarily the shortest straight push at the enemy.</li>
+<li><strong>Response source:</strong> where an army is assumed to be stationed. In the latest
+pilot this is a selected frontier contact or the base, not every point on the
+deployment trace simultaneously.</li>
+<li><strong>Response territory:</strong> resources/space most efficiently served from those
+sources through physical terrain, including fractional ties and Base-preferred
+resources. It is a service hypothesis, not ownership or guaranteed control.</li>
+</ol>
+<p>This prevents a route from wrapping into the enemy half and claiming that friendly
+units already cover everything near its far end. Behind-base resources are kept
+as rear economy rather than pulling an attack route past its terminal and back.</p>
+<p>The current own-half model cuts on the perpendicular bisector of the selected
+bases. Only legal terrain edges crossing that frontier create candidate contacts.
+Every candidate gets the same terminal reward; the deployment trace stops at its
+first contact. The virtual completion reward never enters the response graph.
+Enemy resources do not attract the own-half optimizer.</p>
+<p>Contacts are selected using resource-weighted physical walking response from a
+contact or base. A common resource-attracted root tree supplies deployment lines,
+so shared approaches become explicit M trunks and arbitrary X crossings are
+avoided. Exact mirrored approaches/territories are displayed. For rotational
+symmetry, mirrored contacts need not coincide: no fictitious connecting segment
+is drawn across the frontier.</p>
+<h3 id="what-route-width-and-count-mean">What route width and count mean</h3>
+<p>There is no fixed maximum attention/territory width. An open plain can have one
+very wide approach. Physical bottleneck/clearance width, allocated territory area,
+shared-trunk length and contact count answer different questions and should stay
+separate. More contacts needed to saturate economic response is evidence of
+dispersed service demand; it is not by itself proof of more terrain passages or
+higher player skill.</p>
+<p>Budget K means <strong>contacts per side</strong>, not K independent full-map attack routes.
+The latest model assumes a response presence at each contact without charging
+additional army mass as K rises. Increasing K therefore supplies more response
+sources; saturation is a coverage-demand curve, not a fixed-army-budget optimum.
+Deployment length is reported but not charged as army arrival cost in placement.</p>
+<p>Examples from the land/mex frontier comparison, before reclaim integration:</p>
+<table>
+<thead>
+<tr>
+<th>Map</th>
+<th>Contact budgets</th>
+<th>Mean resource response, seconds</th>
+<th>Interpretation</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Morning Prayer</td>
+<td>3 → 4 → 5 → 6</td>
+<td>20.86 → 15.36 → 12.55 → 12.13</td>
+<td>Fifth contact materially helps; sixth adds little. User accepted this saturation reading.</td>
+</tr>
+<tr>
+<td>DualGap</td>
+<td>1 → 2 → 3</td>
+<td>26.00 → 20.10 → 19.88</td>
+<td>Two contacts capture most of this eligible land-pool improvement.</td>
+</tr>
+<tr>
+<td>Pandemonium Pass</td>
+<td>3 → 4 → 5 → 6</td>
+<td>31.48 → 26.79 → 24.46 → 24.00</td>
+<td>Several economic approaches matter before gains flatten.</td>
+</tr>
+<tr>
+<td>Regor VI Highlands</td>
+<td>2 → 3 → 4</td>
+<td>28.92 → 20.82 → 19.86</td>
+<td>A third contact is much more useful than the next addition.</td>
+</tr>
+</tbody></table>
+<p>These values use the same scoped resources within each map, not equal economic
+quantity across maps. Setons&#39; frontier pool has only three own-side off-base land
+mexes; its saturation cannot describe the whole naval map.</p>
+<h3 id="why-value-if-removed-does-not-sum-to-100">Why “value if removed” does not sum to 100%</h3>
+<p>For objective <code>G(S)</code> = weighted walking-access improvement over base-only response,
+the diagnostic for contact/trace <code>i</code> is:</p>
+<p><code>[G(S) - G(S without i)] / base-only weighted walking cost</code></p>
+<p>Other sources stay fixed. Shared or substitutable coverage loses little when one
+source disappears. This is marginal unique benefit, not an allocated resource
+share; the individual losses need not sum to 100%. Splitting one corridor into
+trace IDs can change these losses without changing total coverage.</p>
+<p>The earlier universal 3%/10% weakest-removal stopping rules are not a settled
+production selector. Neither “low percentage: delete” nor “high percentage: split”
+alone resolves branch identity, central terrain detours or a broad open front.
+Current evidence favors reviewing marginal saturation alongside independent
+resource groups, topology, shared trunks and physical response times. A universal
+automatic contact-count policy remains undetermined.</p>
+<h2 id="3-resource-interpretation-five-different-quantities">3. Resource interpretation: five different quantities</h2>
+<table>
+<thead>
+<tr>
+<th>Quantity</th>
+<th>Question it answers</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Physical stock</td>
+<td>How much known initial mass/energy exists, in which individual objects?</td>
+</tr>
+<tr>
+<td>Collection quality</td>
+<td>How rewarding is an individual operation per engineer-second, relative to alternatives on this map?</td>
+</tr>
+<tr>
+<td>Spatial service</td>
+<td>How easily can a contact/base respond to those resources through terrain?</td>
+</tr>
+<tr>
+<td>Collectible economic return</td>
+<td>What net mass can a finite shared work budget obtain, including mex construction and income after completion?</td>
+</tr>
+<tr>
+<td>Military incentive</td>
+<td>How much force would players invest here, and what could be denied or defended? This is inferred, not directly extracted.</td>
+</tr>
+</tbody></table>
+<p>Moving between these levels requires explicit assumptions. A large stock is not
+instant income; an economic share is not an army share; a high-quality chunk is
+not automatically contested or reachable. A resource can be safe from a main land
+approach while difficult to reinforce against air. “Rear,” “remote,” “protected”
+and “secure against all attacks” are not interchangeable.</p>
+<h3 id="reclaim-identity-handling-and-valuable-cores">Reclaim: identity, handling and valuable cores</h3>
+<p>The numerical inventory retains separate objects, blueprint identity, initial
+wreck semantics, positions, known mass/energy and uncertainty. Missing declared
+numeric reclaim defaults can be zero; unresolved parsing/blueprints remain
+unknown. Live placed units are not automatically valued as initial wrecks.
+The Setons initial-wreck total of 11,631.3 mass was checked by the user in game.
+Tree/rock appearance and gameplay wreck classification are separate attributes.</p>
+<p>Under the approved operating hypothesis:</p>
+<p><code>work(m) = m / 25 + 1</code> and <code>quality(m) = m / work(m)</code></p>
+<table>
+<thead>
+<tr>
+<th>Same 100 mass</th>
+<th align="right">Total engineer work</th>
+<th align="right">Full-clear mass/engineer-s</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>One 100-mass entity</td>
+<td align="right">5 s</td>
+<td align="right">20.00</td>
+</tr>
+<tr>
+<td>Ten 10-mass entities</td>
+<td align="right">14 s</td>
+<td align="right">7.14</td>
+</tr>
+<tr>
+<td>One hundred 1-mass entities</td>
+<td align="right">104 s</td>
+<td align="right">0.96</td>
+</tr>
+</tbody></table>
+<p>Stacked entities retain separate handling costs. The collection-priority field
+uses <code>m * m / (m + 25)</code> before spatial aggregation. This is an attention proxy,
+not a reduction in physical mass or a claim that it is all collected.</p>
+<p>Best-first collection curves preserve a valuable core even when a path also
+contains a large low-value forest. The whole-pool ratio <code>total mass / total work</code>
+alone can hide that core. Curves show attainable reward versus work and marginal
+quality as progressively worse objects are taken; travel is still excluded.</p>
+<p>Three ordered groups are fitted from mass-weighted log collection quality over
+known initial positive mass throughout playable bounds. All paths use the same
+map boundaries. Best on a poor map can have a much lower absolute rate than Best
+on a rich map, so retain both the tier and absolute throughput. Tiers are not fixed
+quantiles, do not promise a minimum share, and do not add 3:2:1 economic multipliers.
+Their association with manual clicks/automatic reclaim is a useful interpretation,
+not measured player APM or actual patrol behavior.</p>
+<p>Adaptive Tabula Rasa illustrates the distinction: its inspected three-group
+mass shares are approximately 46.44% Best, 14.27% Okay and 39.29% Low priority.
+This does not make all three stocks equally collectible in five minutes. Protected
+and rear stock participates in map-level quality calibration without thereby
+entering the contested land-front resource pool.</p>
+<h3 id="mexes-and-reclaim-compare-finite-work-and-net-reward">Mexes and reclaim: compare finite work and net reward</h3>
+<p>The latest test provides one existing UEF T1 engineer for 300 seconds, shared
+across all eligible own-side resources and Base-preferred allocations. Increasing
+contact count does not manufacture engineers or stock. Reference T1 mex values
+from the pinned FAF snapshot are 36 mass, 360 energy, 12 seconds construction,
+2 mass/s production and 2 energy/s upkeep after completion.</p>
+<p>One serial greedy schedule chooses between construction, acquisition/reclaim
+and financing waits. Existing completed mexes produce while the engineer works.
+A disclosed 36-mass capital advance permits the first build and is excluded from
+gain. For each attributed pool:</p>
+<p><code>net mass = mex production after completion - mex construction mass + collected reclaim</code></p>
+<p>Identical jobs receive expected fractional route attribution to avoid task-ID
+order creating asymmetric importance. They remain serial physical jobs; fractional
+per-path builds do not mean partial buildings or parallel engineers.</p>
+<p>Adaptive Tabula Rasa at four contacts:</p>
+<ul>
+<li>Builds 8 of 34 eligible mexes and collects 4,750 reclaim mass.</li>
+<li>Uses 96 seconds construction and 204 seconds reclaim.</li>
+<li>Produces 3,377.68 mex mass, subtracts 288 construction mass, and yields
+<strong>7,839.68 combined net mass</strong>, versus the old 27,325 instant-mex plus
+independently budgeted reclaim estimate.</li>
+<li>F3 contributes 37.4%, F1 26.2%, F4 23.6%, F2 7.0%, Base-preferred 5.8%.
+Keeping Base explicit explains why route-only shares need not total 100%.</li>
+<li>Mex construction/upkeep requires 6,257.68 energy, assumed supplied externally.</li>
+</ul>
+<p>The useful reclaim share can emerge from this shared schedule rather than a
+universal “one mex equals X reclaim” rule. At K4, reclaim contributes about 60.6%
+of Tabula&#39;s net mass, 80.7% of this Setons land-front pool and 20.9% on Monument
+Valley. These are scoped, power-supplied, no-travel economic opportunities.</p>
+<p>Economic pull also changes over the match: reclaim depletes while completed mexes
+keep producing. An attractive early reclaim front need not remain the strongest
+later front. The current five-minute number is one disclosed time perspective;
+it does not yet provide a time-varying army-allocation or tech-progression model.</p>
+<p>This test is not game-optimal scheduling. It omits travel, worker production,
+upgrades, combat denial, storage/overflow and pre-existing base income. Construction
+mass is reserved upfront rather than drained continuously. The fixed budget makes
+maps comparable under one reference scenario, not equally representative of their
+actual economies. <strong>It currently attributes value to saved layouts; it has not
+changed their fitted attraction weights or geometry.</strong></p>
+<h3 id="energy-accounted-for-not-yet-fully-modeled">Energy: accounted for, not yet fully modeled</h3>
+<p>Known companion energy from a scheduled mass-bearing object is credited from
+the same operation, without a second handling charge. Construction/upkeep costs,
+final energy demand, peak cumulative deficit and unknown companion values are
+exported. Power is assumed supplied; the schedule cannot yet stall for energy.</p>
+<p>Energy-only props are retained in the inventory but not selected by the
+mass-focused schedule. There are 8,419 known positive-energy/zero-mass entities
+across the 11 playable-area inventories, including 7,241 on Pandemonium. Ignoring
+them would lose a real resource layer.</p>
+<p>Before energy efficiency tiers, audit matching pinned FAF processing rules,
+engineer build rate and prop reclaim-time multipliers. The inspected current
+FAF source suggests a joint-resource operation; this has not yet been validated
+against the pinned timing source used for this dataset. Do not assume <code>energy/25</code>,
+charge acquisition twice, add independent full mass/energy work budgets, or invent
+a universal mass:energy exchange rate. Hydro investment, energy income, generators,
+shortages and overflow also need an explicit economic context.</p>
+<h2 id="4-what-is-clear-and-what-still-needs-evidence">4. What is clear, and what still needs evidence</h2>
+<h3 id="conclusions-we-can-use-now">Conclusions we can use now</h3>
+<ul>
+<li>Configuration, resource activation and correct opponents are first-order
+inputs. Team-game intuition cannot directly validate a two-active-slot result.</li>
+<li>Terrain access, shortest travel, resource position/quantity, separate entity
+handling and bookkeeping conservation are useful deterministic features.</li>
+<li>Deployment and response are different. Treating a line as an army everywhere
+along it systematically overprotects economic space.</li>
+<li>Resource attraction, shared trunks, exact qualified symmetry, endpoint capture
+and own-half response address observed geometry failures better than purely
+shortest-path routing.</li>
+<li>Reclaim needs entity-aware collection and a valuable-core view. Raw total mass,
+density or full-clear average alone is insufficient.</li>
+<li>Mex flow and finite reclaim can be compared over a disclosed work/time scenario,
+with construction and energy accounting. There is no context-free exchange rate.</li>
+<li>Air/drop exposure, naval range potential and land-front structure should remain
+separate features before any attempted overall gameplay interpretation.</li>
+</ul>
+<h3 id="prioritized-gaps">Prioritized gaps</h3>
+<table>
+<thead>
+<tr>
+<th>Priority</th>
+<th>Gap</th>
+<th>Next concrete step / acceptance evidence</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>1</td>
+<td>Different reports use different generations of geometry, pairing and economy.</td>
+<td>Define one versioned dependency chain. Feed latest contact/resource outputs into drop/air response and economic value; recompute benchmark controls before collection-wide regeneration. A manifest must identify which stages each result actually uses.</td>
+</tr>
+<tr>
+<td>1</td>
+<td>Pairing correction is only targeted; resource/script scope still excludes cases.</td>
+<td>Review the 46 proposed pairing changes as candidates, not confirmed errors. Preserve exact versions, adaptive rules, meaningful-mirror exclusions and unsupported scripts in joins/reruns.</td>
+</tr>
+<tr>
+<td>1</td>
+<td>Reclaim processing and energy efficiency are not source-audited as one operation.</td>
+<td>Recover pinned timing/multiplier rules and check controlled high-mass, energy-only, mixed and small-object cases in game. Retain the approved 1s/three-group policy; document any necessary source-model revision.</td>
+</tr>
+<tr>
+<td>2</td>
+<td>New economic pull does not yet drive contact selection or deployment attraction.</td>
+<td>Connect the same value/scope contract to placement and attribution. Verify stock/work conservation, symmetry and unchanged physical distances; do not add arbitrary tier multipliers.</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Automatic contact count and army splitting remain unresolved.</td>
+<td>Select/validate a saturation criterion across accepted and fresh maps; retain topology/shared sections. Distinguish coverage demand from a finite military-budget model. Avoid replacing the old 3% rule with another untested universal cutoff.</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Five-minute one-engineer, no-travel mass returns can misrepresent dispersed economies.</td>
+<td>Validate travel/arrival and starting-economy assumptions with a small controlled benchmark. Separate intrinsic collection quality from accessible finite-window return. Do not choose per-map windows to force rankings.</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Air/drop response capacity and actual target value remain hypotheses.</td>
+<td>Compare contact-based reposition times, shared resource allocation and base response under one finite response-budget interpretation. Include density/valuable non-mex targets where supported; label unobserved AA/intel instead of asserting their absence.</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Openness is conflated with width/count; hover/navy alternatives missing from latest fronts.</td>
+<td>Export width, saturation demand, independent branches and mandatory shared sections separately per movement layer. Use Setons and Forbidden Pass as land-versus-sea/hover controls.</td>
+</tr>
+<tr>
+<td>3</td>
+<td>Engine collision, placement and weapon hits are not proven by raster masks.</td>
+<td>Validate selected cliff, shoreline, narrow-gap, scripted-wall, unload and firing witnesses. Loki original v3 still has omitted scripted wall collision; Volcano Beach dynamic hazards are outside the static model.</td>
+</tr>
+<tr>
+<td>3</td>
+<td>T2 naval estimates are implemented but not produced; naval support is disconnected from drops.</td>
+<td>Generate only the agreed three UEF representatives when this stage resumes. Keep range-only versus engine-confirmed hits separate and examine reachable support over candidate drop/raid regions.</td>
+</tr>
+<tr>
+<td>3</td>
+<td>Human validation is sparse and setup-confounded.</td>
+<td>Obtain blind exact-version/slot/default 1v1 ratings for held-out maps, preserving experience, suggestion exposure, distributions and uncertainty. Treat team-game validation as a later configuration.</td>
+</tr>
+</tbody></table>
+<p>These priorities are a proposed order, not authorization for a new large compute
+run in this documentation step. Useful engineering work can proceed without
+settling every gameplay label, but uncertain interpretation must not silently
+become a training target.</p>
+<h2 id="5-community-evidence-and-model-training-use">5. Community evidence and model-training use</h2>
+<p>The historical survey snapshot contains 267 latest participant/map reviews from
+23 contributors across 186 maps. Exact-version overlap with the earlier cohort is
+44 maps/97 reviews, only 14 marked 1v1. Most matched maps have one reviewer; only
+Setons and DualGap have at least three numeric answers to the compared questions.
+Slots are generally unspecified, and team setups dominate repeated examples.</p>
+<p>The earlier small 1v1 subset had Spearman agreement of 0.83 for air (10 maps),
+0.60 for drops (nine) and -0.34 for width-based openness (eight connected-land
+maps). Experienced-only drop agreement was 0.00 across seven maps. These are
+historical diagnostic observations, not current-model accuracy or a stable
+validation claim. User feedback used to develop the algorithm is calibration
+evidence; the same maps are no longer blind tests.</p>
+<p>Setons illustrates land choke versus wide naval fronts and 1v1 versus 4v4.
+DualGap illustrates pairing and 1v1 versus 6v6 resource/defense dilution.
+Hardshield&#39;s single high air rating is not consensus, and “air importance” is
+broader than economy raiding. Survey expansion importance is not expansion-drop
+importance. Subjective gameplay quality is not inferred from these structural
+outputs. Historical absolute 1–5 formulas and cohort-percentile 1–5 scores are
+different scales; neither is yet calibrated to community ratings.</p>
+<p>For training and data checks, preserve three layers of evidence:</p>
+<ol>
+<li><strong>Extracted facts and provenance:</strong> raw values/masks/entities, IDs, version,
+source hashes, configuration, unknowns and exclusions.</li>
+<li><strong>Modeled features:</strong> travel, contact demand, economic scenarios, exposure,
+assumptions, algorithm version and applicable movement/resource scope.</li>
+<li><strong>Human judgements:</strong> original distributions and review configuration, kept
+separate from model predictions and suggestion-exposed feedback.</li>
+</ol>
+<p>Missing/unresolved is not zero, a percentile is not probability, and an excluded
+map is not low quality. Keep related versions/map families in the same evaluation
+split; calibrating and testing on nearly identical revisions would overstate
+generalization. Runtime-heavy adaptive options, team setups and richer biome/
+texture semantics remain later work. Current scope does not establish tech-tier
+combat impact, full economy safety or automatic gameplay quality.</p>
+<h2 id="6-practical-next-milestone">6. Practical next milestone</h2>
+<p>A reasonable next milestone is <strong>one coherent 1v1 strategy record per map</strong>:</p>
+<ul>
+<li>reviewed pair/default configuration and versioned physical movement layers;</li>
+<li>land contact saturation, deployment/shared sections and scoped resources;</li>
+<li>fixed-policy reclaim inventory/quality and construction-aware mass/energy data;</li>
+<li>expansion, offensive and generic-air targets using the same resource and
+response generation, with raw timings and rejected-candidate reasons;</li>
+<li>separate naval/hover coverage and unresolved features, without a forced overall
+quality or universal 1–5 score.</li>
+</ul>
+<p>First demonstrate this on the approved controls and several held-out maps, then
+refresh the frozen collection and annotation comparison. Acceptance should include
+numerical/PNG agreement, legal movement, symmetry, conserved ownership/work,
+dependency hashes and in-game spot checks. A new full-library run before these
+pieces are connected would mostly create another incompatible report generation.</p>
+<h2 id="evidence-and-entry-points">Evidence and entry points</h2>
+<p>Local viewers require the existing server at port 5177; saved reports/CSV/JSON
+remain readable without it.</p>
+<table>
+<thead>
+<tr>
+<th>Purpose</th>
+<th>Viewer / saved evidence</th>
+<th>Method/source</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Earlier collection and exceptions</td>
+<td><a href="http://127.0.0.1:5177/strategy_collection_1v1/index.html">Viewer</a>, <a href="../data/processed/strategy_collection_1v1/report.md">report</a>, <a href="../data/processed/strategy_collection_1v1/metrics.csv">metrics</a></td>
+<td><a href="strategy_collection_run.md">Run log</a>, <a href="../src/supmapai/tools/analyze_strategy_collection.py">controller</a></td>
+</tr>
+<tr>
+<td>Drop calibration and water access</td>
+<td><a href="http://127.0.0.1:5177/drop_response_strength_1v1/index.html">Strength viewer</a>, <a href="http://127.0.0.1:5177/drop_benchmark_1v1/index.html">four-map benchmark</a></td>
+<td><a href="drop_calibration_1v1.md">Calibration</a>, <a href="drop_response_strength.md">strength</a>, <a href="engineer_water_unloads.md">water correction</a>, <a href="../src/supmapai/strategy/opportunities.py">opportunities</a></td>
+</tr>
+<tr>
+<td>Pair/response diagnostics</td>
+<td><a href="http://127.0.0.1:5177/route_response_diagnostics/index.html">Viewer</a>, <a href="../data/processed/strategy_annotation_comparison/pairing_audit.json">pairing candidates</a></td>
+<td><a href="../src/supmapai/strategy/route_response.py">Route allocation</a></td>
+</tr>
+<tr>
+<td>Own-half fronts</td>
+<td><a href="http://127.0.0.1:5177/frontier_map_comparison/index.html">Viewer</a>, <a href="../data/processed/frontier_map_comparison/report.md">report</a>, <a href="../data/processed/frontier_map_comparison/validation.json">audit</a></td>
+<td><a href="../src/supmapai/strategy/frontier_fronts.py">Frontier implementation</a>, <a href="economic_front_expert_review.md">earlier expert review</a></td>
+</tr>
+<tr>
+<td>Reclaim and current economy</td>
+<td><a href="http://127.0.0.1:5177/reclaim_collection_comparison/index.html">Current viewer</a>, <a href="../data/processed/reclaim_collection_comparison/resource_economy_report.md">economic report</a>, <a href="../data/processed/reclaim_collection_comparison/resource_economy_metrics.csv">metrics</a>, <a href="../data/processed/reclaim_collection_comparison/resource_economy_validation.json">audit</a></td>
+<td><a href="reclaim_operating_policy.md">Fixed policy</a>, <a href="resource_economy_pilot.md">economic pilot</a>, <a href="reclaim_relative_tiers.md">tiers</a>, <a href="../src/supmapai/strategy/resource_economy.py">scheduler</a></td>
+</tr>
+<tr>
+<td>Archived naval potential</td>
+<td><a href="http://127.0.0.1:5177/strategic_features_featured/index.html">Featured viewer</a>, <a href="../data/processed/strategic_features_featured/audit.json">audit</a></td>
+<td><a href="strategic_feature_implementation.md">Implementation/scope</a>, <a href="../src/supmapai/tools/extract_strategic_features.py">representatives</a>, <a href="../src/supmapai/strategy/navigation.py">navigation</a></td>
+</tr>
+<tr>
+<td>Community comparison</td>
+<td><a href="http://127.0.0.1:5177/strategy_annotation_comparison/index.html">Viewer</a>, <a href="../data/processed/strategy_annotation_comparison/assessment.md">assessment</a></td>
+<td><a href="../src/supmapai/tools/compare_strategy_annotations.py">Comparison tool</a></td>
+</tr>
+<tr>
+<td>Deferred work</td>
+<td><a href="future_work.md">Future-work list</a></td>
+<td><a href="strategic_map_features_plan.md">Original feature plan</a>, <a href="community_vault_comparison.md">upstream reuse assessment</a></td>
+</tr>
+</tbody></table>
+<p>The upstream MIT map/navigation libraries are already reused through the local
+adapter, not merely a proposed dependency. The historical upstream assessment
+also explains why its searchable vault count was not a downloadable, precomputed
+strategy dataset. Its source license does not change the rights of map/game
+artwork. This overview creates no deployment, downloads or additional parameter
+searches.</p>
+<script src="model-atlas/public-links.js" data-public-links></script></body></html>

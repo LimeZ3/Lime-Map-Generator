@@ -1,0 +1,190 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>joint-source-dataset-inventory.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="source-inventory-for-the-proposed-joint-diffusion-experiment">Source inventory for the proposed joint diffusion experiment</h1>
+<p>Inspected 25 October 2026. This is a dataset inventory, not a new training
+release. No training, CUDA initialization, source changes, or checkpoint changes
+were performed.</p>
+<h2 id="cohort">Cohort</h2>
+<p>The reviewed cohort is <code>data/tensors/terrain_curated_20261024_v1</code>: <strong>1,117
+maps, comprising 1,020 train and 97 validation</strong>, with one representative per
+curated family. <code>terrain_curated_overnight_v1</code> contains the same map keys in
+the same splits. It is not an additional independent cohort.</p>
+<p>Resources, typed reclaim, natural-reclaim allocation, and texture V2 manifests
+contain exactly those same 1,117 keys, family IDs, and splits. The wreck
+allocation release is a 211-map subset with matching families and splits.</p>
+<p>The underlying selected scenarios are 10km / 1v1. Each retained source metadata
+record has two selected starts. These are not inventories of every army slot
+in the original map. Preserve the selected scenario when pairing sources with
+its gameplay ratings.</p>
+<h2 id="actual-saved-shapes">Actual saved shapes</h2>
+<p>Shapes below were inspected in every archive named by the six relevant
+train/validation manifests, rather than inferred from directory names.</p>
+<table>
+<thead>
+<tr>
+<th>Release or source</th>
+<th>Saved arrays</th>
+<th align="right">Maps</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Curated terrain</td>
+<td><code>target: 3 x 256 x 256</code>; <code>spatial: 2 x 256 x 256</code></td>
+<td align="right">1,117</td>
+<td>Encoded height, shoreline signed distance, depth; two supplied start fields</td>
+</tr>
+<tr>
+<td>Referenced native strategy archive</td>
+<td><code>height_vertices: 513 x 513</code>; <code>depth_native: 512 x 512</code>; <code>physical: 12 x 128 x 128</code></td>
+<td align="right">1,117</td>
+<td>Native geometry and older mixed-channel packed data; land/hover arrays are also saved at 512 squared</td>
+</tr>
+<tr>
+<td><code>resources_curated_256_v1</code></td>
+<td><code>target: 2 x 256 x 256</code>; <code>spatial: 7 x 256 x 256</code>; <code>profile: 3</code></td>
+<td align="right">1,117</td>
+<td>Mex/hydro heatmaps; terrain, pathing and start conditions; count/water profile</td>
+</tr>
+<tr>
+<td><code>reclaim_props_curated_256_v1</code></td>
+<td><code>physical: 12 x 256 x 256</code>; encoded <code>target: 12 x 256 x 256</code></td>
+<td align="right">1,117</td>
+<td>Count, mass and energy for trees, rocks, wrecks and other props, with validity arrays stored separately</td>
+</tr>
+<tr>
+<td><code>reclaim_value_heatmaps_128_v1</code></td>
+<td><code>target: 2 x 128 x 128</code>; <code>spatial: 9 x 128 x 128</code></td>
+<td align="right">1,117</td>
+<td>Normalized tree-energy / rock-mass allocation; not all-natural absolute mass/energy</td>
+</tr>
+<tr>
+<td><code>wreck_mass_heatmaps_128_v1</code></td>
+<td><code>target: 1 x 128 x 128</code>; <code>spatial: 9 x 128 x 128</code></td>
+<td align="right">211</td>
+<td>Normalized allocation on complete, positive-wreck maps only</td>
+</tr>
+<tr>
+<td><code>map_textures_curated_256_v2</code></td>
+<td><code>albedo_rgb: 3 x 256 x 256</code>; <code>albedo_validity: 1 x 256 x 256</code></td>
+<td align="right">1,117</td>
+<td>Saved unlit surface RGB and known-color coverage</td>
+</tr>
+<tr>
+<td>Source metadata</td>
+<td>Exact selected start/mex/hydro coordinates; 12 scalar ratings</td>
+<td align="right">1,117</td>
+<td>Ratings are metadata, not the current terrain profile</td>
+</tr>
+<tr>
+<td>Source entity records</td>
+<td>Per-entity JSON/GZip; no dedicated civilian tensor</td>
+<td align="right">1,117 existing files</td>
+<td>Natural props, wrecks, living civilians and other extracted entities</td>
+</tr>
+</tbody></table>
+<p>Typed physical reclaim uses a small Gaussian raster blur. Its encoded targets
+also have clipping. These are existing representations, not a claim of raw,
+unmodified source quantities. Original entity records are available for a fresh
+rasterization using the requested natural-reclaim and civilian definitions.
+Living civilian units/buildings were deliberately omitted from typed reclaim
+targets. A checked original source example, <code>14516_31025</code>, contains 12 identified
+civilian buildings despite their absence from those targets. Cohort-wide
+civilian identity/activation completeness was not established by this inventory.</p>
+<p>A follow-up source-kind scan on the same date found 24,973 identified civilian
+records: 22,037 buildings and 2,936 units. Of these, 24,968 have finite coordinates
+inside the 512-world-unit canvas; five are outside or invalid. These usable
+records occur on 217 maps (201 train, 16 validation). The remaining 900 maps have
+no identified in-canvas civilians under this static source definition. All
+identified civilian records have unspecified activation status, so these counts
+describe extracted source placements, not a runtime/lobby activation audit. The
+scan read the 277 original entity files whose typed-raster summaries record
+skipped entities; civilians cannot enter that rasterizer&#39;s retained prop/wreck
+groups. Detailed counts are in <code>.tmp/civilian-source-coverage-20261025.json</code>.</p>
+<p>Raw texture mask dimensions genuinely vary: <code>8 x 256 x 256</code> on 227 maps,
+<code>8 x 512 x 512</code> on 882, and <code>8 x 513 x 513</code> on eight. The saved RGB is consistently
+<code>3 x 256 x 256</code> on all 1,117. Native vertices having an extra edge row/column is
+also distinct from a different map extent.</p>
+<h2 id="coverage-and-complete-case-counts">Coverage and complete-case counts</h2>
+<p>These counts use the saved metadata validity fields and supported shader flag;
+they do not substitute missing values with zeros.</p>
+<table>
+<thead>
+<tr>
+<th>Criterion</th>
+<th align="right">Train</th>
+<th align="right">Validation</th>
+<th align="right">Total</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Full curated cohort</td>
+<td align="right">1,020</td>
+<td align="right">97</td>
+<td align="right">1,117</td>
+</tr>
+<tr>
+<td>Fully resolved RGB, supported shader semantics</td>
+<td align="right">851</td>
+<td align="right">78</td>
+<td align="right">929</td>
+</tr>
+<tr>
+<td>All 12 gameplay ratings valid</td>
+<td align="right">1,015</td>
+<td align="right">97</td>
+<td align="right">1,112</td>
+</tr>
+<tr>
+<td>Known wreck mass, including genuine zero-wreck examples</td>
+<td align="right">934</td>
+<td align="right">83</td>
+<td align="right">1,017</td>
+</tr>
+<tr>
+<td>Known zero wreck mass</td>
+<td align="right">741</td>
+<td align="right">65</td>
+<td align="right">806</td>
+</tr>
+<tr>
+<td>Known positive wreck mass</td>
+<td align="right">193</td>
+<td align="right">18</td>
+<td align="right">211</td>
+</tr>
+<tr>
+<td>Fully resolved RGB and known wreck mass</td>
+<td align="right">787</td>
+<td align="right">69</td>
+<td align="right">856</td>
+</tr>
+<tr>
+<td>Fully resolved RGB, known wreck mass and all 12 ratings valid</td>
+<td align="right">784</td>
+<td align="right">69</td>
+<td align="right">853</td>
+</tr>
+</tbody></table>
+<p>Ten rating fields are valid on all 1,117 maps. Front openness and army control
+demand are each unavailable on five training examples. Ratings describe the
+saved automated gameplay policy, rather than general quality or community votes.</p>
+<p>The 853-map intersection is a preliminary complete-case candidate, not a sealed
+joint dataset. Natural-layer semantics, civilian activation/coverage, source
+alignment and numeric round trips still require checking before training.</p>
+<h2 id="consequences-for-the-proposed-baseline">Consequences for the proposed baseline</h2>
+<p>Use the curated keys and corrected splits as the join authority. A 256-square
+joint target is feasible from existing native geometry, exact source coordinates,
+entity records and saved RGB; upscaling the 128-square allocation targets is
+unnecessary. The existing packed targets cannot simply be concatenated because
+they have different meanings as well as resolutions.</p>
+<p>For the requested source-only experiment, exclude the existing shoreline-distance,
+passability, front/access and supplied-anchor conditioning contracts. Generate
+starts as target channels. Build the requested all-natural energy/mass layers
+from their source entity definition, keep wreck mass separate, and rasterize a
+distinct living-civilian layer. Use absolute quantities through reversible scaling
+rather than per-map unit-sum allocation targets.</p>
+<p>The detailed inspection output is saved at
+<code>.tmp/joint-source-inventory-20261025.json</code>. Every referenced archive header and
+release-manifest artifact hash was checked; no missing inspected archives,
+manifest hash errors, or unexpected header shapes were found. This was not a
+full numerical re-audit of every array or a game-runtime validation.</p>
+<script src="model-atlas/public-links.js" data-public-links></script></body></html>
