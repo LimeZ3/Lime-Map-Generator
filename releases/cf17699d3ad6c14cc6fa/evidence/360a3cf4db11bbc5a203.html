@@ -1,0 +1,336 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>joint_diagnostics.py | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="../docs/model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1>joint_diagnostics.py</h1><p class="meta">Saved public evidence snapshot: src/supmapai/ml/joint_diagnostics.py</p><pre>&quot;&quot;&quot;Controlled source-only joint-model diagnostics, separate from frozen runs.&quot;&quot;&quot;
+
+from __future__ import annotations
+
+import argparse
+import copy
+from collections import deque
+import gc
+import json
+from pathlib import Path
+import shutil
+import time
+
+import numpy as np
+from PIL import Image
+import torch
+from torch import nn
+
+from supmapai.ml.conditional_diffusion import schedule
+from supmapai.ml.joint_diffusion import JointDataset, JointUNet, layer_strip
+from supmapai.strategy.pipeline_contract import lease
+from supmapai.tensors.joint_sources import CHANNELS, RATINGS, decode, verify_release
+from supmapai.tensors.strategy_dataset import file_hash, read_json, read_rows
+from supmapai.tools.windows_io import atomic_checkpoint, write_json
+
+
+def pixel_objective(error, clean, mode=&quot;baseline&quot;):
+    if mode == &quot;baseline&quot;:
+        weights = torch.ones_like(clean)
+        weights[:, 2:10] = 1 + 12 * ((clean[:, 2:10] + 1) * .5).clamp(0, 1)
+        return (error * weights).mean((2, 3)) / weights.mean((2, 3))
+    if mode != &quot;balanced&quot;:
+        raise ValueError(&quot;Unknown loss&quot;)
+    ordinary = error.mean((2, 3))
+    # Continuous source activity, not an analytical input or an eligibility mask.
+    activity = ((clean[:, 2:10] + 1) * .5).clamp(0, 1)
+    total = activity.sum((2, 3))
+    foreground = (error[:, 2:10] * activity).sum((2, 3)) / total.clamp_min(1e-12)
+    sparse = torch.where(total &gt; 1e-12,
+                         .5 * ordinary[:, 2:10] + .5 * foreground, ordinary[:, 2:10])
+    return torch.cat([ordinary[:, :2], sparse, ordinary[:, 10:]], dim=1)
+
+
+def diagnostic_loss(model, clean, ratings, cumulative, generator, mode=&quot;baseline&quot;, timestep=None):
+    device = clean.device
+    t = (torch.randint(len(cumulative), (len(clean),), device=device, generator=generator)
+         if timestep is None else torch.full((len(clean),), timestep, device=device, dtype=torch.long))
+    alpha = cumulative[t, None, None, None]
+    noise = torch.randn(clean.shape, device=device, generator=generator)
+    noisy = alpha.sqrt() * clean + (1-alpha).sqrt() * noise
+    velocity = alpha.sqrt() * noise - (1-alpha).sqrt() * clean
+    predicted = model(noisy, t, ratings).float()
+    per_channel = pixel_objective((predicted-velocity).square(), clean, mode)
+    estimate = alpha.sqrt() * noisy - (1-alpha).sqrt() * predicted
+    return per_channel, estimate
+
+
+def ddim_update(noisy, velocity, alpha, previous, lower=None, upper=None, clipping=&quot;legacy&quot;):
+    raw = alpha.sqrt() * noisy - (1-alpha).sqrt() * velocity
+    clean = raw if clipping == &quot;none&quot; else raw.maximum(lower).minimum(upper)
+    epsilon = alpha.sqrt() * velocity + (1-alpha).sqrt() * noisy
+    if clipping == &quot;recomputed&quot;:
+        epsilon = (noisy-alpha.sqrt()*clean)/(1-alpha).sqrt().clamp_min(1e-12)
+    return previous.sqrt()*clean+(1-previous).sqrt()*epsilon, raw
+
+
+@torch.no_grad()
+def diagnostic_sample(model, profile, norm, seed=303, steps=48, guidance=1.5, clipping=&quot;legacy&quot;, size=256):
+    model.eval()
+    device = next(model.parameters()).device
+    noise = np.random.default_rng(seed).standard_normal((1, 13, size, size), dtype=np.float32)
+    x = torch.from_numpy(noise).to(device)
+    cumulative = schedule(1000, device)
+    times = np.linspace(999, 0, steps, dtype=int)
+    lower, upper = [np.asarray(norm[k], np.float32).copy() for k in (&quot;sampling_min&quot;, &quot;sampling_max&quot;)]
+    span = np.maximum(upper-lower, .1)
+    lower[0] -= .2*span[0]
+    upper[:10] += .2*span[:10]
+    lo, hi = [torch.as_tensor(a, device=device)[None, :, None, None] for a in (lower, upper)]
+    for i, step in enumerate(times):
+        t = torch.full((1,), int(step), device=device, dtype=torch.long)
+        with torch.autocast(device.type, dtype=torch.bfloat16, enabled=device.type == &quot;cuda&quot;):
+            velocity = model(x, t, profile).float()
+            if guidance != 1:
+                baseline = model(x, t, None).float()
+                velocity = baseline + guidance*(velocity-baseline)
+        previous = cumulative[times[i+1]] if i+1 &lt; steps else torch.ones((), device=device)
+        x, raw = ddim_update(x, velocity, cumulative[step], previous, lo, hi, clipping)
+    return raw[0].cpu().numpy(), x[0].cpu().numpy()
+
+
+def get_data(root, split, keys=None):
+    if keys is None:
+        return JointDataset(root, split)
+    root = Path(root)
+    verify_release(root)
+    available = {r[&quot;key&quot;]:r for r in read_rows(root/(split+&quot;.jsonl&quot;))}
+    data = JointDataset.__new__(JointDataset)
+    data.root, data.norm = root, read_json(root/&quot;normalization.json&quot;)
+    data.rows = [available[k] for k in keys]
+    targets, profiles = [], []
+    for row in data.rows:
+        file = root/row[&quot;archive&quot;]
+        if file_hash(file) != row[&quot;sha256&quot;]:
+            raise ValueError(&quot;Changed diagnostic source&quot;)
+        with np.load(file, allow_pickle=False) as a:
+            targets.append(a[&quot;target&quot;].astype(np.float16)); profiles.append(a[&quot;ratings&quot;])
+    data.targets, data.profiles = np.stack(targets), np.stack(profiles)
+    return data
+
+
+def sample_metrics(encoded, norm, reference=None):
+    physical = decode(encoded, norm)
+    metrics = dict(density_integrals={CHANNELS[i]:float(physical[i].sum()) if np.isfinite(physical[i]).all() else None for i in range(2, 10)},
+                   negative_quantity_fraction=float((physical[1:10] &lt; -1e-5).mean()),
+                   median_depth=float(np.median(physical[1])))
+    if reference is not None:
+        metrics[&quot;encoded_mse&quot;] = dict(zip(CHANNELS, ((encoded-reference)**2).mean((1,2)).tolist(), strict=True))
+        for i, name in ((0, &quot;height&quot;), (10, &quot;red&quot;), (11, &quot;green&quot;), (12, &quot;blue&quot;)):
+            a, b = encoded[i].ravel(), reference[i].ravel()
+            metrics[name+&quot;_correlation&quot;] = float(np.corrcoef(a, b)[0,1]) if min(a.std(), b.std())&gt;1e-8 else None
+        target_physical = decode(reference, norm)
+        metrics[&quot;source_integrals&quot;] = {CHANNELS[i]:float(target_physical[i].sum()) for i in range(2,10)}
+        for i,name in ((2,&quot;start_a&quot;),(3,&quot;start_b&quot;)):
+            predicted=np.asarray(np.unravel_index(np.argmax(encoded[i]),encoded[i].shape))
+            actual=np.asarray(np.unravel_index(np.argmax(reference[i]),reference[i].shape))
+            metrics[name+&quot;_peak_distance_world&quot;]=float(np.linalg.norm(predicted-actual)*512/encoded.shape[-1])
+        activity=np.clip((reference[2:10]+1)*.5,0,1)
+        error=(encoded[2:10]-reference[2:10])**2
+        metrics[&quot;foreground_mse&quot;]={CHANNELS[i+2]:float((error[i]*activity[i]).sum()/activity[i].sum())
+                                    if activity[i].sum()&gt;0 else None for i in range(8)}
+    return metrics
+
+
+@torch.no_grad()
+def multi_noise_validation(model, data, cumulative, batch=6, timesteps=(100,500,900,990)):
+    model.eval()
+    results = {}
+    for timestep in timesteps:
+        generator = torch.Generator(device=&quot;cuda&quot;).manual_seed(61025)
+        losses, reconstruction = [], []
+        for start in range(0, len(data.rows), batch):
+            clean, ratings = data.batch(range(start,min(start+batch,len(data.rows))), &quot;cuda&quot;)
+            with torch.autocast(&quot;cuda&quot;, dtype=torch.bfloat16):
+                loss, estimate = diagnostic_loss(model,clean,ratings,cumulative,generator,timestep=timestep)
+            losses.extend(loss.cpu().tolist())
+            reconstruction.extend((estimate-clean).square().mean((2,3)).cpu().tolist())
+        mean = np.mean(losses,axis=0)
+        results[str(timestep)] = dict(loss=float(mean.mean()),
+            channel_loss=dict(zip(CHANNELS,mean.tolist(),strict=True)),
+            clean_mse=dict(zip(CHANNELS,np.mean(reconstruction,axis=0).tolist(),strict=True)))
+    return results
+
+
+def setup(seed):
+    if not torch.cuda.is_available():
+        raise RuntimeError(&quot;CUDA required&quot;)
+    torch.set_num_threads(4)
+    torch.manual_seed(seed)
+    torch.backends.cudnn.benchmark = False
+    torch.set_float32_matmul_precision(&quot;high&quot;)
+
+
+def sampling_probe(args):
+    setup(args.seed)
+    out = args.out; out.mkdir(parents=True,exist_ok=True)
+    saved = torch.load(args.parent,map_location=&quot;cpu&quot;,weights_only=False,mmap=True)
+    config, norm, step = saved[&quot;config&quot;],saved[&quot;normalization&quot;],saved[&quot;step&quot;]
+    model = JointUNet(config[&quot;base&quot;]).cuda().eval()
+    model.load_state_dict(saved[&quot;ema&quot;])
+    parent_hash = file_hash(args.parent)
+    profile = torch.tensor([[0,0,0,0,0,1,0,0,0,.5,0,0]],device=&quot;cuda&quot;,dtype=torch.float32)
+    rows = []
+    variants = [(48,1.5,&quot;legacy&quot;),(128,1.5,&quot;legacy&quot;),(128,1.,&quot;legacy&quot;),
+                (128,1.5,&quot;none&quot;),(128,1.5,&quot;recomputed&quot;)]
+    for steps,guidance,clipping in variants:
+        name = f&quot;ema_steps{steps}_cfg{guidance}_{clipping}&quot;
+        raw, bounded = diagnostic_sample(model,profile,norm,steps=steps,guidance=guidance,clipping=clipping)
+        np.savez_compressed(out/(name+&quot;.npz&quot;),raw=raw,bounded=bounded,physical=decode(raw,norm))
+        layer_strip(raw,norm,name).save(out/(name+&quot;.png&quot;))
+        rows.append(dict(name=name,steps=steps,guidance=guidance,clipping=clipping,**sample_metrics(raw,norm)))
+        print('sampler_variant='+name,flush=True)
+    model.load_state_dict(saved[&quot;model&quot;])
+    raw,bounded = diagnostic_sample(model,profile,norm)
+    layer_strip(raw,norm,&quot;RAW model weights, 48 steps CFG1.5&quot;).save(out/&quot;raw_weights.png&quot;)
+    rows.append(dict(name=&quot;raw_model_weights&quot;,**sample_metrics(raw,norm)))
+    del saved; gc.collect()
+    model.cpu(); del model; torch.cuda.empty_cache()
+    # Reload EMA in a clean allocation for cross-noise evaluation.
+    saved=torch.load(args.parent,map_location=&quot;cpu&quot;,mmap=True,weights_only=False)
+    model=JointUNet(config[&quot;base&quot;]).cuda().eval();model.load_state_dict(saved[&quot;ema&quot;])
+    del saved;gc.collect()
+    data=get_data(args.dataset,&quot;validation&quot;)
+    validation=multi_noise_validation(model,data,schedule(1000,&quot;cuda&quot;))
+    write_json(out/&quot;summary.json&quot;,dict(parent=str(args.parent),parent_sha256=parent_hash,step=step,
+        variants=rows,validation=validation,training_changes=False,
+        caution=&quot;Sampling probes diagnose a frozen checkpoint; no source map is provided to fresh generation&quot;))
+
+
+def train_probe(args):
+    setup(args.seed)
+    out=args.out.resolve();out.mkdir(parents=True,exist_ok=True)
+    with lease(out/&quot;training.lock&quot;):
+        data=get_data(args.dataset,&quot;train&quot;,[args.map] if args.map else None)
+        validation=data if args.map else get_data(args.dataset,&quot;validation&quot;)
+        model=JointUNet(base=128,dropout=0. if args.map else .1).cuda()
+        ema=copy.deepcopy(model).eval().requires_grad_(False)
+        optimizer=torch.optim.AdamW(model.parameters(),lr=args.learning_rate,weight_decay=0. if args.map else .01)
+        step,history=0,[]
+        lineage=None
+        if args.parent:
+            saved=torch.load(args.parent,map_location=&quot;cuda&quot;,weights_only=False)
+            model.load_state_dict(saved[&quot;model&quot;]);ema.load_state_dict(saved[&quot;ema&quot;])
+            optimizer.load_state_dict(saved[&quot;optimizer&quot;])
+            step=saved[&quot;step&quot;]
+            torch.set_rng_state(saved[&quot;torch_rng&quot;].cpu());torch.cuda.set_rng_state(saved[&quot;cuda_rng&quot;].cpu())
+            lineage=dict(parent=str(args.parent),sha256=file_hash(args.parent),step=step)
+            del saved;gc.collect();torch.cuda.empty_cache()
+        config=dict(schema=&quot;joint_source_diagnostic_v1&quot;,dataset=str(args.dataset.resolve()),
+            release_sha256=file_hash(args.dataset/&quot;release_manifest.json&quot;),target_channels=CHANNELS,
+            spatial_channels=0,profile_dim=12,base=128,parameters=sum(p.numel() for p in model.parameters()),
+            train_maps=len(data.rows),validation_maps=len(validation.rows),learning_rate=args.learning_rate,
+            loss=args.loss,micro_batch=6,effective_batch=args.batch_size,map=args.map,seed=args.seed,
+            fresh_initialization=not bool(args.parent),lineage=lineage,
+            augmentation=&quot;disabled for memorization&quot; if args.map else &quot;same aligned rotations/reflections/start swap&quot;,
+            validation_meaning=&quot;training-map denoising, not held-out&quot; if args.map else &quot;69 held-out source families&quot;,
+            code={str(p):file_hash(p) for p in [Path(__file__),Path(__file__).with_name(&quot;joint_diffusion.py&quot;),Path(__file__).with_name(&quot;multiscale_terrain.py&quot;)]},
+            test_used=False)
+        write_json(out/&quot;training_receipt.json&quot;,dict(config=config,supervised_targets=CHANNELS,ratings=RATINGS,
+            generation_inputs=&quot;13-channel noise, timestep, twelve ratings; no source spatial inputs&quot;,
+            masks=&quot;No analytical/input masks; balanced arm uses continuous source activity for the objective only&quot;))
+        write_json(out/&quot;config.json&quot;,config)
+        snapshot=out/&quot;code_snapshot&quot;;snapshot.mkdir(exist_ok=True)
+        for path in config[&quot;code&quot;]:shutil.copy2(path,snapshot/Path(path).name)
+        cumulative=schedule(1000,&quot;cuda&quot;)
+        started=time.monotonic();start_step=step
+        recent=deque(maxlen=100);gradients=deque(maxlen=100);training_stats=[]
+        last_eval,last_sample=0.,0.
+        best=float(&quot;inf&quot;)
+
+        def evaluate():
+            return multi_noise_validation(ema,validation,cumulative,timesteps=(100,500,900))
+
+        def save(metrics=None):
+            nonlocal best
+            if metrics:
+                history.append(dict(step=step,session_seconds=time.monotonic()-started,metrics=metrics))
+                write_json(out/&quot;history.json&quot;,history)
+            atomic_checkpoint(out/&quot;last.pt&quot;,dict(model=model.state_dict(),ema=ema.state_dict(),
+                optimizer=optimizer.state_dict(),config=config,normalization=data.norm,step=step,history=history,
+                torch_rng=torch.get_rng_state(),cuda_rng=torch.cuda.get_rng_state()))
+            if metrics and metrics[&quot;500&quot;][&quot;loss&quot;]&lt;best:
+                best=metrics[&quot;500&quot;][&quot;loss&quot;]
+                atomic_checkpoint(out/&quot;best.pt&quot;,dict(ema=ema.state_dict(),config=config,normalization=data.norm,step=step))
+
+        def render():
+            folder=out/&quot;samples&quot;/f&quot;step_{step:07d}&quot;;folder.mkdir(parents=True,exist_ok=True)
+            profiles=[(data.rows[0][&quot;key&quot;],data.profiles[0])] if args.map else [(&quot;typical&quot;,np.median(data.profiles,axis=0))]
+            metrics=[]
+            for name,profile in profiles:
+                for seed in (303,404):
+                    raw,bounded=diagnostic_sample(ema,torch.tensor(profile[None],device=&quot;cuda&quot;),data.norm,seed=seed)
+                    np.savez_compressed(folder/(f&quot;seed{seed}.npz&quot;),raw=raw,bounded=bounded,physical=decode(raw,data.norm))
+                    strips=[layer_strip(data.targets[0].astype(np.float32),data.norm,&quot;SOURCE &quot;+data.rows[0][&quot;key&quot;])] if args.map else []
+                    strips.append(layer_strip(raw,data.norm,f&quot;FRESH seed {seed}, step {step}, {name}&quot;))
+                    canvas=Image.new(&quot;RGB&quot;,(strips[0].width,sum(s.height for s in strips)))
+                    for i,s in enumerate(strips):canvas.paste(s,(0,i*s.height))
+                    canvas.save(folder/(f&quot;seed{seed}.png&quot;))
+                    if seed==303:canvas.save(out/&quot;latest_layers.png&quot;)
+                    reference=data.targets[0].astype(np.float32) if args.map else None
+                    metrics.append(dict(seed=seed,**sample_metrics(raw,data.norm,reference)))
+            write_json(folder/&quot;metrics.json&quot;,metrics)
+            write_json(out/&quot;latest_samples.json&quot;,dict(step=step,folder=str(folder),samples=metrics))
+
+        def progress(state):
+            write_json(out/&quot;progress.json&quot;,dict(status=state,step=step,started_step=start_step,
+                session_seconds=time.monotonic()-started,session_budget=args.seconds,
+                mean_training_loss=float(np.mean(recent)) if recent else None,
+                gradient_norm_mean=float(np.mean(gradients)) if gradients else None,
+                gradient_norm_max=float(max(gradients)) if gradients else None,
+                best_validation_500=best if best&lt;float(&quot;inf&quot;) else None,updated_unix=time.time(),
+                loss=args.loss,learning_rate=args.learning_rate,training_maps=len(data.rows),
+                peak_allocated_mb=torch.cuda.max_memory_allocated()/1024**2))
+
+        initial=evaluate();save(initial);write_json(out/&quot;initial.json&quot;,initial)
+        print(json.dumps(dict(initial=initial,config=config)),flush=True)
+        while time.monotonic()-started&lt;args.seconds and time.time()&lt;args.deadline-90:
+            if (out/&quot;pause.request&quot;).exists():break
+            step+=1
+            rng=np.random.default_rng(np.random.SeedSequence([args.seed,step]))
+            generator=torch.Generator(device=&quot;cuda&quot;).manual_seed(args.seed*1000003+step)
+            indices=rng.integers(len(data.rows),size=args.batch_size)
+            optimizer.param_groups[0][&quot;lr&quot;]=args.learning_rate*(min(1.,step/50) if args.map else 1.)
+            model.train();optimizer.zero_grad(set_to_none=True);total_loss=0.
+            for offset in range(0,args.batch_size,6):
+                clean,ratings=data.batch(indices[offset:offset+6],&quot;cuda&quot;,None if args.map else rng)
+                with torch.autocast(&quot;cuda&quot;,dtype=torch.bfloat16):
+                    losses,_=diagnostic_loss(model,clean,ratings,cumulative,generator,args.loss)
+                    loss=losses.mean()*len(clean)/args.batch_size
+                if not torch.isfinite(loss):raise ValueError(&quot;Nonfinite diagnostic loss&quot;)
+                loss.backward();total_loss+=float(loss.detach())
+            grad=nn.utils.clip_grad_norm_(model.parameters(),1.)
+            if not torch.isfinite(grad):raise ValueError(&quot;Nonfinite diagnostic gradient&quot;)
+            optimizer.step()
+            with torch.no_grad():
+                decay=min(.999,(1+step)/(10+step))
+                for a,b in zip(ema.parameters(),model.parameters(),strict=True):a.lerp_(b.detach(),1-decay)
+            recent.append(total_loss);gradients.append(float(grad))
+            if step%20==0:progress(&quot;training&quot;)
+            if step%100==0:
+                statistics=dict(step=step,session_seconds=time.monotonic()-started,
+                    loss=float(np.mean(recent)),gradient_norm_mean=float(np.mean(gradients)),
+                    gradient_norm_max=float(max(gradients)),output_weight_norm=float(model.output[-1].weight.detach().norm()))
+                training_stats.append(statistics);write_json(out/&quot;training_stats.json&quot;,training_stats)
+                print(f'step={step} loss={np.mean(recent):.5f} grad={np.mean(gradients):.3f}',flush=True)
+            elapsed=time.monotonic()-started
+            if elapsed-last_eval&gt;=300:
+                progress(&quot;evaluating&quot;);save(evaluate());last_eval=time.monotonic()-started
+            if elapsed-last_sample &gt;= (300 if args.map else 900):
+                progress(&quot;sampling&quot;);render();last_sample=time.monotonic()-started
+        progress(&quot;finalizing&quot;);final=evaluate();save(final);render();progress(&quot;completed&quot;)
+        write_json(out/&quot;summary.json&quot;,dict(step=step,start_step=start_step,initial=initial,final=final,
+            session_seconds=time.monotonic()-started,config=config))
+
+
+if __name__==&quot;__main__&quot;:
+    p=argparse.ArgumentParser(description=__doc__)
+    p.add_argument(&quot;mode&quot;,choices=(&quot;sample&quot;,&quot;train&quot;));p.add_argument(&quot;--out&quot;,type=Path,required=True)
+    p.add_argument(&quot;--dataset&quot;,type=Path,default=Path(&quot;data/tensors/joint_sources_curated_256_v1&quot;))
+    p.add_argument(&quot;--parent&quot;,type=Path);p.add_argument(&quot;--map&quot;);p.add_argument(&quot;--loss&quot;,choices=(&quot;baseline&quot;,&quot;balanced&quot;),default=&quot;baseline&quot;)
+    p.add_argument(&quot;--learning-rate&quot;,type=float,default=5e-5);p.add_argument(&quot;--seconds&quot;,type=float,default=720)
+    p.add_argument(&quot;--batch-size&quot;,type=int,default=6);p.add_argument(&quot;--seed&quot;,type=int,default=20261025)
+    p.add_argument(&quot;--deadline&quot;,type=float,default=float(&quot;inf&quot;));args=p.parse_args()
+    if args.mode==&quot;sample&quot;:sampling_probe(args)
+    else:train_probe(args)
+</pre><script src="../docs/model-atlas/public-links.js" data-public-links></script></body></html>

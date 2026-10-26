@@ -1,0 +1,187 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>map_texture_tensors.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="map-texture-tensors-v1">Map texture tensors v1</h1>
+<p>The extractor reads painted terrain materials directly from SCMAP files. It does
+not infer texture labels from lit preview pictures or geometry. It supports the
+structural layouts of versions 52, 53, 56 and 60 and stops after the paint images,
+so damaged later props or skyboxes do not affect texture decoding.</p>
+<p>The first five-map smoke covered Adaptive Canis River, Adaptive Twin Rivers,
+Adaptive Tabula Rasa, Adaptive Seton&#39;s Clutch and Adaptive Pandemonium Pass. All
+five decoded, passed NPZ read-back checks, and resolved their referenced albedo
+assets from the local game installation. The initial smoke used 128; the current
+review and production format use <strong>256×256</strong>, aligned with the newer full-map
+terrain/resource pipeline.</p>
+<p>Production cohort: <code>data/tensors/terrain_curated_20261024_v1</code>, <strong>1,117 maps</strong>
+with <strong>1,020 training / 97 validation</strong> examples. Preserve its corrected curated
+families and splits, including reassigned families. Original map provenance is
+joined by key from the historical strategy dataset; it must match the original
+family/split fields, rather than undoing the later curation. No test manifest is
+read and no model training is started.</p>
+<p>Output: <code>data/tensors/map_textures_curated_256_v2</code>.
+The partial stock-only v1 pass was paused after 211 maps and is superseded;
+it is retained for provenance, not a training release. V2 mounts the locally
+installed stable FAF texture packs as overrides of the stock archives.</p>
+<p>The five-map 256 pilot passed the same checks as the initial smoke, and the lazy
+published-dataset loader was exercised with a rotated, reflected half crop on
+all five maps. Texture-specific tests cover all four binary versions, DDS channel
+order, threshold-before-pooling, layer occlusion, missing/custom assets, unsafe
+paths, augmentation alignment, sealed output reuse and corruption detection.</p>
+<h2 id="tensor-contract">Tensor contract</h2>
+<p>Each map has <code>maps/&lt;key&gt;/textures.npz</code>, loadable with <code>allow_pickle=False</code>.
+Channel-first spatial arrays use <code>[channel,z,x]</code>, covering the full map with no
+flip or transpose. Tensors are in <strong>[0,1]</strong>, not [-1,1]. NPZ string arrays carry
+paths without Python pickles. No material IDs are encoded as interpolated floats.</p>
+<table>
+<thead>
+<tr>
+<th>Array</th>
+<th>Shape</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>mask_bytes_native</code></td>
+<td>8×native-H×native-W, uint8</td>
+<td>Exact decoded DDS RGBA channels; absent legacy second mask is zero padded</td>
+</tr>
+<tr>
+<td><code>mask_samples</code></td>
+<td>8×256×256</td>
+<td>Area-averaged raw samples / 255, useful for reversible paint targets</td>
+</tr>
+<tr>
+<td><code>blend_alpha</code></td>
+<td>8×256×256</td>
+<td>Standard-shader decoded alpha, pooled <strong>after</strong> the nonlinear transform</td>
+</tr>
+<tr>
+<td><code>paint_weights</code></td>
+<td>9×256×256</td>
+<td>Lower material plus eight strata, after sequential occlusion; before upper material alpha</td>
+</tr>
+<tr>
+<td><code>paint_weights_valid</code></td>
+<td>scalar bool</td>
+<td>Whether the shader&#39;s paint semantics are implemented</td>
+</tr>
+<tr>
+<td><code>active_layers</code></td>
+<td>9 bools</td>
+<td>Shader-active paint slots; legacy TTerrain uses only four overlays</td>
+</tr>
+<tr>
+<td><code>palette_albedo_rgba</code></td>
+<td>10×4×64×64</td>
+<td>Local material swatches, including alpha; zeros require checking availability</td>
+</tr>
+<tr>
+<td><code>palette_asset_available</code></td>
+<td>10 bools</td>
+<td>Whether each albedo asset decoded successfully</td>
+</tr>
+<tr>
+<td><code>palette_tiling_valid</code></td>
+<td>10 bools</td>
+<td>Resolved albedo with valid positive tiling scale</td>
+</tr>
+<tr>
+<td><code>palette_albedo_paths</code>, <code>palette_normal_paths</code></td>
+<td>10 strings each</td>
+<td>Material identity in normalized virtual paths</td>
+</tr>
+<tr>
+<td><code>palette_albedo_scale</code>, <code>palette_normal_scale</code></td>
+<td>10 floats each</td>
+<td>Original SCMAP tiling scales</td>
+</tr>
+<tr>
+<td><code>albedo_rgb</code></td>
+<td>3×256×256</td>
+<td>Diagnostic unlit tiled material appearance</td>
+</tr>
+<tr>
+<td><code>albedo_validity</code></td>
+<td>1×256×256</td>
+<td>Fraction of contributing material color known; missing upper asset conservatively invalidates RGB</td>
+</tr>
+<tr>
+<td><code>upper_alpha</code></td>
+<td>1×256×256</td>
+<td>Sampled alpha of resolved upper material</td>
+</tr>
+</tbody></table>
+<p>Modern palette slots are lower, strata 0..7, upper. Legacy six-slot palettes are
+mapped to lower, strata 0..3, upper (slots 0..4 and 9), preserving original paths
+and scales. Unused slots are explicit. Slot 1 is not a universal grass/rock/snow
+class: models must receive the palette or another deliberate material embedding.
+Swatches and scale vectors are a first palette-conditioning representation, not
+an implemented texture generator.</p>
+<h3 id="shader-semantics">Shader semantics</h3>
+<p>The standard <code>TTerrain</code> and <code>TTerrainXP</code> albedo code transforms mask samples by
+<code>clamp(2*sample-1,0,1)</code> and blends later painted layers over earlier layers. This
+is verified in the <a href="https://raw.githubusercontent.com/FAForever/fa/develop/effects/terrain.fx">FAF terrain shader</a>.
+The derived weights therefore form a partition of one, but the raw mask channels
+do not. Compute the nonlinear transform and occlusion at native mask resolution,
+then pool; reversing those operations would lose thin painted features.</p>
+<p>The upper material has its own tiled texture alpha and is deliberately separate
+from the nine paint proportions. Normal-map references are retained; normal-map
+image tensors and normal blending are not implemented. Advanced/custom shaders
+may repurpose texture slots for roughness or terrain information. Their raw masks
+and palettes are still extracted, but derived weight validity is false. Their
+zero derived weights are <strong>not</strong> targets describing an empty/unpainted map.</p>
+<h2 id="assets-previews-and-limitations">Assets, previews and limitations</h2>
+<p>Stock albedos are resolved case-insensitively from local <code>env.scd</code>/<code>textures.scd</code>.
+Current-map custom <code>/maps/&lt;folder&gt;/...</code> assets are supported with bounded safe
+path resolution. Installed stable FAF <code>env.nx2</code> and <code>textures.nx2</code> are mounted
+after stock archives, with their paths and hashes pinned in the contract.
+<code>--asset-archive</code> supplies explicit ordered overrides; <code>--stock-only</code> disables
+automatic FAF packs. No downloads occur. Asset source, virtual path, image size
+and SHA-256 are recorded. Missing assets and decode failures are explicit, and
+do not prevent preserving the map&#39;s paint masks. A missing asset must not become
+an invented material, and beta/development pack variants are not guessed.</p>
+<p><code>vault_preview.png</code> is the map&#39;s <strong>embedded</strong> preview; it can be an author-provided
+image and is not necessarily the latest server thumbnail. <code>albedo.png</code> is an
+unlit diagnostic using bilinear tiled sampling, not a game render or a new RGB
+training target with validated appearance equivalence. It omits decals, water
+surface, props, lighting, shadows, normal shading and texture mipmap filtering.
+Tiny tiling patterns can alias at the output resolution. <code>paint_weights.png</code>
+shows slot-weight colors; <code>palette.png</code> shows the referenced material swatches.</p>
+<p>Biome classes are not inferred from palette order or path names. Mixed palettes
+are legitimate. Decals can make a large visual contribution and are counted as
+omitted in metadata. They require a separate future layer. The terrain shader&#39;s
+upper alpha/specularity and advanced rendering channels must not be confused
+with surface material coverage.</p>
+<p>Full-map texture painting may be asymmetric even when terrain is symmetric.
+<code>augment_arrays</code> applies exactly the same rotation/flip and optional half crop as
+the geometry, while leaving material palette order unchanged. Never impose
+symmetry on an existing texture target as a side effect of reading it. Native
+masks are omitted from augmented batches rather than left at a conflicting pose.</p>
+<h2 id="running-and-resuming">Running and resuming</h2>
+<pre><code class="language-powershell">$env:PYTHONPATH=&#39;src&#39;
+.venv-codex/Scripts/python.exe -m supmapai.tools.extract_map_textures --out data/tensors/map_textures_curated_256_v2
+</code></pre>
+<p>The same command resumes sealed map outputs without recomputing them. Input,
+game archive and code hashes must match the contract; changed sealed files are
+rejected. A controller OS lease prevents duplicate runs. Per-map failures are
+recorded and skipped on resume, never retried automatically. To pause, create
+<code>pause.request</code> in the output directory; remove it before explicit resume. Status,
+manifests and a local HTML index update every 25 maps. Decode audit and semantic
+coverage are separate: successfully decoding an advanced shader does not certify
+the derived weights. The complete manifests preserve curated family splits.</p>
+<p>For a persistent hidden run and readable status, use:</p>
+<pre><code class="language-powershell">.\scripts\map-textures.ps1 -Action Resume
+.\scripts\map-textures.ps1 -Action Status
+.\scripts\map-textures.ps1 -Action Pause
+</code></pre>
+<p>Load a published map with:</p>
+<pre><code class="language-python">from supmapai.tensors.map_textures import TextureDataset
+dataset = TextureDataset(&quot;data/tensors/map_textures_curated_256_v2&quot;, &quot;train&quot;)
+arrays, row = dataset.get(0)  # also accepts rotation, flip, half
+# Model targets require arrays[&quot;paint_weights_valid&quot;] to be true.
+# row[&quot;terrain_archive&quot;] and its hash pair the frozen terrain with this paint.
+</code></pre>
+<p>The release is published only after the entire requested cohort decodes without
+failures. Material/shader validity flags must still be honored on that release.
+The extractor does not train a model or modify geometry/resource datasets.</p>
+<p>Review: <code>data/processed/map_texture_review_v1/index.html</code>.
+Historical stock-only 256 pilot: <code>data/processed/map_texture_pilot256_v1/index.html</code>.
+Initial 128 smoke: <code>data/processed/map_texture_pilot_v1/index.html</code>.</p>
+<script src="model-atlas/public-links.js" data-public-links></script></body></html>

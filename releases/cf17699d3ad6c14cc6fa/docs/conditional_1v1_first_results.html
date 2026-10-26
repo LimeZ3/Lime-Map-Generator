@@ -1,0 +1,90 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>conditional_1v1_first_results.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="first-conditional-1v1-results">First Conditional 1v1 Results</h1>
+<p>Date: 23 October 2026. The first training/data milestone is implemented and tested.
+The complete proposed roadmap is not finished: generated gameplay scoring,
+reliable controls, improved terrain and playable showcase exports remain ahead.
+Cross-machine seed matching is deferred at the user&#39;s request.</p>
+<h2 id="data">Data</h2>
+<p>The frozen strategy release produced 2,077 full-playable-area 10km versions across
+1,931 detected families: 1,688 train, 170 validation and 219 test. Another 159
+512-square maps have cropped playable arenas and were excluded; 528 scored maps
+have other dimensions. All packed maps passed conservation, native alignment,
+family, train-only normalization, archive integrity and consumed source-stage hash
+checks. Initial reclaim is complete on 1,882 versions; the reclaim model trains
+on 1,541 training versions and evaluates on 147 validation versions.</p>
+<p>These are supported two-player configurations, not a human-curated collection
+of competitive 1v1 designs. Source maps may support more players. No label is an
+overall quality score. The test split was packed and audited but not fitted,
+tuned or used in the model comparisons.</p>
+<p>Dataset: <code>data/tensors/strategy_10km_1v1_v1/</code>.
+Audit: <code>audit.md</code>, <code>audit.json</code>. Source previews: <code>source_contact_sheet.png</code>.</p>
+<h2 id="training-experiments">Training Experiments</h2>
+<p>The first four-model experiment used epsilon prediction for 1,000 updates each.
+It reduced validation loss but collapsed to approximately 98.6% water during
+fresh-noise generation. Increasing sampling to 200 steps did not fix it.</p>
+<p>The second experiment uses velocity prediction, bottleneck attention and 2,000
+updates per model: profile-free terrain, conditioned terrain, resources and
+reclaim. GPU training took about 505 seconds in total on the RTX 5080; peak
+allocated GPU memory was under 600 MiB. All checkpoints/configs/progress and
+model/data hashes are retained. Training support is still small and these are
+early experiments, not final models.</p>
+<p>Latest artifacts: <code>data/models/strategy_10km_1v1_v2_smoke/</code>.
+The directory contains <code>experiment_report.md</code>, model checkpoints, full-validation
+profile-ablation results and matched-profile galleries. The main two sweeps each
+use four independent seeds with three settings, giving 24 conditional outputs.
+Another six outputs provide a profile-free terrain comparison.</p>
+<h2 id="what-worked">What Worked</h2>
+<p>The latest mex-profile gallery averages 25.1% water and 37.2% structurally
+land-passable terrain. Sources are not encoded into the samples: all start from
+fresh noise. Geometry, exact source configurations, sparse resources, reclaim
+stock and annotations now connect through the same training/generation loop.</p>
+<p>Increasing reclaim requested through the profile increased generated
+handling-adjusted reclaim at every low/medium/high step for all four test seeds.
+No requested reclaim budget is enforced by the decoder; it only caps adjusted
+stock at raw mass. Mean per-player results are:</p>
+<table>
+<thead>
+<tr>
+<th>Setting</th>
+<th align="right">Requested Adjusted Stock</th>
+<th align="right">Generated Adjusted Stock</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Low</td>
+<td align="right">1,813</td>
+<td align="right">6,184</td>
+</tr>
+<tr>
+<td>Medium</td>
+<td align="right">5,025</td>
+<td align="right">8,619</td>
+</tr>
+<tr>
+<td>High</td>
+<td align="right">10,698</td>
+<td align="right">12,293</td>
+</tr>
+</tbody></table>
+<p>This is preliminary directional steering over four seeds, with substantial
+calibration error. It does not establish human gameplay relevance or generalize
+to every requested profile combination.</p>
+<p>Full-validation profile ablation found modest benefits for terrain and reclaim.
+Resource placement performed similarly with correct versus shuffled labels.
+Exact mex counts of 24/36/50 per player in the gallery are decoder instructions,
+not evidence of learned count control.</p>
+<h2 id="remaining-problems-and-next-gate">Remaining Problems And Next Gate</h2>
+<p>Shorelines are fragmented/noisy, some spawns need large repairs, and several
+generated layouts have no structural land connection between spawns despite the
+requested land-focused profile. The raw resource-density integral is badly
+calibrated. Reclaim is directionally controllable but overshoots and remains a
+density field rather than realized blueprint entities. Full game collision,
+resource fairness, actual battle fronts and air opportunity have not been
+validated on these outputs. No maps from this experiment were installed into FAF.</p>
+<p>The next work should improve the physical terrain representation and shoreline
+consistency, strengthen spawn/connectivity supervision, and use a sparse/count-aware
+resource objective. Then measure the full frozen gameplay teacher on assembled
+outputs and calibrate the controls. Longer training and 256x256 refinement follow
+once fresh-noise terrain and repair burden improve. Playable showcase export is
+gated on those results; it is not justified by denoising loss alone.</p>
+<p>Commands and architecture: <a href="conditional_1v1_training.md">conditional_1v1_training.md</a>.</p>
+<script src="model-atlas/public-links.js" data-public-links></script></body></html>
