@@ -1,0 +1,135 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>native_scmap.py | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="../docs/model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1>native_scmap.py</h1><p class="meta">Saved public evidence snapshot: src/supmapai/export/native_scmap.py</p><pre>&quot;&quot;&quot;Write native physical heights and rebuild terrain-dependent SCMAP images.&quot;&quot;&quot;
+
+from __future__ import annotations
+
+import io
+import struct
+from pathlib import Path
+
+import numpy as np
+from PIL import Image
+
+from supmapai.extract.scmap_props import read_scmap_props
+
+
+def dds_block(image):
+    buffer = io.BytesIO()
+    image.convert('RGBA').save(buffer,format='DDS')
+    payload = buffer.getvalue()
+    return struct.pack('&lt;i',len(payload))+payload
+
+
+def image_size(data, span):
+    start,end = span
+    with Image.open(io.BytesIO(data[start+4:end])) as image:
+        return image.size
+
+
+def resized(array, size):
+    return np.asarray(Image.fromarray(np.asarray(array,np.float32)).resize(size,Image.Resampling.BILINEAR)).copy()
+
+
+def quantize(vertices, scale):
+    if vertices.ndim!=2 or not np.isfinite(vertices).all() or not np.isfinite(scale) or scale&lt;=0:
+        raise ValueError('Invalid native heights or height scale')
+    values = np.rint(vertices/scale)
+    if values.min()&lt;0 or values.max()&gt;65535:
+        raise ValueError('Native heights exceed uint16 range; refusing silent clipping')
+    raw = values.astype('&lt;u2')
+    return raw,raw.astype(np.float32)*scale
+
+
+def prop_block(props):
+    output = bytearray(struct.pack('&lt;i',len(props)))
+    for prop in props:
+        path = prop['path']
+        if not path.startswith(('/env/','/props/')) or '\0' in path or not path.endswith('_prop.bp'):
+            raise ValueError('Only explicit stock prop blueprint paths are supported')
+        x,y,z = (float(prop[k]) for k in ('x','y','z'))
+        angle = float(prop.get('rotation',0.))
+        scale = tuple(prop.get('scale',(1.,1.,1.)))
+        if len(scale)!=3 or not np.isfinite([x,y,z,angle,*scale]).all() or min(scale)&lt;=0:
+            raise ValueError('Invalid prop position, orientation or scale')
+        c,s = np.cos(angle),np.sin(angle)
+        output.extend(path.encode('ascii')+b'\0')
+        output.extend(struct.pack('&lt;15f',x,y,z,c,0,s,0,1,0,-s,0,c,*scale))
+    return bytes(output)
+
+
+def write_native(template, out, relative_vertices, sea_level, preview, *, props=None):
+    template,out = Path(template),Path(out)
+    metadata,_ = read_scmap_props(template,include_navigation=True,include_layout=True)
+    if metadata['scmap_version'] not in (56,60) or metadata['trailing_bytes']:
+        raise ValueError('Native writer requires a complete modern SCMAP template')
+    width,height = metadata['map_width'],metadata['map_height']
+    if relative_vertices.shape!=(height+1,width+1):
+        raise ValueError('Native vertex dimensions do not match template')
+    layout = metadata['layout']; data = template.read_bytes()
+    scale = metadata['navigation']['height_scale']
+    raw,written = quantize(relative_vertices+sea_level,scale)
+    cell = .25*(written[:-1,:-1]+written[1:,:-1]+written[:-1,1:]+written[1:,1:])
+    depth = np.maximum(sea_level-cell,0)
+    placed_props = [] if props is None else list(props)
+    changes = [(layout['preview'][0],layout['preview'][1],dds_block(preview.resize(image_size(data,layout['preview'])))),
+               (layout['height_offset'],layout['height_offset']+raw.nbytes,raw.tobytes()),
+               (*layout['waves'],struct.pack('&lt;i',0)),
+               (*layout['decals'],struct.pack('&lt;ii',0,0)),
+               (*layout['props'],prop_block(placed_props))]
+    water = bytearray(data[layout['water_offset']:layout['water_offset']+13])
+    old = struct.unpack_from('&lt;fff',water,1)
+    water[0] = 1
+    struct.pack_into('&lt;fff',water,1,sea_level,sea_level+(old[1]-old[0]),sea_level+(old[2]-old[0]))
+    changes.append((layout['water_offset'],layout['water_offset']+13,bytes(water)))
+    # The shipped terrain shader reads horizontal normal components from A/G.
+    for span in layout['normal_images']:
+        size = image_size(data,span)
+        surface = resized(written,size)
+        dz,dx = np.gradient(surface,height/size[1],width/size[0])
+        length = np.sqrt(1+dx*dx+dz*dz)
+        normal = np.full((*surface.shape,4),255,np.uint8)
+        normal[...,3] = np.rint((-.5*dx/length+.5)*255).astype(np.uint8)
+        normal[...,1] = np.rint((-.5*dz/length+.5)*255).astype(np.uint8)
+        changes.append((*span,dds_block(Image.fromarray(normal))))
+    # Uniform base material: no stale painted geography or fake template cliffs.
+    for span in layout['stratum_images']:
+        changes.append((*span,dds_block(Image.new('RGBA',image_size(data,span),(0,0,0,0)))))
+    span = layout['water_image']; size = image_size(data,span)
+    small_depth = resized(depth,size)
+    water_pixels = np.zeros((*small_depth.shape,4),np.uint8)
+    water_pixels[...,1] = np.rint(np.clip(small_depth/20,0,1)*255).astype(np.uint8)
+    water_pixels[...,2] = (small_depth&gt;0).astype(np.uint8)*255
+    water_pixels[...,3] = 255
+    changes.append((*span,dds_block(Image.fromarray(water_pixels))))
+    small_wet = resized((depth&gt;0).astype(np.float32),(width//2,height//2))&gt;.5
+    half = small_wet.size
+    masks = bytes(half)+(small_wet.astype(np.uint8)*255).tobytes()+bytes(half)
+    changes.append((layout['water_masks_offset'],layout['water_masks_offset']+3*half,masks))
+    terrain = np.where(depth&gt;0,220,1).astype(np.uint8)
+    changes.append((layout['terrain_offset'],layout['terrain_offset']+terrain.size,terrain.tobytes()))
+    changes.sort(key=lambda item:item[0])
+    if any(a[1]&gt;b[0] for a,b in zip(changes,changes[1:])):
+        raise ValueError('Overlapping SCMAP patch spans')
+    output = bytearray(); cursor = 0
+    for start,end,payload in changes:
+        output.extend(data[cursor:start]);output.extend(payload);cursor=end
+    output.extend(data[cursor:])
+    if b'/maps/' in output.lower():
+        raise ValueError('Template contains custom map asset references; use a stock-asset template')
+    out.parent.mkdir(parents=True,exist_ok=True);out.write_bytes(output)
+    checked,actual_props = read_scmap_props(out,include_navigation=True)
+    actual = checked['navigation']['vertices']
+    if checked['trailing_bytes'] or len(actual_props)!=len(placed_props) or not np.array_equal(actual,written):
+        raise ValueError('SCMAP read-back does not match native writer')
+    for expected,restored in zip(placed_props,actual_props,strict=True):
+        if restored.path!=expected['path'] or any(abs(getattr(restored,k)-expected[k])&gt;.001 for k in ('x','y','z')):
+            raise ValueError('SCMAP prop read-back mismatch')
+    if checked['navigation']['water_elevation']!=sea_level:
+        raise ValueError('SCMAP sea plane read-back mismatch')
+    return dict(schema='native_scmap_v1',template=str(template.resolve()),height_scale=scale,
+        sea_level=sea_level,dimensions=[width,height],height_min=float(actual.min()),height_max=float(actual.max()),
+        quantization_max_error=float(np.abs(actual-(relative_vertices+sea_level)).max()),
+        template_props_removed=True,template_decals_removed=True,template_waves_removed=True,
+        normals_and_water_rebuilt=True,props_written=len(placed_props),
+        material='uniform inherited base material; no texture model',
+        readback_exact=True),written-sea_level
+</pre><script src="../docs/model-atlas/public-links.js" data-public-links></script></body></html>
