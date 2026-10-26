@@ -1,0 +1,127 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>assessment.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="../../../docs/model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="assessment-community-ratings-versus-strategy-estimates">Assessment: community ratings versus strategy estimates</h1>
+<blockquote>
+<p><strong>15 October correction:</strong> DualGap Adaptive was analysed with slot 1 vs 12. The validated pair is slot 1 vs 2. Its corrected offensive-drop / air shares are 18.9% / 37.7%. Pandemonium Pass also has a new experimental route-allocation scenario. See <a href="http://127.0.0.1:5177/route_response_diagnostics/index.html">targeted reruns</a>. The tables below retain the historical snapshot.</p>
+</blockquote>
+<p>Snapshot: 15 October 2026, 16:50 Amsterdam time (14:50 UTC). No annotation data or model settings were changed.</p>
+<p>The comparison finds useful agreement, but cannot establish that either the community or the pipeline is ground truth. Its most valuable output is a short list of cases to inspect.</p>
+<h2 id="coverage-and-confidence">Coverage and confidence</h2>
+<p>279 historical submissions become 267 latest participant/map reviews, across 186 maps and 23 contributing reviewers. Exact FAF map/version identifiers plus case-insensitive folder verification match 44 analysed maps and 97 reviews. Only 14 matched reviews are labelled 1v1; ten maps have at least one numeric 1v1 answer in the compared dimensions. Starting slots are generally unspecified. Of the 44 matched maps, 34 have one review, seven have two, one has three, and two have 23. Only Setons and DualGap have at least three numeric ratings for the relevant questions. Treat the other observations as leads, not consensus.</p>
+<h2 id="where-the-sources-agree">Where the sources agree</h2>
+<table>
+<thead>
+<tr>
+<th>Map</th>
+<th>Community evidence</th>
+<th>Pipeline evidence</th>
+<th>Interpretation</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Setons Clutch - FAF version</td>
+<td>Drops 3.85/5 (20 answers), air 4.27/5 (22); mostly 4v4. Its two 1v1 ratings average 4.5 for both.</td>
+<td>Offensive drops and air each affect 52/108 mexes (48.1%), 10 destinations.</td>
+<td>Strongest repeated directional agreement; mixed setups still matter. One 1v1 review specifies middle slots, not necessarily the model pair.</td>
+</tr>
+<tr>
+<td>Point of Reach v4</td>
+<td>Drops 5/5 and air 5/5; two 1v1 reviewers, one knows the map well and one used previews.</td>
+<td>Both affect 40/86 mexes (46.5%), 12 destinations.</td>
+<td>Good small-sample agreement. This is Point of Reach v4, not Adaptive Point of Reason.</td>
+</tr>
+<tr>
+<td>Seraphim Glaciers - FAF version</td>
+<td>Drops 4.5/5, air 5/5; two 1v1 reviewers, one experienced.</td>
+<td>Both affect 57/76 mexes (75%), 9 destinations.</td>
+<td>Good small-sample agreement.</td>
+</tr>
+<tr>
+<td>The Drunken Beetles Dance</td>
+<td>Drops 3.5/5 and air 4.5/5; two reviews describing 2v2 and 4v4.</td>
+<td>Drops 44.8%; air 69.0%.</td>
+<td>Same ordering: air raids are stronger than offensive drops. Team-context check only.</td>
+</tr>
+<tr>
+<td>Cobalt Valley</td>
+<td>Drops 2/5; one preview-based 1v1 review.</td>
+<td>Zero qualifying offensive-drop mexes.</td>
+<td>Tentative low-drop agreement.</td>
+</tr>
+</tbody></table>
+<h2 id="where-they-differ">Where they differ</h2>
+<table>
+<thead>
+<tr>
+<th>Priority</th>
+<th>Map</th>
+<th>Community evidence</th>
+<th>Pipeline evidence</th>
+<th>First explanation to test</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>High: matched game size</td>
+<td>Forgotten Facilities 10x10</td>
+<td>Drops 5/5; one 1v1 reviewer who knows it well.</td>
+<td>4/62 mexes (6.5%), 2 destinations.</td>
+<td>Inspect selected spawn pair, route response, valuable non-mex targets and whether strategically useful drops fail our screening. Do not dismiss the review.</td>
+</tr>
+<tr>
+<td>High: matched game size</td>
+<td>Adaptive Hardshield Oasis</td>
+<td>Air 4/5; one 1v1 reviewer who knows it well.</td>
+<td>Zero qualifying air-raid mexes.</td>
+<td>The survey covers overall air control, including army support and transport denial; the model measures economy-raiding exposure.</td>
+</tr>
+<tr>
+<td>Medium: preview and hints</td>
+<td>Adaptive Gornyak</td>
+<td>Air 4/5; one preview-based 1v1 reviewer who viewed suggestions. Drops 2/5 agrees with low model drops.</td>
+<td>Zero qualifying air-raid mexes.</td>
+<td>Same air-definition gap, with weak independent evidence from this review.</td>
+</tr>
+<tr>
+<td>High: repeated, different game size</td>
+<td>DualGap Adaptive</td>
+<td>Offensive drops 2.43/5, median 2 (21 numeric ratings, 18 experienced); 14 ratings are 1–2 and five are 4. All reviews describe 6v6.</td>
+<td>43/69 mexes (62.3%), 4 offensive destinations.</td>
+<td>Compare all active team slots before changing thresholds. One-pair/default resources and response fields differ substantially from populated 6v6.</td>
+</tr>
+<tr>
+<td>Medium: different game size</td>
+<td>canis 4v4 spezial edition</td>
+<td>Air 4/5 from two experienced 4v4 reviewers.</td>
+<td>Zero qualifying air-raid mexes.</td>
+<td>Air importance is broader than isolated mex vulnerability; team setup also differs.</td>
+</tr>
+<tr>
+<td>Medium: different game size</td>
+<td>A_cinder_5v5_Adaptive</td>
+<td>Air 4.5/5 from two numeric ratings in 5v5.</td>
+<td>Air exposure 2.2%.</td>
+<td>Broader air role and team defenses; only one numeric rater had played the map.</td>
+</tr>
+<tr>
+<td>Medium: different game size</td>
+<td>Twin Rivers</td>
+<td>Openness 1.5/5 from two 3v3 ratings.</td>
+<td>Best sustained land bottleneck 101.6 units, classified open.</td>
+<td>Width alone misses lane structure, mandatory shared corridors and the number of independent fronts.</td>
+</tr>
+</tbody></table>
+<h2 id="where-people-disagree-with-each-other">Where people disagree with each other</h2>
+<p>Setons openness ranges from 1 to 5 across 21 ratings (mean 3.05). Its two 1v1 reviews both say 2. That is evidence that setup matters, not simply random noise. Its drops range from 2 to 5. DualGap drop ratings range from 1 to 4: low ratings dominate, but five people rate them high. Preserve these distributions as soft labels rather than replacing them with a single supposed correct rating.</p>
+<h2 id="aggregate-signal-and-what-it-does-not-prove">Aggregate signal and what it does not prove</h2>
+<p>Using equal weight per map, Spearman rank agreement in the small 1v1 subset is <strong>0.83 for air</strong> (10 maps), <strong>0.60 for offensive drops</strong> (9 maps), and <strong>-0.34 for openness</strong> (8 connected-land maps). Restricting to people who have played the map gives air 0.85 (8 maps), drops 0.00 (7 maps), and openness -0.37 (6 maps). The drop correlation is therefore not stable enough to claim validation. The air result is promising but does not prove that raid exposure fully explains air superiority. Samples are sparse, selected and may share reviewers; no statistical confidence claim is made.</p>
+<p>The broad all-setup correlations are weaker: drops 0.40, air 0.39, openness 0.23. They mix team and 1v1 configurations. Disconnected land is excluded from the width correlation: no land connection is not a rating of closed versus open, particularly on naval maps.</p>
+<p>Expansion ratings describe the value of claiming territory, not the value of transporting engineers, so they are not directly compared to expansion-drop scores. No direct comparison is made for subjective quality, appearance, tech tiers or navy from the current three metrics. Model absolute and percentile 1–5 scales are not treated as interchangeable with survey scores.</p>
+<h2 id="recommended-next-checks">Recommended next checks</h2>
+<ol>
+<li>Inspect Forgotten Facilities with its experienced 1v1 reviewer or a recorded exact spawn pair. This is the most focused offensive-drop discrepancy.</li>
+<li>Compare Hardshield Oasis with a broader air-importance measure; retain raid exposure as a separate feature.</li>
+<li>Run DualGap in its reviewed 6v6 configuration before interpreting the repeated drop disagreement as a threshold failure.</li>
+<li>Use Twin Rivers and Setons to develop an openness measure combining corridor width, independent route families, mandatory shared sections and sea/hover alternatives.</li>
+<li>Collect several blind, exact-slot 1v1 ratings for these cases. Preserve original answers and keep suggestion-exposed responses identifiable in analysis.</li>
+</ol>
+<p>Astro Crater Battles has 22 current reviews but is outside this 630-map cohort. It is explicitly unmatched here; an older calibration result is not substituted. Adaptive Project Dust is also excluded from an exact comparison because the reviewed v2 differs from analysed v3. The full report lists every unmatched map and all 44 matched maps.</p>
+<p><a href="report.md">Full comparison</a> · <a href="comparison.json">Aggregate rating distributions and sensitivity views</a> · <a href="index.html">Browsable tables</a></p>
+<script src="../../../docs/model-atlas/public-links.js" data-public-links></script></body></html>

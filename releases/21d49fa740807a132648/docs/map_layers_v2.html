@@ -1,0 +1,214 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>map_layers_v2.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="map-layers-v2-implementation-progress">Map layers V2: implementation progress</h1>
+<p>Water decoding correction (2.0.1): water elevation and enabled state now come from
+the serialized SCMAP water block for versions 56 and later. Histogram inference
+and texture-offset guesses are no longer used. Unsupported or invalid water blocks
+are reported as unresolved. Regenerate earlier V2 previews/tensors before using them.
+Canis smoke export changed from guessed elevation 53.4918 to serialized elevation 36,
+with 11.7973% of full-map cells below that surface. This is a file-derived mask,
+not a claim of in-game validation or agreement with a potentially custom vault image.
+Use <code>--fetch-vault-previews</code> to cache each map&#39;s official vault image and produce
+<code>comparison.png</code> (vault, terrain/water, pathing, markers). Without the flag, cached
+images are reused and no network request is made.</p>
+<p>Implemented first milestone:</p>
+<ul>
+<li>Shared <code>terrain_layers.calculate</code> for extraction, training tensors and V2 exports.</li>
+<li>Ground and amphibious slope limit 0.75; amphibious depth limit 25.</li>
+<li>Seabed slope included; no T1/T2 navy classifications. These remain static estimates,
+not engine-verified footprint clearance or dynamic pathfinding.</li>
+<li>Separate native height vertices, cell heights, depth and movement arrays with world
+coordinates (<code>array[z,x]</code>). Full-map data retained; playable bounds recorded.</li>
+<li>Native combined terrain/water, pathing and numbered marker PNGs for detailed inspection.</li>
+<li>Source hashes, map/version IDs, extraction schema and per-layer uncertainty in record.json.</li>
+<li>Prop and statically identified reclaim entities with distinct instance IDs and blueprint
+references. Reclaim rasterizer sums known mass/energy, preserves stacked instance counts,
+and reports unknown values and out-of-bounds objects separately.</li>
+<li>Script-option detection is preliminary evidence only. Adaptive links are explicitly
+unresolved. Spawn slot numbers follow ARMY_1 through ARMY_16 rather than geometric order.</li>
+</ul>
+<p>Run a small local validation pass:</p>
+<pre><code class="language-powershell">$env:PYTHONPATH=&#39;src&#39;
+.venv-codex/Scripts/python.exe -m supmapai.tools.extract_layers_v2 --catalog data/raw/faf_maps/latest_20261008/map_catalog.csv --output data/processed/layers_v2_smoke --limit 5
+</code></pre>
+<p>Each map/version directory has <code>record.json</code>, <code>layers.npz</code>, <code>terrain_water.png</code>,
+<code>pathing.png</code>, <code>markers.json</code>, <code>markers.png</code>, <code>entities.json</code>, and <code>reclaim.npz</code>.
+The report records extraction errors without stopping other maps. Failed/skipped
+downloads are not selected. There are no network calls or executions of map scripts.</p>
+<p>V2 retains raw water masks; legacy terrain metrics can include explicitly reported
+cleanup of uncertain water. Do not compare raw full-map arrays with cleaned playable
+crop statistics without applying their recorded policy and bounds. Unknown water
+has a false movement-validity mask; zero depth is then a placeholder, not evidence
+of dry terrain. Inferred water level carries its original source/warning.</p>
+<p>Training exports append <code>amphibious_passable_mask</code> as a 13th channel and include
+schema/movement provenance in <code>metadata_json</code>. Existing tensor archives are untouched.
+New archives require models configured for their listed channels; 12-channel checkpoints
+must not be loaded against the new schema without an explicit channel selection or migration.
+Legacy corner-cleaned water masks require regeneration before training export; uncertain
+small-component cleanup is reconstructed using the recorded policy.</p>
+<p>Remaining milestones:</p>
+<ol>
+<li>Validate runtime blueprint defaults/modifications and wreck values. Static blueprint
+lookup now records source archive/member hashes and numeric baseline values. Empty or
+expression-valued fields remain unknown. Known-value grids must be accompanied by
+unresolved counts; they are not complete reclaim totals.</li>
+<li>Extract adaptive options, activation rules and resource-to-spawn relationships from
+supported script patterns; resolve configured variants and active slots.</li>
+<li>Add synchronized interactive zoom, profile selection and adaptive controls to the
+annotation application. PNGs are preliminary inspection outputs.</li>
+<li>Validate engine movement and runtime reclaim/resources on a selected reference set,
+then run the library-wide extraction and define family-aware dataset splits.</li>
+</ol>
+<p>Tests cover slope/depth boundaries, underwater cliffs, cell spacing, tensor agreement,
+stacked reclaim conservation, unknown values, and map bounds.</p>
+<p>Reclaim/placed-entity milestone (2.1.0): use <code>--game-data</code> with the installed game
+gamedata directory, optionally <code>--faf-archive</code> with a local FAF archive. The output
+<code>blueprint_index.json</code> records the baseline source, not proof of current FAF runtime
+equivalence. Explicit blueprint replacement and <code>Merge = true</code> are distinguished;
+Lua blueprint hooks are not executed. Map Lua is never executed either.</p>
+<p>Every static SCMAP prop and save-file prop/unit is preserved in <code>entities.json</code> and
+<code>entities.csv</code>, including coordinates, blueprint ID, group/army and value provenance.
+Live units/buildings do not contribute their construction cost to ground reclaim.
+Potential wreck mass/energy is separate. Units inside an explicit WRECKAGE group
+are classified as wreckage with their source unit ID; their runtime amounts remain
+unknown. Generic default-wreck props also remain unknown without that association.
+Script-created or conditionally removed entities are not resolved by this milestone.</p>
+<p><code>reclaim.npz</code> retains individual-cell values and counts. <code>reclaim_mass.png</code> and
+<code>reclaim_energy.png</code> show sums in 8x8-world-unit tiles with a fixed logarithmic scale
+(10,000 per tile saturates). Stacking adds values rather than overwriting instances.
+<code>props_units.png</code> distinguishes civilians, other units, explicit wreck groups and
+unresolved props. <code>entities_comparison.png</code> includes a cached official vault preview
+when available. Resource colours and icons come from the installed game&#39;s textures.scd;
+converted icons are local derived assets under <code>ui_assets</code>, not repository assets.</p>
+<p>Runtime validation is still required for natural reclaim modifiers, blueprint hooks,
+health/overkill/water-dependent wreck amounts, civilian lobby options and scripted
+entity creation. Do not treat the baseline amounts as certified training targets yet.</p>
+<p>Wreck-value milestone (2.2.0): a recognized local FAF <code>Unit.lua</code> rule is recorded
+with its SHA-256 in <code>wreck_value_profile.json</code>. For explicit WRECKAGE groups,
+calculate construction cost times wreck resource multiplier, halved for inferred
+Water-layer naval wrecks. Assume standard initialization with zero overkill and
+fully completed units. Air units use an inferred Air layer. Underwater units that
+are neither naval nor air retain unknown amounts because their movement layer is ambiguous. Unsupported local Lua
+rules also retain unknown amounts. This profile is not the current FAF develop
+formula: that source applies technology-tier and different submerged reductions.
+Do not mix these profiles in training without version labels/runtime validation.</p>
+<p>Calculated wrecks now contribute to reclaim grids. Each instance remains a separate
+record with source-unit ID, orientation, dimensions/scale and available blueprint
+appearance references. CSV includes these fields too; density totals never replace
+entity records. Missing numeric fields remain null, whereas numeric zero is known.</p>
+<p>Updated policy (2.3.0): empty or absent reclaim fields on a resolved prop blueprint
+default to zero, following the user&#39;s in-game validation. <code>reclaim_field_status</code>
+retains whether each value was numeric, empty, missing or an unparsed expression.
+Expressions we cannot evaluate, missing blueprints and ambiguous wreck layers still
+remain unknown. This supersedes the earlier empty-field policy.</p>
+<p>Use <code>--faf-source-archive</code> to apply a pinned FAF source ZIP after base game data
+(and after <code>--faf-archive</code> if supplied). Seton&#39;s reference snapshot is FAF develop
+commit c7d9d129cc9085ddf84cc49aa3f13af91afd9509. It includes Unit.lua and all six
+source unit blueprints found in Seton&#39;s save file. Wreck mass uses blueprint mass
+cost * Wreckage.MassMult * tech-tier factor (T1 .9, T2 .8, T3 .7, experimental .6),
+then *.6 for Water/Sub/Seabed layers. Wreck energy uses cost * EnergyMult, then
+the submerged factor; it does not receive the mass tier factor. Assumptions and
+source hashes/commit remain recorded. A source snapshot on develop is not a
+declaration of the user&#39;s active live game balance version.</p>
+<p><code>prop_type</code> separates tree/rock/other; <code>prop_type_source</code> records the method.
+Tree and TreeGroup ScriptClass is preferred, then tree directory names. Rock
+classification uses rocks directories or rock/iceberg/crystal blueprint names
+and is therefore a heuristic. <code>is_tree_group</code> distinguishes a cluster blueprint
+from an individual tree. The renderer uses green trees, grey rocks, cyan other
+props, yellow wrecks, and red unresolved props. Entity identity and original
+appearance references remain unchanged.</p>
+<p>Mass palette update (2.3.1): the mass view interpolates from faint desaturated green
+at 0 to brighter green at 100, yellow at 500 and red at 10,000 mass per 8x8 tile.
+Amounts strictly above 10,000 use dark red. Empty tiles retain the dimmed terrain
+background. The legend and record.json specify thresholds and aggregation units.
+Energy rendering and numerical reclaim arrays are unchanged.</p>
+<p>Density resolution update (2.3.2): mass and energy previews sum into 4x4-world-unit
+tiles. Mass thresholds remain 0, 100, 500, 10,000 and dark red above 10,000 per tile.
+Numerical per-cell reclaim arrays and entity values remain unchanged.</p>
+<p>Prop variety (2.4.0): <code>unique_prop_blueprints</code> counts distinct normalized blueprint
+paths across all static SCMAP and save-file props, including decorative props.
+Paths are case-insensitive, slash-normalized and stripped of the initial slash.
+Placed units and unit-source wrecks are excluded from this prop metric. Different
+tree-group/scale variants count as different blueprints; this is asset variety,
+not a proven measure of design effort or unique meshes. Missing IDs are counted
+separately. Tree/rock/other instance counts and unique blueprint counts accompany
+the total. <code>map_metrics.csv</code> is emitted per map and aggregated in the output root;
+<code>prop_blueprint_counts.csv</code> lists each unique blueprint and its instance count.
+The props preview also displays the primary unique count.</p>
+<p><code>--reclaim-tile-size N</code> configures both mass and energy density previews, default 4.
+Thresholds remain absolute sums per tile, so changing tile size changes the amount
+aggregated into each colour. Training arrays and entity values do not depend on it.</p>
+<p>Adaptive wreck investigation (2.5.1): the verified <code>Wrecks&lt;n&gt;</code> helper pattern
+resolves conversion of saved units to wrecks based on active player count. Require
+the helper import/call, group selection, platoon creation and explicit zero-overkill
+wreck creation in source; group names alone are not evidence. <code>--player-count</code>
+selects the group; absent it, the static spawn count is an explicitly recorded
+assumption. Inactive groups remain in entity exports but not previews/density.
+Auxiliary map Lua files are now hashed too. Unsupported option-dependent wreck
+creation remains unresolved; no map Lua is executed.</p>
+<p>The variety metric now includes active unit-derived wrecks, identified by original
+unit blueprint, along with static props. This supersedes the earlier exclusion of
+unit wrecks. <code>unique_other_blueprints</code> includes these non-tree/non-rock wreck
+identities. Additional fields separate static prop instances/varieties and wreck
+instances/varieties. Live units are still excluded from ground-prop variety.</p>
+<p>Adaptive resource milestone (2.6.0): support the inspected CookieNoob/KeyBlue
+<code>spwnMexArmy</code>/<code>spwnHydroArmy</code> literal table pattern. CSV/JSON preserve declared
+slot membership and scaling-option thresholds rather than nearest-spawn guesses.
+<code>--active-slot N</code> selects active slots (repeat); absent it, all static spawn slots
+are explicitly assumed. <code>--map-option key=value</code> overrides numeric option keys.
+Lobby defaults are indices into the available values array, not necessarily keys.
+Commented-out options are excluded. <code>--spawn-mex-slot N</code> retains resources of a
+closed slot via the script&#39;s SpawnMex behaviour.</p>
+<p>Supported initial resource rules: mirror pairs (1), used slots (2), require both
+pair members (3), fixed slot ranges (4-7), and cumulative tables referenced by
+the inspected FalseIfInList loop. A resource shared by multiple declared slots
+must satisfy every controlling slot because the script removes it if any owner
+is absent. Crazyrush-one-mex filtering is supported when its static list is present;
+runtime creation of additional mexes is not simulated. Unsupported scripts remain
+unresolved and do not receive guessed activation labels.</p>
+<p><code>adaptive_options.json</code> records option values, parsed lobby choices, associations,
+selected active slots, unsupported effect status and warnings. <code>adaptive_resources.csv</code>
+stores one row per resource definition with owner slots, option conditions and
+active flag. <code>adaptive_slots.png</code> draws coloured slot links, slot numbers, closed
+slots and red crosses on removed resources. The original markers view continues
+to show all definitions. Natural reclaim multiplier affects static prop values,
+with blueprint baseline retained. Tree regrowth is recorded but not simulated.
+Player-count wreck dependencies are recorded per entity and selected group.
+Such wrecks are globally controlled by player count; no spatial ownership is inferred.</p>
+<p>Archsimkats reference: slots 1-&gt;Mass 23/25, 2-&gt;Mass 24/26, 3-&gt;Mass 31,
+4-&gt;Mass 32. No slot-bound hydros. Four active slots yield 54 mexes, 6 hydros and
+98 wrecks. Active slots 1/2 with dynamic_spawn=2 yield 52 mexes, 6 hydros and
+34 wrecks. Optional civilian/wreck settings, faction-dependent choices, map
+expansion and arbitrary custom Lua remain separate unresolved effects.</p>
+<p>Adaptive Diversity v0002 smoke (map 4619/version 6828): the older <code>automex</code>
+script uses mirror pairs for modes 1/6/7, with <code>mirrormex=2</code> requiring both
+slots, fixed slots 1-8 for mode 2 and all 16 for mode 3. Its cumulative
+removal loops run from 1 to option-1, so their thresholds are maximum keys,
+the reverse of the newer script. Additional hydros and extra mexes have
+separate switches; mode 6 filters initial mexes through <code>crazyrushOneMex</code>.
+Runtime growth remains unenumerated.</p>
+<p>Lobby defaults are middlemex=2, underwatermex=5, hydroplus=1 and
+additionalmex=1. All slots yield 112 mexes/8 hydros; slots 1/2 yield
+42 mexes/8 hydros; slots 1/2 with hydroplus=2 yield 42 mexes/10 hydros.
+There are 114 declared slot-resource links. Optional entities use a separate
+adapter restricted to the exact inspected script SHA256; group names alone
+do not activate it. Defaults select 100 wrecks in Optional_Wreckage_Middle_2
+and exclude 455 other optional entities. Wrecks and civilians are controlled
+by global options, not spatially assigned to spawn slots.</p>
+<p>The three smoke directories are <code>data/processed/layers_v2_diversity_adaptive_*</code>.
+Each contains resource and entity CSVs, option provenance, previews and
+adaptive_checks.json. Known in-bounds reclaim mass is 34,127.06; two URS0103
+wreck requests remain unresolved because the pinned blueprint lacks an
+explicit Wreckage.Blueprint. They are not assigned guessed reclaim amounts.
+26 static props lie outside the terrain grid and are retained in the inventory
+but excluded from density. The selective FAF archive includes all 44 unit
+blueprints at the same pinned commit used by the earlier smoke. 21 targeted
+tests and all three configuration smoke checks passed.</p>
+<p>Lobby settings are exposed in <code>adaptive_settings.md</code> (readable report) and
+<code>adaptive_settings.json</code> (structured catalog). Preserve the author label/help,
+choice descriptions, default key, selected key and effect support. Each choice
+also has resolved initial mex/hydro counts with all other settings and active
+slots fixed; these are not counts of future Crazyrush-generated deposits.
+Reclaim, civilian and runtime options may leave resource counts unchanged
+while still changing other map content. Reports include only enabled lobby
+options; commented options and internal fallback variables remain in the
+lower-level provenance, not the user-facing lobby catalog.</p>
+<script src="model-atlas/public-links.js" data-public-links></script></body></html>

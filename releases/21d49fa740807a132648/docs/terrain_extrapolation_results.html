@@ -1,0 +1,112 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>terrain_extrapolation_results.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="terrain-control-extrapolation">Terrain Control Extrapolation</h1>
+<p>The best 28.8M-parameter multiscale checkpoint was tested without retraining or
+game launches. Eighteen settings x three matched seeds = <strong>54 finite samples</strong>.
+Sampling used 100 DDIM steps, the same requested base pair and initial noise per
+seed, default CFG 1.5, and the existing deterministic symmetry/water/smoothing
+decoder. No sea-level adjustment to the requested percentage, spawn repairs or
+resource placement were applied.</p>
+<h2 id="training-support">Training Support</h2>
+<p>Only the 1,020 training maps define these ranges, not validation examples.</p>
+<ul>
+<li>Water label: 0-93.65%; only 16 maps at &gt;=80%, none at &gt;=95%.</li>
+<li>Terrain relief (height p95-p05): 0.23-71.76 world units.</li>
+<li>Typical total front width: 11.32-571.82 world units among 894 valid labels.</li>
+<li>Sustained restriction length: 0-249.01 world units among valid labels.</li>
+</ul>
+<p>An exact percentage not seen before, such as 12.3%, can still be interpolation
+inside the observed range. Requests of 95% and 100% water are true marginal
+extrapolation. Individual ranges do not prove that a combined profile has support;
+the saved configuration includes nearest standardized training-profile distances.</p>
+<h2 id="water-results">Water Results</h2>
+<p>Final decoded water coverage, mean across three seeds:</p>
+<table>
+<thead>
+<tr>
+<th>Requested</th>
+<th align="right">Generated</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>0%</td>
+<td align="right">0.00%</td>
+</tr>
+<tr>
+<td>1%</td>
+<td align="right">0.06%</td>
+</tr>
+<tr>
+<td>12.3%</td>
+<td align="right">8.94%</td>
+</tr>
+<tr>
+<td>20%</td>
+<td align="right">18.64%</td>
+</tr>
+<tr>
+<td>37.5%</td>
+<td align="right">38.73%</td>
+</tr>
+<tr>
+<td>60%</td>
+<td align="right">60.31%</td>
+</tr>
+<tr>
+<td>80%</td>
+<td align="right">85.47%</td>
+</tr>
+<tr>
+<td>95%</td>
+<td align="right">98.70%</td>
+</tr>
+<tr>
+<td>100%</td>
+<td align="right">99.73%</td>
+</tr>
+</tbody></table>
+<p>At a 100% request the three outputs range from <strong>99.57% to 99.99%</strong> water.
+One retains two tiny dry base areas; two submerge both requested base positions.
+The ocean floor still has relief and depth. This is not an exact all-water guarantee
+or a playable-map certification. Exact all-water coverage cannot also contain dry
+land bases or land routes; the usual land-connected profile is contradictory at
+this endpoint, and requested land connectivity is not a hard constraint either.</p>
+<p>Additional 100% probes:</p>
+<ul>
+<li>Request no land link and mask width conditions: mean 98.95% water.</li>
+<li>CFG 1: mean 98.02% water.</li>
+<li>CFG 3: mean 98.72% water, with more seabed relief (27.29 versus 13.47 at CFG 1.5).</li>
+</ul>
+<p>Increasing guidance is not a monotonic percentage-correction tool: all supplied
+conditions are amplified together and their effects are coupled. These results
+are exploratory, not a universal CFG ranking.</p>
+<h2 id="other-extreme-controls">Other Extreme Controls</h2>
+<ul>
+<li>Relief 0 produces mean relief 4.62, not a perfectly flat map. Water rises to
+36.11% despite a fixed 20% request, and the terrain becomes fragmented. Mixed
+land/water and the coastal decoder also prevent treating zero relief as a simple
+independent knob.</li>
+<li>Relief 100 produces mean 148.30; relief 200 produces 209.93. Both are beyond the
+training relief range and create dramatic terrain. One 100 case blocks a base;
+one 200 case disconnects the bases. Above-water does not mean passable/buildable.</li>
+<li>Front-width requests 50 versus 650 produce mean widths about 319 versus 437,
+far from the requested absolute targets. Linked span/bottleneck widths scale
+consistently with the requested front, so this is not a one-coordinate causal test.</li>
+<li>Contraction 0.995 plus restriction length 300 does not produce a sustained
+narrow bottleneck: final measured restriction length is zero in all three seeds.</li>
+</ul>
+<p>The seed-303 flat-terrain sample exceeds the geometry teacher&#39;s cross-section
+safety bound for its final terrain. The tool records that measurement as unavailable,
+not zero, and does not silently coarsen it. Its PNG and basic height/water metrics
+remain available. All other requested measurements completed.</p>
+<h2 id="artifacts">Artifacts</h2>
+<p><code>data/models/terrain_extrapolation_v1/index.html</code> contains five PNG comparison
+panels, measured averages and a response curve. <code>config.json</code> stores requests,
+support diagnostics and checkpoint identity; <code>results.json</code> contains raw/final
+measurements, exact coverage, depth and base-above-water checks. <code>arrays/</code> retains
+encoded predictions and final native vertices. No geometry originality audit was
+run for these extreme samples; familiar-looking features are not evidence of a
+new unique map or a copy by themselves.</p>
+<p>Main conclusion: the model can generate sensible-looking outputs beyond observed
+water/relief values, but controls are learned preferences, not exact specifications.
+Hard numeric requirements belong in a decoder/validator that also resolves their
+conflicts with playable-base requirements.</p>
+<script src="model-atlas/public-links.js" data-public-links></script></body></html>
