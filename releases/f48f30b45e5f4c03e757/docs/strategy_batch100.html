@@ -1,0 +1,125 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>strategy_batch100.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="strategy-labels-100-map-audit-milestone">Strategy labels: 100-map audit milestone</h1>
+<p>22 October 2026. The user approved starting/rear economy and authorized a timed
+100-map batch before deciding whether to process the full library.</p>
+<h2 id="reproducible-input">Reproducible input</h2>
+<ul>
+<li>Manifest: <code>data/manifests/strategy_labels_batch100_20261022.json</code>, seed 20261022.</li>
+<li>Available local catalogue entries only: no network requests, new downloads,
+replays or retries of the historical failed map downloads.</li>
+<li>Nine familiar controls, then a proportional size-stratified reference sample
+up to 80 maps including those controls; 10 further hidden entries and 10 other
+visible entries. One control is hidden and two are outside the reference:
+the actual totals are <strong>11 hidden, 89 visible, 78 reference members</strong>.</li>
+<li>Sizes: 4 at 256², 56 at 512², 37 at 1024², 2 at 2048², 1 at 4096².</li>
+<li>Family grouping joins same parent ID, normalized name or identical terrain
+bytes before a deterministic 80/10/10 family split. Actual map counts are
+<strong>78 train, 9 validation, 13 test</strong>. These heuristics are conservative evidence,
+not exhaustive visual duplicate detection across the whole library.</li>
+</ul>
+<p>This deliberately includes familiar and difficult cases; it is a throughput and
+correctness pilot, not an unbiased popularity-weighted vault survey.</p>
+<h2 id="operating-policy">Operating policy</h2>
+<p>Pipeline <strong>1.2.1</strong>, configuration <code>configs/strategy_labels_v1.json</code>, two workers.
+Run: <code>data/processed/strategy_labels_batch100/v1.2.1/6826369ec95be771</code>.</p>
+<p>The <a href="strategy_labeling_v1.md">frozen label specification</a> defines the fixed
+balanced resource weight, automatic 5% saturation, medium drop gates, automatic
+route strength and base strength 1. It preserves the approved route/drop models,
+1s/entity and three reclaim tiers, and mass-only valuation. The three UEF naval
+representatives are frigate, destroyer and cruiser missiles.</p>
+<p>Each completed version gets an independent audit before it counts as scored:
+sealed hashes, physical paths, no unwanted crossings, symmetry, resource
+allocation, deduplicated opportunity shares, full spatial opening ledger and
+naval basin/range witnesses. Per-map audits are saved beside the result.
+Unsupported inputs stay explicit exclusions or failures with null ratings.</p>
+<p>Relative economy, openness and control boundaries are fit once to successful,
+resolved training-reference entries in this trial, with IDs and cut points saved
+in <code>calibration.json</code>. Future batches must reuse that calibration explicitly or
+declare a new release. Opportunity ratings use the fixed share bands.</p>
+<h2 id="run-and-inspect">Run and inspect</h2>
+<pre><code class="language-powershell">$env:PYTHONPATH = &#39;src&#39;
+.venv-codex/Scripts/python.exe -m supmapai.tools.run_strategy_pipeline `
+  --manifest data/manifests/strategy_labels_batch100_20261022.json `
+  --config configs/strategy_labels_v1.json `
+  --output data/processed/strategy_labels_batch100 --workers 2
+
+.venv-codex/Scripts/python.exe -m supmapai.tools.run_strategy_pipeline `
+  --output data/processed/strategy_labels_batch100 --status
+</code></pre>
+<p>The status file contains a controller heartbeat and per-worker stage/heartbeat;
+OS leases prevent a duplicate controller or overlapping orphan workers. Scientific
+code changes require a new run identity. Do not launch the old planned full vault
+run.</p>
+<p>Finalization writes labels CSV/JSON, calibration, timing, validation, overview
+PNGs and the interactive report. Two-map production preflight passed both
+independent audits; <strong>304 unit tests passed</strong>, including four area-scope tests.
+Final batch outcomes are recorded below.</p>
+<h2 id="inputaudit-repair-during-the-pilot">Input/audit repair during the pilot</h2>
+<p>The first 1.2.0 attempt was stopped after the audit exposed named playable-area
+disagreements. Its artifacts remain at <code>v1.2.0/28e3943ab4cf556d</code>; they are not
+mixed into the final result. Both worker leases were released before restarting.</p>
+<p>The 1.2.1 patch does not change route, reclaim, drop or rating rules:</p>
+<ul>
+<li>Validate save rectangles using the existing terrain reader&#39;s full-map fallback
+for zero-sized placeholder areas. Adaptive Silvia triggered this case.</li>
+<li>Resolve the supported literal, instantaneous start-expanded default instead
+of retaining a cropped AREA_1. Adaptive Neptune starts in AREA_4 under its
+declared default.</li>
+<li>Reject complex timed boundary code as unsupported rather than treat a moving
+playable area as a static full map. Adaptive Aria Expanding is such a case.</li>
+<li>Compare cached independent-reader vertices/types under the <strong>current resolved
+scope</strong>. The older C# adapter sometimes chose the first area in the save file,
+which was AREA_2 or AREA_3; equality of source terrain alone did not make its
+already-scoped navigation grid a valid comparison.</li>
+</ul>
+<p>The current navigation, resource inventory, front fitting and opening benchmark
+all use the same resolved bounds. The original save scope remains in the raw
+extraction record as source metadata; the resolved scientific scope is recorded
+explicitly in the pipeline result.</p>
+<h2 id="completed-result">Completed result</h2>
+<p><strong>100/100 attempted: 88 scored, 8 excluded, 4 failed with explicit input reasons.</strong>
+No map was substituted for an unsupported case. The twelve unrated cases are
+listed in the report/CSV: three lack an unambiguous mirrored opponent, five have
+unsupported resource scripts/tables, two have unresolved/timed playable bounds,
+and two have no active mexes. They receive no synthetic zero ratings.</p>
+<ul>
+<li>Processing and independent per-map audits: <strong>42m 53s</strong> with two workers.</li>
+<li>Preview/rating export: <strong>33s</strong>. Total clean batch: <strong>43m 25s</strong>.</li>
+<li>Median successful map: <strong>26.1s</strong>; 90th percentile: <strong>97.2s</strong>.</li>
+<li>Slowest: Diezle Sundered, <strong>13m 58s</strong>, with independent fits on both sides.</li>
+<li>The earlier interrupted 1.2.0 probe additionally used <strong>7.6 minutes</strong> before
+the input-scope patch; that is separate from clean-run throughput.</li>
+<li><strong>1,152 front configurations, 5,585 front-economy events and 7,260 spatial
+opening events</strong> passed audit across the 88 scored maps. Independent-reader
+vertices/types were available for 74; 14 had no such cache to compare.</li>
+<li><strong>176 primary PNGs</strong> passed integrity and native-dimension checks. All 100 CSV
+rows match the frozen JSON ratings, validity and confidence; location returns
+conserve the total early mass. The flat CSV has 96 columns.</li>
+<li>Thirteen maps have a known-reclaim lower bound and reduced confidence. No
+front-count search was censored at K8. All 88 scored maps have all rating axes.</li>
+<li>Relative calibration uses <strong>55 training-reference maps</strong> for mex supply and
+<strong>44</strong> resolved training-reference maps for the other four relative axes.
+Eligible IDs and numeric boundaries are saved, not refit per viewing/filter.</li>
+</ul>
+<p>Outputs, relative to the completed run directory:</p>
+<ul>
+<li><code>index.html</code>: sortable rating table, all outcomes, combined strategy and
+starting/rear previews, links to detailed inspection.</li>
+<li><code>labels.csv</code> / <code>labels.json</code>: raw metrics, twelve independent ratings 1–5,
+confidence/validity, identity and family split.</li>
+<li><code>scoring_report.md</code>: quantitative familiar-map comparisons, high/low examples,
+exclusions and interpretation limits.</li>
+<li><code>validation.json</code>, <code>label_validation.json</code>, <code>release_manifest.json</code>: stored
+audit results, export checks and release hashes.</li>
+<li><code>calibration.json</code>, <code>run.json</code>, <code>code_snapshot/</code>: saved thresholds, inputs,
+configuration, source/code hashes and a verified snapshot of 66 scientific
+files plus report sources/runtime versions.</li>
+</ul>
+<p>Two interpretation limits deserve review before extending coverage. Naval range
+potential can overrate steep coasts: Astro has no frigate targets, but destroyer
+and cruiser radius masks reach raised land without projectile obstruction tests.
+The openness scalar measures an approach bottleneck; Tabula Rasa&#39;s 11.2-unit
+minimum does not establish that its entire frontline is closed. Preserve both
+these raw measurements and their definitions; no thresholds were tuned to force
+the familiar examples into desired ratings.</p>
+<p>The full-library run remains <strong>unstarted</strong> pending review of this batch.</p>
+<script src="model-atlas/public-links.js" data-public-links></script></body></html>
