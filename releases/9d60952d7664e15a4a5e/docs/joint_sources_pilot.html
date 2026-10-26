@@ -1,0 +1,137 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>joint_sources_pilot.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="joint-source-layer-diffusion-pilot-25-october-2026">Joint source-layer diffusion pilot — 25 October 2026</h1>
+<blockquote>
+<p><strong>Research closed, 25 October 2026.</strong> The <a href="model-atlas/research/all-in/index.html">final all-in report</a> records the negative result, complete methods, compute and diagnostics. Earlier observations and instructions below retain their historical context; no training is scheduled.</p>
+</blockquote>
+<p>The question is whether one sufficiently sized diffusion network can jointly
+learn the map&#39;s basic source layers and their association with gameplay ratings,
+without the staged pipeline&#39;s analytical channels and spatial constraints.</p>
+<p>The local GPU pilot completed 2,074 updates and stopped for review before
+<strong>04:02 UTC / 05:02 Amsterdam time</strong>. The reviewed <a href="joint_sources_12h.md">twelve-hour continuation</a>
+is now running in a separate folder. The selected generator checkpoints are not replaced.</p>
+<h2 id="first-observations">First observations</h2>
+<p>The implementation check passed after 206 updates on 16 training maps:
+fixed-timestep mean loss fell from 1.02605 to 0.06942, and every channel improved.
+This is a small-subset learning check, not held-out evidence.</p>
+<p>The separate, freshly initialized full pilot saved its first held-out validation
+and fresh-noise gallery at update 252. Held-out mean denoising loss fell from
+1.01603 to 0.12379, with improvement in all 13 channels. Fresh outputs are still
+noisy and are not useful maps at this checkpoint: start density integrates to
+hundreds rather than one per channel, and height/depth agreement is poor. The
+raw failures remain in the saved arrays and galleries. Continue the unchanged
+pilot to the review point before judging whether more compute is helping.</p>
+<h2 id="source-releases-and-civilian-heatmaps">Source releases and civilian heatmaps</h2>
+<p><code>data/tensors/civilians_curated_256_v1</code> contains all 1,117 curated maps (1,020
+train / 97 validation). Its <code>target</code> is one float32 <code>1 x 256 x 256</code> count-density
+array per map. Finite, in-canvas source <code>civilian_unit</code> and <code>civilian_building</code>
+records contribute one each; explicitly inactive records are omitted. Gaussian
+rasterization at sigma 1.5 cells conserves the entity count, including at edges.
+There are 24,968 included civilian entities on 217 maps (201 train / 16 validation).
+Zero means no identified source placement. Runtime/lobby activation is not
+resolved by this extraction. Building/unit IDs and footprints are not neural targets.</p>
+<p><code>data/tensors/joint_sources_curated_256_v1</code> joins the corrected curated families
+and exact selected 10km 1v1 scenario. It contains <strong>851 maps: 782 train and 69
+validation</strong>, one representative per family. It excludes unsupported/incomplete
+RGB, unknown natural or wreck values, and incomplete rating vectors. Exclusion
+reasons overlap: 188 RGB, 100 wreck mass, five ratings, two natural mass/energy.
+The earlier 853-map candidate lost two more examples with unknown natural values.
+Known-zero wreck/civilian examples remain in the dataset. The original cohorts
+and source records remain intact; no held-out test manifest is used.</p>
+<h2 id="exact-model-contract">Exact model contract</h2>
+<p>One full-map float32 target <code>13 x 256 x 256</code>, in this order:</p>
+<ol>
+<li>Terrain height, relative to the source height reference.</li>
+<li>Physical water depth, pooled from the native 512-square depth grid.</li>
+<li>Start A count-density heatmap.</li>
+<li>Start B count-density heatmap.</li>
+<li>Mex count-density heatmap.</li>
+<li>Hydro count-density heatmap.</li>
+<li>Absolute natural reclaim energy per cell.</li>
+<li>Absolute natural reclaim mass per cell.</li>
+<li>Absolute initial wreck mass per cell.</li>
+<li>Source civilian entity count-density heatmap.</li>
+<li>Surface red.</li>
+<li>Surface green.</li>
+<li>Surface blue.</li>
+</ol>
+<p>Native height vertices are 513-square; cell heights are computed from their four
+corners and area-pooled to 256. Starts/mexes/hydros are rerasterized from exact
+source coordinates. Natural reclaim includes source props whose kinds are
+tree, rock, boulder or reclaim, including both mass and energy of those props.
+Wrecks remain separate. Reclaim sums use sigma-one Gaussian rasterization; these
+are source representation choices, without per-map budget normalization.
+RGB is the saved unlit material diagnostic: it omits decals, water rendering,
+props, lighting and normal-map shading.</p>
+<p>Training uses reversible asinh height and log1p nonnegative quantities; scale
+factors use positive training-map samples only. RGB maps to [-1,1]. Source
+targets are not clipped and do not normalize each map to a shared amount. Every
+included map passed encode/decode round-trip checks (maximum relative error
+7.07e-7), finite/shape checks and pinned source hashes. Physical arrays and encoded
+targets are both retained. Training caches encoded arrays as float16 on CPU,
+then converts batches to float32.</p>
+<p>Generation inputs are <strong>13 channels of Gaussian noise, timestep, and 12 ratings</strong>.
+Ratings map from the saved 1–5 scores to [-1,1]: expansion drop, offensive drop,
+air raid, drop impact, air mobility, land attack, naval attack, mex supply,
+reclaim abundance, early economy, front openness and army control demand.
+These are automated policy-specific scores. No clean source spatial channels
+enter generation. Starts are generated outputs. No SDF, pathing, front/access,
+economic analysis, eligibility masks, supplied anchors or validity-mask inputs
+are consumed.</p>
+<h2 id="compute-and-training">Compute and training</h2>
+<ul>
+<li>One five-scale residual U-Net with attention at 32 and 16 cells, base width
+128 and <strong>73,323,149 parameters</strong>. All 13 output channels share the network.</li>
+<li>RTX 5080, bfloat16 compute, float32 parameters/AdamW states, EMA, gradient
+clipping, aligned rotations/reflections and exchange of start channels.</li>
+<li>Tested microbatch six with four accumulated microsteps: <strong>effective batch 24</strong>.
+Probe: 12,152 MiB peak allocated, 12,702 MiB reserved, about 20.3 maps/second.
+A batch-four probe was slightly slower at 19.7 maps/second.</li>
+<li>The supervisor records actual GPU utilization, total memory use, power and
+temperature every 15 seconds. Early training samples were 94–98% utilization
+and approximately 15,000 MiB total device usage.</li>
+<li>Objective: equal mean across 13 velocity-prediction losses, with additional
+emphasis on nonempty source entity/value cells. This target-dependent loss
+weighting is not a spatial input or an exclusion mask. There are no geometry,
+symmetry, water-consistency or placement auxiliary losses.</li>
+<li>A 16-map, four-minute learning sanity check exercises positive civilian/wreck
+targets. This uses training data for both fitting and diagnostics; it is not
+held-out validation. Its weights are discarded before the full-cohort pilot.</li>
+<li>The full-cohort pilot starts fresh if the sanity check passes: aggregate fixed
+timestep loss must decrease at least 20%, and every channel must improve.</li>
+<li>Full pilot validation is on all 69 unseen families, at fixed noise/timestep,
+every five minutes. Resume checkpoints save at least every two minutes. Raw
+fresh-noise galleries and matched-noise mex-rating sweeps save every five
+minutes and at the end.</li>
+<li>Learning rate warms up over 500 steps and remains constant during the pilot,
+so a later longer run can resume without inheriting an end-of-pilot decay.
+Training does not automatically continue overnight.</li>
+</ul>
+<p>DDIM previews use 48 steps and classifier-free guidance 1.5. Clean estimates are
+numerically bounded inside sampling using training support; the <strong>unbounded final
+estimate and bounded sampler result are both saved</strong>. Displayed predictions and
+physical diagnostics use the unbounded final estimate, preserving negative-value
+or inconsistency failures. There is no symmetry projection, resource repair,
+count cap, geometric validator, budget composer or game-map export.</p>
+<h2 id="review-artifacts">Review artifacts</h2>
+<ul>
+<li><code>data/models/joint_sources_pilot_v1/pipeline.json</code>: supervisor state and deadline.</li>
+<li><code>gpu_history.json</code>: measured compute usage.</li>
+<li><code>sanity/sanity_result.json</code>: per-channel implementation-check ratios.</li>
+<li><code>pilot/training_receipt.json</code>: actual loader, dataset, sources, controls and shapes.</li>
+<li><code>pilot/progress.json</code>, <code>pilot/history.json</code>: progress and per-channel validation.</li>
+<li><code>pilot/last.pt</code>, <code>pilot/best.pt</code>: resumable latest and best validation snapshots.</li>
+<li><code>pilot/latest_layers.png</code>: two source examples followed by fresh generated layers.</li>
+<li><code>pilot/samples/step_*/</code>: arrays, ratings, raw/bounded outputs, fixed-scale PNGs
+and basic physical diagnostics. Source examples and generated maps are labeled.</li>
+<li><code>pilot/code_snapshot/</code>: exact training code for the run.</li>
+</ul>
+<p>Use the hour review to check that every channel learns, whether fresh samples
+contain useful structure and sparse entities, and whether changing requested
+ratings changes the generated outputs. Denoising improvement alone is not proof
+of playable maps, calibrated rating controls, originality or competitive balance.
+One short run cannot establish that extra compute will or will not solve the task.
+The overnight run would test continued progress under a fixed representation.</p>
+<p>To request a cooperative stop, create
+<code>data/models/joint_sources_pilot_v1/pause.request</code>. A future explicitly authorized
+resume can use <code>--resume</code> on the pilot with the same configuration and a longer
+session budget; model, EMA, optimizer and random states are checkpointed.</p>
+<script src="model-atlas/public-links.js" data-public-links></script></body></html>

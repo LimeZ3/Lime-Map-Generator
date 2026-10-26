@@ -1,0 +1,170 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>symmetry-opposing-starts.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="extract-01-symmetry-based-opposing-starts">EXTRACT-01: symmetry-based opposing starts</h1>
+<h2 id="current-owner-follow-up-27-october-2026">Current owner follow-up, 27 October 2026</h2>
+<p><strong>Automatic follow-up completed:</strong> the corrected search was applied to all nine. Standing Stones passes source/default checks; Fast Rush passes default 1v1 scope. Seven remain owner-only. <a href="symmetry-nine-map-followup.md">Per-map diagnostic report</a>. Current pairs are unchanged.</p>
+<p>The owner excluded Moon Safari (<code>1726_2483</code>) and verified the existing pairs on the other nine previously unresolved kept maps. The v2 sidecar records these as <strong>owner-verified pairs</strong>, separately from automatic symmetry confirmation. There are now <strong>1,256 kept maps / 54 exclusions</strong>, with setups for all 1,256 and no unresolved kept pairs. The earlier 14 replacement pairs and 67 policy alternatives are unchanged. Existing tensors and ratings are still unchanged.</p>
+<p>Use <code>data/processed/spawn_pair_audit_v2/eligible_manifest.json</code> together with <code>data/processed/spawn_pair_audit_v2/setups.json</code> for the next release. Owner confirmations and the pinned curation snapshot are in that directory. The original v1 audit below is historical and preserved.</p>
+<p>Standing Stones exposed an equal-size-group early-exit bug: its accepted horizontal mirror does not exchange the selected bases, while another valid vertical mirror was skipped. The search now retains equal-sized accepted alternatives separately. This fix is tested on Standing Stones and a synthetic regression case; it has <strong>not</strong> been run over the whole cohort and does not silently change existing PNGs, symmetry tensors or primary labels. <a href="symmetry-standing-stones.md">Diagnostic</a>.</p>
+<h2 id="original-v1-audit">Original v1 audit</h2>
+<p>Completed 27 October 2026. Policy <code>symmetry_opposing_starts_v1</code>. This produces a source-bound 1v1 scenario sidecar, not replacement gameplay ratings or a rewritten training release.</p>
+<h2 id="results">Results</h2>
+<table>
+<thead>
+<tr>
+<th>Category</th>
+<th align="right">All 1,310 audit maps</th>
+<th align="right">Kept after current owner curation</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Same pair, symmetry supported</td>
+<td align="right">1200</td>
+<td align="right">1165</td>
+</tr>
+<tr>
+<td>Old pair unsupported; replacement found</td>
+<td align="right">21</td>
+<td align="right">14</td>
+</tr>
+<tr>
+<td>Different preferred scenario; old pair also valid</td>
+<td align="right">75</td>
+<td align="right">67</td>
+</tr>
+<tr>
+<td>No assignable symmetry counterpart</td>
+<td align="right">11</td>
+<td align="right">10</td>
+</tr>
+<tr>
+<td>Only other source slot; symmetry unconfirmed</td>
+<td align="right">3</td>
+<td align="right">1</td>
+</tr>
+</tbody></table>
+<p>Current owner curation: 1,257 kept / 53 excluded. Of the separately recorded current curated terrain subset, 1114 remain kept; 13 have an unsupported old pair with a replacement, 63 change to another valid scenario, 10 remain unresolved, and one two-slot map uses its only opponent without symmetry confirmation. This differs from the original 1,310-map audit population.</p>
+<h2 id="pairing-rules">Pairing rules</h2>
+<ul>
+<li>Use actual ARMY_1 and actual source counterpart coordinates. Never rename, reposition or average starts. No ARMY_1 means unavailable.</li>
+<li>Human selections override measured transform hypotheses. Human None/unsure does not silently fall back to detected symmetry. Their provenance is preserved.</li>
+<li>Measured layout transforms use the existing 4-world-unit marker tolerance. Terrain-only and human hypotheses use the pre-existing strategy selector envelope of max(4 units, 5% of the smaller side). This is a scenario approximation, not a relaxed symmetry detection result.</li>
+<li>Require nearest matching in both forward and inverse directions. Do not pair a spawn with itself. Ambiguous nearby approximate targets are left unresolved.</li>
+<li>For several transforms, prefer mirror candidates with greatest base separation; if only rotations exist, prefer the angle closest to 180 degrees. Preserve the old pair among equally preferred options; deterministic residual/slot ordering breaks remaining ties, which remain listed as alternatives. This is a reproducible 1v1 scenario convention, not proof of intended teams.</li>
+<li>A two-slot map may retain its only other slot with explicit unconfirmed status. Multislot maps with no assignable transform are not guessed. Owner exclusions remain excluded.</li>
+</ul>
+<h2 id="how-many-have-the-dualgap-problem">How many have the DualGap problem?</h2>
+<p>Fourteen kept maps have an old pair that is unsupported by the recorded transform candidates and a supported replacement (21 including exclusions). Thirteen use supported source layouts; one uses terrain-only symmetry, so even this is evidence about scenario consistency rather than proof of gameplay unfairness. Another 67 kept maps change by policy despite having symmetry-valid old pairs. Do not call all 81 changes confirmed errors.</p>
+<p>DualGap itself is a separate archived 20km reference, outside this 10km audit cohort. Its actual source slots validate as ARMY_1 vs ARMY_2 under the new mirror preference. The historical 1-vs-12 setup can also be close to a valid rotational counterpart; symmetry alone cannot establish intended teams. The owner explicitly identified 1-vs-2 as the desired scenario.</p>
+<h3 id="unsupported-old-pair-with-replacement-kept-maps">Unsupported old pair with replacement, kept maps</h3>
+<table>
+<thead>
+<tr>
+<th>Map</th>
+<th>Key</th>
+<th>Old opponent</th>
+<th>Selected opponent</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Agartha</td>
+<td>5877_19636</td>
+<td>ARMY_2</td>
+<td>ARMY_4</td>
+</tr>
+<tr>
+<td>BugFight</td>
+<td>10419_19897</td>
+<td>ARMY_4</td>
+<td>ARMY_2</td>
+</tr>
+<tr>
+<td>Cerberus</td>
+<td>8670_15665</td>
+<td>ARMY_12</td>
+<td>ARMY_2</td>
+</tr>
+<tr>
+<td>commanders meeting</td>
+<td>1606_2320</td>
+<td>ARMY_4</td>
+<td>ARMY_6</td>
+</tr>
+<tr>
+<td>Cohera Gap</td>
+<td>15014_32424</td>
+<td>ARMY_6</td>
+<td>ARMY_2</td>
+</tr>
+<tr>
+<td>Lizas Mountains</td>
+<td>11730_23267</td>
+<td>ARMY_5</td>
+<td>ARMY_3</td>
+</tr>
+<tr>
+<td>Lucky square island</td>
+<td>6594_10651</td>
+<td>ARMY_8</td>
+<td>ARMY_2</td>
+</tr>
+<tr>
+<td>Oasis z</td>
+<td>8236_14438</td>
+<td>ARMY_12</td>
+<td>ARMY_11</td>
+</tr>
+<tr>
+<td>Potonew</td>
+<td>11746_24885</td>
+<td>ARMY_8</td>
+<td>ARMY_2</td>
+</tr>
+<tr>
+<td>Special Snowflake</td>
+<td>7036_11332</td>
+<td>ARMY_4</td>
+<td>ARMY_2</td>
+</tr>
+<tr>
+<td>Starway - Juntek</td>
+<td>6848_11083</td>
+<td>ARMY_5</td>
+<td>ARMY_7</td>
+</tr>
+<tr>
+<td>TwoFortslite</td>
+<td>13487_28199</td>
+<td>ARMY_8</td>
+<td>ARMY_2</td>
+</tr>
+<tr>
+<td>Volcanic Split</td>
+<td>12182_24466</td>
+<td>ARMY_10</td>
+<td>ARMY_2</td>
+</tr>
+<tr>
+<td>Zyrenian Islands</td>
+<td>5103_7791</td>
+<td>ARMY_2</td>
+<td>ARMY_7</td>
+</tr>
+</tbody></table>
+<h3 id="unresolved-kept-maps">Unresolved kept maps</h3>
+<p>These are not automatically broken maps. A symmetry can preserve the terrain while fixing ARMY_1 in place; source layouts can also lack a matching start or a human-selected None may deliberately reject a symmetry hypothesis.</p>
+<ul>
+<li>Moon Safari (<code>1726_2483</code>); human, manual none.</li>
+<li>Ayzee (<code>10181_19360</code>); source_layout, manual unset.</li>
+<li>Cold September (<code>11013_21391</code>); terrain_only, manual unset.</li>
+<li>Factory Wins (<code>12634_25656</code>); source_layout, manual unset.</li>
+<li>Fast rush (<code>13526_28337</code>); default_configuration_layout, manual unset.</li>
+<li>Fastest Possible 001 (<code>10796_20789</code>); terrain_only, manual unset.</li>
+<li>GRRRR (<code>14047_29879</code>); terrain_only, manual unset.</li>
+<li>hoodu (<code>8680_15649</code>); source_layout, manual unset.</li>
+<li>Island Ruckus (<code>10394_19868</code>); source_layout, manual unset.</li>
+<li>Standing Stones (<code>54_56</code>); source_layout, manual unset.</li>
+</ul>
+<h2 id="integration-and-validation">Integration and validation</h2>
+<p>The executable selector is <code>src/supmapai/extract/opposing_starts.py</code>; regenerate the audit with <code>PYTHONPATH=src python -m supmapai.tools.audit_opposing_starts</code>. The audit binds the source cohort, saved detector results, source marker checksums and owner-curation snapshot. Six tests passed, including the real archived DualGap markers, incorrect slot numbering, fixed-axis self-matching, human approximation and ambiguous targets. Output coverage, distinct slots, owner exclusions and source hashes were checked.</p>
+<p><code>data/processed/spawn_pair_audit_v1/setups.json</code> is compatible with the existing versioned pipeline <code>--setups</code> input. Always pair it with <code>--manifest data/processed/spawn_pair_audit_v1/eligible_manifest.json</code>: that manifest contains exactly the same 1,247 selected kept maps, avoiding legacy-selector fallback for omitted cases. Its explicit active_slots are hashed into that pipeline run contract. Do not attach the new pair to old adaptive resource tensors: 81 kept scenarios changed and require new default/adaptive resolution, spawn channels, terrain-control measurements and all scenario-dependent strategy outputs before training. Existing tensors, ratings, source coordinates and checkpoints were left unchanged. The frozen 1.2.1 automatic selector was not edited.</p>
+<p>Artifacts: <a href="model-atlas/spawn-pair-receipt.json">receipt</a>, <code>data/processed/spawn_pair_audit_v1/pairs.csv</code>, <code>results.json</code>, <code>rebuild_required.csv</code>, <code>setups.json</code> and <code>curation_snapshot.json</code>. Source curation remains live; a future dataset freeze must use a fresh pinned snapshot. No model training or expensive strategy rerun was started.</p>
+<script src="model-atlas/public-links.js" data-public-links></script></body></html>

@@ -1,0 +1,244 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>map-extraction-todos.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="maps-extraction-work-queue-current-owner-decisions">Maps extraction work queue — current owner decisions</h1>
+<p>Updated 25 October 2026. The <a href="model-atlas/maps-data-gap-plan.md">prioritized model-data plan</a>
+and <a href="model-atlas/extraction-work.json">structured queue</a> record accepted decisions,
+pending implementations, deferred discussions and exclusions. The original
+<a href="model-atlas/review-notes/2026-10-25-maps.json">review-note snapshot</a> is historical;
+later owner decisions supersede the earlier five-map/easy-rendering interpretation.
+Implementation is recorded only with receipts below. No new training is started.</p>
+<p><strong>First:</strong> EXTRACT-07 symmetry, with EXTRACT-01 start pairing dependent on it.
+<strong>Next foundations:</strong> EXTRACT-06 dataset release/size classes and EXTRACT-05 slope.
+<strong>Research inventory:</strong> EXTRACT-14 settings/defaults, EXTRACT-11 variants/entities,
+and EXTRACT-12a effects. Other difficult definitions remain deferred. 1v1 only.</p>
+<h2 id="extract-01-symmetry-based-opposing-starts-archived-dualgap-mismatch">EXTRACT-01 Symmetry-based opposing starts / archived DualGap mismatch</h2>
+<p><strong>Selection/audit implemented; downstream regeneration pending.</strong> See <a href="symmetry-opposing-starts.md">EXTRACT-01 audit</a>: 14 kept unsupported pairs have replacements, 67 change to another valid scenario, 10 remain unresolved. No source coordinates or historical ratings changed. The following 68-pair count is earlier terrain-only evidence, not the final audit result. EXTRACT-07 saves candidate transforms and
+source-slot correspondences; 68 recorded pairs are unmatched under the selected
+terrain transforms. These require review, not automatic relabeling. Match selected
+starts to actual source counterparts, then use those recorded 1v1 roles across
+analyses. Multiple symmetry mates require an explicit pairing rule. Never rename
+or reposition source ARMY records to manufacture correspondence.</p>
+<p>Exact historical example: DualGap Adaptive by Robustness, <code>8070_26498</code>,
+<code>dualgap_adaptive.v0014</code> (2 July 2023).</p>
+<p>The user reports that the source render is correct but the factual air-mask
+render is wrong because the second player is positioned incorrectly. Inspection
+confirms a mismatch between saved analysis families:</p>
+<table>
+<thead>
+<tr>
+<th>Evidence</th>
+<th>Slot 1 world x,z</th>
+<th>Opposing slot and world x,z</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Extracted markers</td>
+<td>112.5, 390.5</td>
+<td>ARMY_2: 911.4999, 390.5</td>
+</tr>
+<tr>
+<td>Historical air scenario</td>
+<td>112.5, 390.5</td>
+<td>ARMY_12: 909.5, 639.5</td>
+</tr>
+<tr>
+<td>Newer frontier scenario</td>
+<td>112.5, 390.5</td>
+<td>ARMY_2: approximately 911.5, 390.5</td>
+</tr>
+</tbody></table>
+<p>Source evidence:</p>
+<ul>
+<li><a href="../data/processed/project_atlas_v1/8070_26498/markers.json">Extracted slots</a></li>
+<li><a href="../data/processed/strategy_collection_1v1/8070_26498/opportunities.json">Historical air analysis</a></li>
+<li><a href="../data/processed/strategy_collection_1v1/8070_26498/automatic_layers.npz">Historical per-side masks</a></li>
+<li><a href="../data/processed/frontier_map_comparison/8070_26498/result.json">Newer frontier inputs and paths</a></li>
+</ul>
+<p>The archived mismatch is verified; its new repair is pending the dataset-wide
+symmetry work in EXTRACT-07. The owner identifies the missing symmetry check as
+the underlying pipeline gap. DualGap is evidence for that generic correction,
+not a reason to hardcode ARMY_2 as the opponent for every map. Preserve the old
+receipt/masks and original slot names. New player A/B roles must reference their
+actual source starts and the accepted transform.</p>
+<h2 id="extract-02-specific-mapmovement-coverage-reruns">EXTRACT-02 Specific-map/movement coverage reruns</h2>
+<p><strong>Out of current scope.</strong> The earlier request to fill particular atlas-map
+panels, including Setons FAF and FAF Beetles, is no longer an active job. Their
+missing exact-version whole-economy/frontier or hover/navy evidence remains
+historical disclosure. Never substitute stock versions or other movement rules,
+but do not prioritize individual-map extraction to fill atlas comparisons.</p>
+<h2 id="extract-03-main-base-rear-forward-economy-zones">EXTRACT-03 Main-base / rear / forward economy zones</h2>
+<p><strong>Deferred — hard discussion after symmetry.</strong> Test how much symmetry enforcement
+corrects before changing classification rules. Existing v1.2.1 zoning for Canis
+<code>4617_6826</code>, Tabula <code>9675_18616</code> and DualGap <code>8070_26498</code> is historical, not a new
+validated release. Remaining safety, ownership and zone semantics may require
+rules even after geometry is symmetric. Missing particular-map panels are not a
+current extraction task.</p>
+<h2 id="extract-04-contestability-and-resource-zone-definitions">EXTRACT-04 Contestability and resource-zone definitions</h2>
+<p><strong>Deferred with EXTRACT-03.</strong> Keep location/access/exposure/contestability meanings
+explicit, including separate mex and reclaim data. Symmetry is a prerequisite,
+not proof that rear resources are safe or forward resources contested. Discuss
+remaining definitions later rather than recalibrating scores now.</p>
+<h2 id="extract-05-supporting-slope-tensor">EXTRACT-05 Supporting slope tensor</h2>
+<p><strong>Decision accepted; implementation pending.</strong> Calculate slope and include it
+alongside terrain where relevant to models. Candidate field is physical
+steepness <code>1 x 256 x 256</code>, using physical cell spacing and validity neighborhoods.
+Downstream models can derive it from their upstream terrain. Terrain slope
+supervision can be calculated from predicted height; do not supply unavailable
+clean target slope as an inference condition. Same-resolution target semantics,
+loader/loss wiring and any loss weight still require validation. The selected
+terrain model&#39;s encoded-gradient loss is not the proposed physical-slope loss.
+Display-only additions are deferred; current checkpoints/outputs remain unchanged.</p>
+<h2 id="extract-06-dataset-release-non-square-sizes-and-validity">EXTRACT-06 Dataset release, non-square sizes and validity</h2>
+<p><strong>Accepted scope; implementation pending.</strong></p>
+<ul>
+<li><strong>06a:</strong> introduce the non-square/unequal-side class. Preserve native/playable
+width and height, aspect ratio, bounds and padding masks. Do not squash a
+rectangular map into a square or silently add it to the 10x10 km cohort.</li>
+<li><strong>06b:</strong> broaden from padding to auditing/solidifying the current 10x10 km
+1v1 dataset. Require name, stable ID, version, manifest and per-field readiness:
+sources, defaults, units/shapes, validity, extraction/semantic status, model use,
+unresolved data and required rebuilding. Starting candidate is the existing
+1,117-map curated cohort (1,020 train / 97 validation), not a new frozen release.
+Working name/ID are proposed in the plan; version is assigned at audit freeze.
+New audit finding: the 1,310-map parent inherited an earlier half-map filter,
+excluding 548 candidates. Review symmetry coverage and exclusion provenance
+before claiming a general 10km dataset; do not restore maps automatically.</li>
+</ul>
+<h2 id="extract-07-dataset-wide-symmetry">EXTRACT-07 Dataset-wide symmetry</h2>
+<p><strong>Extraction implemented; per-map human review and model-loader integration pending.</strong>
+<a href="layout_symmetry_v2.md">Current anchor-assisted v2</a> attempted all 1,310 audit maps
+in 360.7 seconds, zero failures: 791 terrain-close supported layouts, 89
+approximate layouts, 348 terrain-only cases and 82 unresolved. 36 former
+height-only no-matches are recovered. Rated status is never used to force a match.
+The earlier <a href="terrain_symmetry_detection.md">height-only scan</a> is archived.</p>
+<p>Full source inventory, selected default configuration and earlier terrain
+symmetry are saved separately, including one-to-one marker errors, movement
+checks, quality, source-slot correspondences and rejected candidate groups.
+The source/default/legacy-terrain conditions each have 28 values. The extracted
+source-layer PNGs use directional gradients; no raw height/marker is changed.
+Automatic symmetry flags were removed after owner acceptance. Diagnostic notes
+remain on 558 maps, separate from owner flags and keep/exclude decisions.
+No selected loader/checkpoint was changed.</p>
+<p>Current receipts: <a href="model-atlas/symmetry-receipt.json">detection</a>,
+<a href="model-atlas/symmetry-assets-receipt.json">PNG assets</a>,
+<a href="model-atlas/symmetry-layer-registration.json">registration</a>.
+Remaining: human review, configuration/runtime and movement-profile limitations,
+EXTRACT-01 pair policy, EXTRACT-13 path stitching, and compatible model integration.
+The inherited half-map cohort filter remains an EXTRACT-06b diversity concern.</p>
+<h2 id="extract-08-air-opportunity-scoring">EXTRACT-08 Air opportunity scoring</h2>
+<p><strong>Deferred — very hard scoring/decision work.</strong> Define good versus bad expansion,
+offensive-drop and raid locations from explicit economic and response assumptions.
+No new score or calibration is approved. Correct symmetry/scenarios first.</p>
+<h2 id="extract-09-access-hover-drop-only-semantics">EXTRACT-09 Access / hover / drop-only semantics</h2>
+<p><strong>Deferred — moved to difficult work requiring explicit rules.</strong> Revisit the
+relationship of access structure and spawn-reachable areas, hover accessibility
+and genuine valid drop-only destinations. Preserve existing fields as historical
+inputs; unwalkable or impassable does not automatically mean a landing is viable.</p>
+<h2 id="extract-10-team-game-configurations">EXTRACT-10 Team-game configurations</h2>
+<p><strong>Postponed. Current scope: 1v1 only.</strong> Retain future 2v2/3v3/4v4/6v6 slot/team
+selection without implementing it or claiming current analyses cover team games.</p>
+<h2 id="extract-11-settings-dependent-entities-and-configured-examples">EXTRACT-11 Settings-dependent entities and configured examples</h2>
+<p><strong>Planned, linked to EXTRACT-14.</strong> Resolve which props, wrecks, civilians and
+resource records activate or change quantity under defaults/options/active starts.
+Later, supported low/medium/rich configurations may become separate extracted
+examples and training conditions. They must have actual different tensors where
+settings change data, not new labels on the same arrays. Generated adaptive maps
+and version-enabled generated-map products are out of scope. Keep source author
+version, dataset version and configuration variant IDs distinct. All variants
+of a family remain in the same train/validation split.</p>
+<h2 id="extract-12-special-effects-in-map-appearance">EXTRACT-12 Special effects in map appearance</h2>
+<ul>
+<li><strong>12a — New tensor required; research and extraction pending.</strong> Locate effect
+IDs/asset-pool references, positions and available instance/default parameters
+such as scale, orientation and animation speed in map records/scripts. Do not
+assume all fields are serialized for every effect. Most maps may contain none;
+verified empty and unresolved extraction need different validity. Preserve
+instance identity and references separately from painted materials.</li>
+<li><strong>12b — Defer representation discussion.</strong> Heatmaps are a candidate for later;
+ID channels, time/animation and parameter encoding are not yet fixed. No effect
+model or completed effects tensor is claimed.</li>
+</ul>
+<h2 id="extract-13-complete-base-to-base-battle-paths">EXTRACT-13 Complete base-to-base battle paths</h2>
+<p><strong>Symmetry-based repair proposed; implementation pending.</strong> The owner identifies
+universal half-map reflection as a likely cause of abruptly ending/misaligned
+paths. Terrain-first symmetry and human-readable masks are now available.
+Use each measured transform/domain, select the subgroup preserving the actual
+1v1 pair, and stitch through shared passable contacts. Global map symmetry may
+map selected bases onto other slots; it must not manufacture additional armies.
+Independent mirrored/rotated route pieces still require continuity/ownership
+checks. No path algorithm or historical scores were changed by the symmetry
+asset work. See <a href="terrain_symmetry_detection.md">method</a>.</p>
+<h2 id="extract-14-every-map-settings-and-default-inventory">EXTRACT-14 Every-map settings and default inventory</h2>
+<p><strong>Large planned research task; dataset-wide, not five atlas maps.</strong> Inventory each
+map&#39;s option IDs, types, choices/ranges, settings count, declared lobby defaults,
+script fallback/effective defaults, dependencies, affected fields and source
+logic. Mark unknown/dynamic behavior explicitly; author conventions differ.
+A player&#39;s last-used lobby values are not map defaults. Settings count is not the
+number of valid combinations. Preserve the default configuration first; later
+support selected meaningful resource-poor/rich variants as distinct examples and
+conditions. Do not enumerate all combinations or imply adaptive-map generation.</p>
+<h2 id="extract-15-optional-artificial-data-augmentation">EXTRACT-15 Optional artificial data augmentation</h2>
+<p><strong>Low priority; possible anti-memorization follow-up.</strong> Current terrain training
+already rotates/reflections tensors through the inherited batch loader. Verify
+alignment across all relevant model inputs, targets, masks, coordinates and
+symmetry/effect metadata; other models may differ. Pixel shifting remains a
+future option with safe padding/cropping and updated validity/labels, not toroidal
+wraparound. Augmented/configured views are not new independent map families and
+must not cross dataset splits. Do not claim augmentation guarantees no memorization.</p>
+<h2 id="status-and-evidence-rules">Status and evidence rules</h2>
+<ul>
+<li>Owner-accepted layer flags remain unchanged; acceptance does not validate every
+default/runtime setting or model loader. EXTRACT-09 now explicitly needs rules.</li>
+<li>Distinguish decisions from code, scientific data from previews, and recorded
+readiness from process liveness. No task closes from a rendering change.</li>
+<li>Side-specific fields name actual source slots and the chosen transform/config.</li>
+<li>Keep current exact-version historical evidence, while prioritizing the dataset
+and source models rather than particular atlas-map rendering gaps.</li>
+</ul>
+<h3 id="symmetry-presentation-and-no-match-review-update">Symmetry presentation and no-match review update</h3>
+<p>All 1,310 maps have named symmetry diagrams, transparent PNG overlays and
+categorical display-region masks. These are presentation assets, not new model
+inputs or gameplay influence labels. 209 maps have explicit review reasons.
+All 118 no-match maps have saved vault ranked=True; 94 belong to the current
+curated cohort. Review them before treating no-match as a confirmed training
+condition. The flags do not change source membership or selected models.
+<a href="model-atlas/symmetry-assets-receipt.json">Asset receipt</a>.</p>
+<p>26 October: directional-gradient rendering replaces flat fills. Mirrored copies
+preserve gradient direction; rotational copies rotate it, with extra colors for
+multiple mirror axes. Pure-pattern PNGs and transparent overlays are available.
+This presentation update does not complete symmetry scientific review or the
+EXTRACT-13 path repair, and introduces no new selected model input.</p>
+<p>26 October owner decision: symmetry is promoted from experimental to the normal
+extracted source-layer catalog. Dataset comparison and detail views expose the
+PNG mask; type/review filters support inspection. This acceptance of the feature
+does not clear individual map flags or complete EXTRACT-01/13.</p>
+<h3 id="symmetry-review-finding-a_cinder_5v5_adaptive-26-october">Symmetry review finding: A_cinder_5v5_Adaptive, 26 October</h3>
+<p><a href="symmetry-cinder-review.md">Measured case study</a>: <code>5869_9372</code> has strong approximate
+half-turn/two-diagonal-mirror layout evidence despite failing the height-only
+gate. Record terrain error separately from gameplay-layout fit. Source starts,
+resource marker candidates and passability boundary/connectivity checks are the
+proposed next correction. No global threshold or map label changed in this review.</p>
+<h3 id="implemented-anchor-assisted-symmetry-v2-26-october">Implemented anchor-assisted symmetry v2, 26 October</h3>
+<p><a href="layout_symmetry_v2.md">Versioned method and results</a>: 1,310 maps attempted in
+360.7 seconds, no failures. 880 supported layouts (791 terrain-close, 89
+approximate), 348 terrain-only, 82 unresolved. 36 former height-only no-matches
+recovered, including Cinder. Asymmetric resource arrangements are not forced;
+ranked status is not an input. Source/default/terrain scopes and conditions are
+separate. Human review remains pending; EXTRACT-01/13 and selected training
+loaders were not changed by this detection update.</p>
+<h3 id="owner-acceptance-and-automatic-flag-removal-26-october">Owner acceptance and automatic-flag removal, 26 October</h3>
+<p>The owner checked the chosen symmetry results and requested removal of the
+automatic needs-review flags. Badges, filter, source-layer issue escalation and
+PNG status text are removed; numerical diagnostics and provenance remain.
+Manual atlas notes/flags and curation decisions are untouched. No-match stays 82.
+<a href="model-atlas/symmetry-analysis-assumptions.md">Analysis reference-frame proposal</a>
+keeps possible workflow assumptions separate from measured source symmetry;
+no assumed labels or new route enforcement have been implemented.</p>
+<h2 id="central-shared-marker-diagnostic--x-">Central shared-marker diagnostic: (-X-)</h2>
+<p>Confirmed an off-centre singleton hydro fails transform matching (4.933-unit centre offset, 9.866-unit half-turn displacement versus 4-unit tolerance). Independent mex/start/terrain rejections remain. No automatic policy or human label changed. Future work: distinguish central shared markers from paired markers and measure actual per-side accessibility rather than silently ignoring imbalance. <a href="symmetry-x-central-hydro.md">Evidence</a>.</p>
+<p>Follow-up on (-X-): tested shifted half-turn centres from selected/all spawns, mexes, hydro and sampled terrain. No single tested offset resolves layout mismatch; slots 1/2 are already almost centred. Human-selected symmetry unchanged. See the same diagnostic document.</p>
+<h2 id="extract-01-owner-follow-up-extract-07-search-completeness">EXTRACT-01 owner follow-up / EXTRACT-07 search completeness</h2>
+<p>27 October: Moon Safari excluded; nine existing unresolved pairs accepted by the owner. Versioned v2 setups cover all 1,256 kept maps with no unresolved kept pairs; 81 changed scenarios still need regeneration. Standing Stones demonstrates a search bug: an accepted horizontal mirror prematurely skipped a valid equal-sized vertical mirror. Fixed equal-sized-group enumeration and retained alternatives; eight layout tests passed. Targeted Standing Stones rerun passes the vertical source/default/movement checks. Existing bulk outputs are untouched; no full-cohort detector rerun or new training was started. <a href="symmetry-standing-stones.md">Evidence</a>.</p>
+<h2 id="nine-map-automatic-follow-up-27-october">Nine-map automatic follow-up, 27 October</h2>
+<p>Corrected search applied to all nine kept owner-confirmed pairs (Standing Stones plus eight additional maps), 4.64 seconds. Standing Stones passes source/default; Fast Rush passes default scope. Seven still fail other gates and remain owner-confirmed. Fast Rush also exposed omitted default-scope evidence in the initial pairing audit; the targeted evaluator now checks actual active pair swaps independently of inactive near-coincident starts. No thresholds, coordinates or existing tensor/label releases changed. <a href="symmetry-nine-map-followup.md">Per-map results</a>.</p>
+<h2 id="symmetry-authority-decision-closed-27-october">Symmetry authority decision closed, 27 October</h2>
+<p>Saved human suggestions override automatic labels; preserve original checked pairs. Resolver and source-bound effective-label sidecar implemented. Latest snapshot: 1,255 kept / 55 excluded; Cold September remains excluded. No further symmetry-choice decisions pending. Numeric release/loader integration, coherent augmentation and scenario-dependent regeneration remain engineering work for the next dataset release. <a href="symmetry-authority-policy.md">Policy and evidence</a>.</p>
+<script src="model-atlas/public-links.js" data-public-links></script></body></html>

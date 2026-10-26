@@ -1,0 +1,93 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>2026-10-25-project-update.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="../model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="mapgen-progress-update-25-october-2026">MapGen progress update — 25 October 2026</h1>
+<p>The <a href="https://mapgen-project-atlas.elven-bowl-7506.chatgpt.site">MapGen project atlas</a> is the main project reference for status, map layers, data, selected models, experimental branches, results and open work. The project remains <strong>experimental research software</strong>, not a finished or competitively validated generator.</p>
+<p>This update records progress since the initial repository snapshot. Evidence is the atlas catalog and saved receipts, refreshed 2026-10-26T23:54:12+00:00.</p>
+<h2 id="implemented-and-collected">Implemented and collected</h2>
+<h3 id="first-player-confirmed-playable-generated-map---achieved-2026-10-25">First player-confirmed playable generated map - achieved 2026-10-25</h3>
+<p>A saved map produced by the staged learned-terrain, learned-marker and learned-reclaim-allocation pipeline loads and is judged playable by the player. First playable proof of concept, not competitive certification or evidence that every generated map is playable.</p>
+<p>Evidence: <a href="../first-playable-map.md">docs/first-playable-map.md</a>.</p>
+<h3 id="map-extraction-and-source-representations">Map extraction and source representations</h3>
+<p>Terrain/water, starts, resource markers, natural energy/mass, wrecks, civilians and surface material representations have source receipts. Unknown values and unsupported runtime rules remain explicit.</p>
+<p>Evidence: <a href="../map_layers_v2.md">docs/map_layers_v2.md</a>.</p>
+<h3 id="four-selected-generation-stages">Four selected generation stages</h3>
+<p>Terrain/water, resource markers, natural reclaim allocation and wreck allocation have selected checkpoints. Deterministic finishing/composition exports geometry, markers and entities.</p>
+<p>Evidence: <a href="../model-atlas/catalog.json">docs/model-atlas/catalog.json</a>.</p>
+<h3 id="dataset-and-texture-preparation">Dataset and texture preparation</h3>
+<p>The selected curated cohort contains 1,020 training and 97 validation maps. Texture extraction completed 1,117 maps with no decode failures; 929 albedo sources are fully resolved. Extraction success does not certify every shader’s training semantics.</p>
+<p>Evidence: <a href="../map_texture_tensors.md">docs/map_texture_tensors.md</a>.</p>
+<h3 id="gameplay-analysis-and-annotation-pipeline">Gameplay-analysis and annotation pipeline</h3>
+<p>Versioned route/front, resource-economy and air/drop analyses exist. The 3,108-version annotation-pool milestone reports 2,764 scored maps, 329 exclusions and 15 failures. These are heuristic 1v1 observations, not map-quality ground truth.</p>
+<p>Evidence: <a href="../map-rating-extraction/README.md">docs/map-rating-extraction/README.md</a>.</p>
+<h3 id="concluded-all-in-experiment-negative-result">Concluded all-in experiment: negative result</h3>
+<p>One 73.3M-parameter model jointly predicted 13 source channels from noise and 12 ratings, on 782 train / 69 validation maps. About 9.10 measured GPU-session hours including diagnostics did not produce usable maps. The detailed report preserves methods, compute, figures and limits. Research is closed; no checkpoint is promoted.</p>
+<p>Evidence: <a href="../model-atlas/research/all-in/index.html">docs/model-atlas/research/all-in/index.html</a>.</p>
+<h3 id="navigable-project-atlas">Navigable project atlas</h3>
+<p>Five exact FAF map versions, 19 comparison families, source/method links, model contracts, archived runs, global preview sliders and explicit extraction TODOs now organize the project.</p>
+<p>Evidence: <a href="../model-atlas/index.html">docs/model-atlas/index.html</a>.</p>
+<h3 id="dataset-audit-in-the-atlas">Dataset audit in the atlas</h3>
+<p>The 1x1, 10km tab preserves all 1310 maps from the original Full256 V3 audit collection, with exact membership, per-map source/derived/target previews, coverage filters, strategy/vault ratings, questions and shared owner-editable flags/notes. Dataset selection defaults to Kept while preserving existing exclusions; owner-only per-map and atomic page actions, plus independent manual symmetry suggestions with instant geometric previews, are saved across devices. Frozen source releases remain recorded separately.</p>
+<p>Evidence: <a href="../dataset-atlas.md">docs/dataset-atlas.md</a>.</p>
+<h3 id="extracted-anchor-assisted-symmetry-map-data">Extracted anchor-assisted symmetry map data</h3>
+<p>All 1310 maps processed in 360.7 seconds with no failures. 791 terrain-close and 89 approximate layouts are supported; 348 remain terrain-only and 82 unresolved. 36 former height-only no-matches are recovered. Source/default/terrain evidence remains separate, rated status is not used and selected model inputs are unchanged.</p>
+<p>Evidence: <a href="../layout_symmetry_v2.md">docs/layout_symmetry_v2.md</a>.</p>
+<h3 id="human-readable-symmetry-diagrams-and-diagnostic-catalogs">Human-readable symmetry diagrams and diagnostic catalogs</h3>
+<p>All 1310 maps have named types, directional-gradient PNG patterns, transparent 512px overlays and annotated geometry diagrams. Mirrored copies preserve gradient direction; rotational copies rotate it; multiple axes add colors. Automatic symmetry review flags were removed at the owner’s request; measured fit and scope diagnostics remain. 82 have no supported symmetry, including 63 current curated maps. No-match is not confirmed asymmetry. EXTRACT-13 now records the proposed transform-aware, scenario-preserving path repair; the path algorithm itself is unchanged.</p>
+<p>Evidence: <a href="../layout_symmetry_v2.md">docs/layout_symmetry_v2.md</a>.</p>
+<h3 id="measured-symmetry-review-5869_9372">Measured symmetry review: 5869_9372</h3>
+<p>Anchor-assisted v2 now supports approximate half-turn + two diagonal mirror axes. Earlier measured height MAE remains 1.368 world units; the height-only gate still rejects that fit. Source and default layout checks pass, with original artistic terrain preserved.</p>
+<p>Evidence: <a href="../symmetry-cinder-review.md">docs/symmetry-cinder-review.md</a>.</p>
+<h3 id="measured-symmetry-review-963_1306">Measured symmetry review: 963_1306</h3>
+<p>(-X-) shifted-centre hypothesis tested: slots 1/2 midpoint (256.412,254.696) is near map centre, but hydro mismatch remains 8.771 units and only 8/24 mexes match. Other spawn pair and mexes imply different centres. Native-terrain mismatch remains; a single translation does not explain the tested half-turn failures. Human-selected symmetry unchanged.</p>
+<p>Evidence: <a href="../symmetry-x-central-hydro.md">docs/symmetry-x-central-hydro.md</a>.</p>
+<h3 id="measured-symmetry-review-54_56">Measured symmetry review: 54_56</h3>
+<p>Standing Stones vertical mirror passes the existing terrain, source/default markers and movement checks; it was skipped after a horizontal mirror. Search now retains equal-sized alternatives. Half-turn narrowly fails at 4.243-unit resource error. Existing ARMY_1/ARMY_2 pair retained. No bulk relabeling.</p>
+<p>Evidence: <a href="../symmetry-standing-stones.md">docs/symmetry-standing-stones.md</a>.</p>
+<h3 id="symmetry-based-1v1-opposing-start-audit">Symmetry-based 1v1 opposing-start audit</h3>
+<p>All 1310 maps audited against saved transforms and owner suggestions. 14 kept maps have unsupported old pairs with replacements; 67 switch between valid scenarios; 0 remain unresolved; 9 existing pairs are owner-verified. The archived DualGap selects slots 1/2. Versioned setups are ready; historical tensors/ratings are unchanged and changed scenarios need fresh extraction before training.</p>
+<p>Evidence: <a href="../symmetry-opposing-starts.md">docs/symmetry-opposing-starts.md</a>.</p>
+<h3 id="nine-map-symmetry-search-follow-up">Nine-map symmetry search follow-up</h3>
+<p>Corrected search applied to 9 previously unresolved kept maps. Standing Stones passes source/default checks; Fast Rush passes default 1v1 scope. 7 remain owner-confirmed without automatic layout certification. Existing pairs and historical tensor/label releases are unchanged.</p>
+<p>Evidence: <a href="../symmetry-nine-map-followup.md">docs/symmetry-nine-map-followup.md</a>.</p>
+<h3 id="human-symmetry-overrides-and-original-checked-pairs">Human symmetry overrides and original checked pairs</h3>
+<p>Manual suggestions take precedence over detection in the implemented authority resolver and saved sidecar. Current curation has 1255 kept and 55 excluded maps; 89 source records have human overrides. Original owner-verified pairs remain. No further symmetry-choice decision is pending; numeric tensor/loader integration and changed-scenario rebuilding remain for the next release.</p>
+<p>Evidence: <a href="../symmetry-authority-policy.md">docs/symmetry-authority-policy.md</a>.</p>
+<h2 id="current-evidence">Current evidence</h2>
+<ul>
+<li><p><strong>4 selected trained stages</strong>; <strong>41 discovered checkpoint-bearing runs</strong> are preserved as an inventory, not 41 active pipeline stages.</p>
+</li>
+<li><p><strong>1020 train / 97 validation</strong> in the selected curated cohort. No independent final test set is being claimed.</p>
+</li>
+<li><p><strong>1117 texture extractions</strong>, <strong>929 fully resolved albedo sources</strong>; learned painting is not selected.</p>
+</li>
+<li><p><strong>5 exact map versions</strong> across <strong>19 source/derived comparison rows</strong>.</p>
+</li>
+<li><p>Separate joint experiment: <strong>13 channels</strong>, <strong>782 train / 69 validation</strong>; no selected production release.</p>
+</li>
+<li><p>MapGen Heatmap Medium 303: player assessment - &quot;This map is actually playable. Not good, but also not terribly bad and IS playable.&quot; Frozen presentation export preserved; no claim of competitive certification.</p>
+</li>
+<li><p>Selected terrain geometry and natural reclaim composition have been observed in game; resource markers were exported and playtested, with balance still unproven.</p>
+</li>
+<li><p>Wreck allocation is trained and exported, but its current runtime behavior is not yet verified.</p>
+</li>
+<li><p>The joint one-map baseline reproduced a spatial template (height correlation 0.9980 at update 2,365), while sparse-density totals remained badly biased (Start A integral 139.6 instead of one). This is memorization evidence, not generalization.</p>
+</li>
+<li><p>The all-in research is closed with a negative full-generation result after 9.10 measured session hours and 667,632 map presentations. Lower LR avoided the old collapse through update 4,971, but fresh maps and quantity totals remained unusable. The complete report is in the atlas.</p>
+</li>
+</ul>
+<h2 id="next-work">Next work</h2>
+<ul>
+<li>Preserve the first playable demonstration while further research and training-data improvements proceed; no new training is scheduled by the milestone.</li>
+<li>Owner decisions: EXTRACT-07 symmetry is the first priority, including multiple reflection axes and radial sectors, model encoding and source-start correspondence. EXTRACT-05 slope is accepted with implementation pending. See docs/model-atlas/maps-data-gap-plan.md and docs/model-atlas/extraction-work.json. Extracted terrain-symmetry data now cover 1,310 audit maps; scientific review, start-pair policy and loader integration remain pending. No new training was started.</li>
+<li>Solidify the current 10x10 km / 1v1 dataset as a named, versioned release with field readiness, non-square size classification and explicit validity; working name/ID are not a newly frozen dataset.</li>
+<li>Inventory settings and declared/effective defaults for every dataset map; later configured resource-poor/rich examples may support static-map training. Generated adaptive maps remain out of scope.</li>
+<li>Research a separate special-effects tensor with IDs/positions and supported parameters. Effect heatmap encoding is deferred.</li>
+<li>Access rules, connected battle paths, economy-zone/contestability definitions and air scoring are deferred difficult work after symmetry. Team games are postponed; current scope is 1v1.</li>
+<li>Specific atlas-map extraction reruns are out of scope. Additional augmentation is low priority; the terrain trainer already uses quarter-turn rotations/reflections, while pixel shifts require future validation.</li>
+<li>Joint-source research is concluded for now; possible representation/objective changes are documented hypotheses, not scheduled training.</li>
+<li>Learned texture painting, civilian composition and spawn-layout generation remain planned or experimental, with exact boundaries in the catalog.</li>
+<li>Continue structuring completed work and the TODO list in this atlas; validate exports and gameplay rather than equating loss with playability.</li>
+</ul>
+<p>The <a href="../map-extraction-todos.md">maps extraction work queue</a> tracks known source/pairing/zoning issues and missing coverage. Reports using stock Setons/Beetles must not be presented as the selected FAF versions.</p>
+<h2 id="keeping-this-current">Keeping this current</h2>
+<p>The atlas is the authoritative project index; this report is a dated snapshot. After meaningful progress, update the atlas catalog/status/work queue, refresh the saved evidence, and publish the public atlas snapshot. The ChatGPT Site checks GitHub for a newer snapshot every minute while open. This is publication-driven updating, not automatic access to uncommitted local files or a claim that training is continuously monitored. Hosting uses ChatGPT Sites, not Netlify.</p>
+<p>Original project code is MIT licensed. Existing maps and game assets retain their respective owners; the atlas identifies their versions and treats their previews as reference material.</p>
+<script src="../model-atlas/public-links.js" data-public-links></script></body></html>

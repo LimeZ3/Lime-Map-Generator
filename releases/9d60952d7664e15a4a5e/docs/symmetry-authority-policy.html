@@ -1,0 +1,21 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>symmetry-authority-policy.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="human-symmetry-authority-and-preserved-spawn-pairs">Human symmetry authority and preserved spawn pairs</h1>
+<p>27 October 2026. Owner decision: saved manual symmetry suggestions override automatic detection. Keep the original source pairs on the checked formerly unresolved maps. No further symmetry-selection decision is pending for this cohort.</p>
+<p>The resolver <code>src/supmapai/extract/symmetry_authority.py</code> implements this precedence:</p>
+<ol>
+<li>Dataset exclusion is independent and takes precedence over eligibility. Never restore an excluded map merely because its symmetry is labeled.</li>
+<li>A non-unset human suggestion is the effective symmetry condition, even if a different automatic result is valid. Human None is explicit; human unsure remains unavailable rather than silently reverting to detection.</li>
+<li>With no manual suggestion, retain the recorded automatic result and its recorded availability.</li>
+<li>Keep measured fit, source/default scopes, coordinates and raw arrays as separate evidence. An override does not average terrain, move entities, or certify exact invariance.</li>
+<li>Preserve the original owner-verified pairs on the nine formerly unresolved kept maps. This does not reset the 81 scenario changes elsewhere in the earlier audit. Use actual coordinates in downstream analysis.</li>
+</ol>
+<p>The pinned snapshot contains <strong>1,310 maps: 1,255 kept / 55 excluded</strong>, including <strong>89 human overrides</strong> and 1,221 automatic selections (counts include excluded records). Cold September is now excluded and remains excluded. All seven discussed maps have saved manual suggestions. The override policy is tested independently of detector accuracy.</p>
+<p><code>data/processed/symmetry_authority_v1/effective_records.json</code> materializes the selected authority, human ID or measured descriptor, geometry, curation version, hashes and actual pair for each source map. Filtered <code>setups.json</code> and <code>eligible_manifest.json</code> cover exactly the 1,255 kept maps. Three resolver tests passed; original owner-pair preservation, eligibility and setup parity were checked. This is a data-authority sidecar, not a trained model or a regenerated numeric dataset.</p>
+<h2 id="remaining-engineering-before-the-next-training-release">Remaining engineering before the next training release</h2>
+<ul>
+<li>Wire effective human/automatic symmetry into the new release and actual selected loader, with explicit missing-condition masks and a consistent numeric representation. Existing checkpoints/loaders are unchanged.</li>
+<li>Rebuild scenario-dependent spawn channels, default/adaptive resource resolution, terrain-control measurements and gameplay layers for changed pairs. Never combine new spawns with old scenario tensors.</li>
+<li>Transform symmetry, coordinates and directional channels consistently during existing rotation/reflection augmentation. Do not treat human-selected approximate symmetry as permission to make raw terrain exactly symmetric.</li>
+<li>Freeze dataset identity, splits, source/default/field readiness and exclusions in EXTRACT-06; complete physical slope (EXTRACT-05) and non-square size metadata (EXTRACT-06a). Future battle-path work remains EXTRACT-13.</li>
+</ul>
+<p>These are recorded implementation tasks, not new manual symmetry questions. Numeric tensors were not rebuilt, no training was started, and historical receipts remain unchanged. <a href="model-atlas/symmetry-authority-receipt.json">Current receipt</a>.</p>
+<script src="model-atlas/public-links.js" data-public-links></script></body></html>
