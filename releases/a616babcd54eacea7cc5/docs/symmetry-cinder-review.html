@@ -1,0 +1,154 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>symmetry-cinder-review.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="a_cinder_5v5_adaptive-terrain-and-gameplay-symmetry-review">A_cinder_5v5_Adaptive: terrain and gameplay symmetry review</h1>
+<p>26 October 2026. Exact source: <code>5869_9372</code>,
+<code>a_cinder_5v5_adaptive.v0004</code>, current curated validation split. This is a
+single-map diagnostic. Existing labels, tensors, splits and detector tolerances
+are preserved; no training or collection-wide relabeling was run.</p>
+<p>The owner&#39;s visual assessment is that the gameplay layout is symmetric while
+intentional terrain variation adds visual interest. Measurements support an
+<strong>approximate half-turn plus two diagonal mirror axes</strong> candidate. They do not
+prove identical gameplay, route widths, travel times or engine navigation.</p>
+<h2 id="full-native-terrain-comparison">Full native terrain comparison</h2>
+<p>Coordinates are physical game world units. Comparisons use all 263,169 native
+height vertices, not preview colors. Cell masks use their distinct half-cell
+coordinate convention. Fixed transforms are centered at (256,256), with mirrors
+at 45 and 135 degrees. Errors do not include a fitted vertical translation.</p>
+<table>
+<thead>
+<tr>
+<th>Measurement</th>
+<th align="right">180-degree rotation</th>
+<th align="right">45-degree mirror</th>
+<th align="right">135-degree mirror</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Mean absolute height difference</td>
+<td align="right">1.368</td>
+<td align="right">1.344</td>
+<td align="right">0.990</td>
+</tr>
+<tr>
+<td>Median absolute height difference</td>
+<td align="right">0.992</td>
+<td align="right">0.906</td>
+<td align="right">0.680</td>
+</tr>
+<tr>
+<td>95th percentile height difference</td>
+<td align="right">3.898</td>
+<td align="right">3.953</td>
+<td align="right">2.992</td>
+</tr>
+<tr>
+<td>Maximum height difference</td>
+<td align="right">13.156</td>
+<td align="right">12.773</td>
+<td align="right">13.563</td>
+</tr>
+<tr>
+<td>Saved land-mask agreement</td>
+<td align="right">95.538%</td>
+<td align="right">94.585%</td>
+<td align="right">95.016%</td>
+</tr>
+<tr>
+<td>Saved hover-mask agreement</td>
+<td align="right">95.332%</td>
+<td align="right">94.410%</td>
+<td align="right">94.880%</td>
+</tr>
+<tr>
+<td>Wet/dry agreement</td>
+<td align="right">99.796%</td>
+<td align="right">99.799%</td>
+<td align="right">99.850%</td>
+</tr>
+</tbody></table>
+<p>Full height range is 27.891–67.500, or 39.609 units. Robust 5th–95th percentile
+relief is 18.278 units. Half-turn height differences exceed 5 units at 2.351%
+of vertices; they exceed 10 units at 0.084%. Thus differences are mostly modest,
+but they are not confined to a few changed pixels.</p>
+<p>Of the 11,698 cells where the land mask disagrees under the half-turn,
+87.65% are within two native cells of an original passability edge and 96.44%
+within four. This is consistent with small shifts in cliff/hill boundaries.
+It does not establish that every shifted edge is tactically irrelevant.</p>
+<p>Using four-neighbor connected components of the saved static land masks, every
+one of the ten source starts reaches the same 90 out of 92 active mexes before
+and after all three candidate transforms. There are zero changed spawn-to-mex
+reachability observations. No snapping of source points is used. This checks
+endpoint connectivity, not route length/width, unit clearance or the engine.</p>
+<p>Gaussian smoothing does not eliminate the mismatch: half-turn height MAE falls
+from 1.368 to 1.286 at sigma=4 cells and 1.077 at sigma=16 cells. Do not assume
+all artistic asymmetry is small high-frequency noise that can simply be blurred.</p>
+<h2 id="marker-evidence">Marker evidence</h2>
+<p>Matching uses one-to-one minimum-total-distance assignment separately for starts,
+mexes and hydros. This prevents multiple transformed points reusing one target.
+All source markers and the pinned active configuration are checked separately.</p>
+<table>
+<thead>
+<tr>
+<th>Half-turn evidence</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>All ten source starts</td>
+<td>Mean displacement 2.013; maximum 2.828 units</td>
+</tr>
+<tr>
+<td>All 124 source mexes</td>
+<td>104 exactly matching within numerical precision; mean displacement 0.368; maximum 3.162</td>
+</tr>
+<tr>
+<td>92 active mexes</td>
+<td>76 exactly matching; mean displacement 0.452; maximum 3.162</td>
+</tr>
+<tr>
+<td>Four active hydros</td>
+<td>Maximum displacement 2.236 units</td>
+</tr>
+</tbody></table>
+<p>At a 4-world-unit anchor tolerance, every start, source mex, active mex and hydro
+matches under the half-turn. This is a diagnostic tolerance illustration, not
+an adopted global rule. Under each diagonal mirror, all 124 source mexes and all
+92 active mexes match within 3 units. All ten starts also match within 3 units
+(allowing floating-point rounding at the boundary).</p>
+<p>Wrong candidates are well separated: under a 90-degree rotation or a horizontal
+mirror, no start or mex matches within 3 units. Mean start displacement is about
+231 units, versus 1.46–2.01 for the diagonal mirrors/half-turn.</p>
+<p>The 45-degree mirror and half-turn exchange the recorded 1v1 bases; the
+135-degree mirror approximately fixes them individually. Therefore choosing only
+the lowest-height-error mirror would lose important scenario information.</p>
+<h2 id="why-the-current-detector-returns-no-match">Why the current detector returns no match</h2>
+<p>The detector already allows height differences; it is not an exact pixel test.
+Its feature-weighted height RMSE is normalized by robust relief, with an
+acceptance limit of 0.055. For the fixed half-turn the score is <strong>0.10139</strong>;
+the frozen fitted half-turn is <strong>0.10133</strong>. The p95 normalized error is <strong>0.21132</strong>
+versus a limit of <strong>0.12</strong>. Even the best fitted diagonal mirror has RMSE
+<strong>0.08242</strong>, above the limit. Fitting center/angle makes little difference.</p>
+<p>The score is not a percentage of mismatched pixels or a confidence probability.
+The geometry is approximately symmetric; the current height-only acceptance
+gate is too restrictive for the desired gameplay-layout interpretation here.</p>
+<h2 id="proposed-correction-not-yet-a-global-policy">Proposed correction, not yet a global policy</h2>
+<ol>
+<li>Propose candidates from terrain <strong>and</strong> spatially distributed source starts,
+mexes and hydros, using separate marker classes and one-to-one matching.</li>
+<li>Retain raw height fit as its own measurement. Add an approximate symmetry
+evidence state rather than treating every rejected height fit as no symmetry.</li>
+<li>Validate gameplay geometry with passability-boundary distance and endpoint
+connectivity. Important chokepoint/access changes require separate review;
+a large percentage of agreeing cells alone is insufficient.</li>
+<li>Store group type, terrain mismatch and gameplay-layout agreement separately.
+Retain the original artistic terrain. A layout symmetry label must not
+automatically impose exact symmetry on height, textures or decorative props.</li>
+<li>Validate candidate tolerances on more unresolved maps before changing the
+collection&#39;s rules. A 4-unit marker tolerance works here; simply doubling the
+global height threshold would not establish a safe general rule.</li>
+</ol>
+<p><img src="../data/processed/symmetry_cinder_diagnostic_v1/comparison.png" alt="Native terrain, height residuals and land-mask disagreement"></p>
+<p>Machine-readable <a href="../data/processed/symmetry_cinder_diagnostic_v1/report.json">report</a>,
+<a href="../tools/inspect_symmetry_mismatch.py">diagnostic tool</a> and
+<a href="../tests/test_symmetry_mismatch_metrics.py">coordinate/matching tests</a>.</p>
+<p>Reproduce with <code>PYTHONPATH=src</code> and <code>.venv-codex/Scripts/python.exe</code>:
+<code>tools/inspect_symmetry_mismatch.py --key 5869_9372 --out data/processed/symmetry_cinder_diagnostic_v1</code>.</p>
+<script src="model-atlas/public-links.js" data-public-links></script></body></html>

@@ -1,0 +1,356 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>analyze_strategy_collection.py | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="../docs/model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1>analyze_strategy_collection.py</h1><p class="meta">Saved public evidence snapshot: src/supmapai/tools/analyze_strategy_collection.py</p><pre>&quot;&quot;&quot;Resumable combined route/drop/air collection analysis (no network requests).&quot;&quot;&quot;
+import argparse,copy,csv,hashlib,json,math,os,shutil,subprocess,sys,time,traceback
+from pathlib import Path
+import numpy as np
+from PIL import Image,ImageDraw
+from supmapai.extract import adaptive_resources
+from supmapai.strategy.opportunities import analyze,mirror_spawn
+from supmapai.strategy.corridors import corridor_routes
+from supmapai.strategy.route_normalization import prepare_routes,symmetric_membership
+from supmapai.strategy.route_metrics import analyze_routes
+from supmapai.strategy.drop_calibration import calibrate,destination_distances
+from supmapai.strategy.drop_impact import route_strength,summarize
+from supmapai.tools.compare_navigation_maps import INPUT,prepare as prepare_navigation
+from supmapai.tools.enrich_corridor_metrics import resources_for_record,colour_image
+from supmapai.tools.extract_strategic_features import effective_resources
+from supmapai.tools.inspect_opportunities import source_profiles,economy_profile
+ROOT=Path(__file__).resolve().parents[3]
+OUT=ROOT/'data/processed/strategy_collection_1v1'
+COHORT=ROOT/'data/manifests/strategy_collection_20261015.json'
+FLAGS=['expansion_drop','offensive_drop','air_raid','all_drops']
+
+def replace_retry(source,target):
+    for attempt in range(24):
+        try:source.replace(target);return
+        except PermissionError:
+            if attempt==23:raise
+            time.sleep(.25)
+
+def dump(path,value):
+    path.parent.mkdir(parents=True,exist_ok=True)
+    tmp=path.with_name(path.name+'.'+str(os.getpid())+'.tmp')
+    tmp.write_text(json.dumps(value,indent=2,allow_nan=False),encoding='utf-8');replace_retry(tmp,path)
+
+def fingerprint():
+    paths=[*sorted((ROOT/'src/supmapai/strategy').glob('*.py')),ROOT/'src/supmapai/extract/adaptive_resources.py']
+    return hashlib.sha256(Path(__file__).read_text(encoding='utf-8').split('def report(')[0].encode()+b''.join(p.read_bytes() for p in paths)).hexdigest()
+
+def stage(out,name):dump(out/'stage.json',dict(stage=name,updated=time.time(),pid=os.getpid()))
+
+def select_pair(nav):
+    a=next((s for s in nav['spawns'] if s['name']=='ARMY_1'),None)
+    if a is None:raise ValueError('No slot 1')
+    w,h=nav['width'],nav['height'];options=[]
+    targets=[('rotate180_approximate',(w-a['x'],h-a['z'])),('mirror_x',(w-a['x'],a['z'])),('mirror_z',(a['x'],h-a['z']))]
+    if w==h:targets += [('diagonal',(a['z'],a['x'])),('anti_diagonal',(w-a['z'],h-a['x']))]
+    for kind,target in targets:
+        for b in nav['spawns']:
+            if b['name']==a['name']:continue
+            error=math.hypot(b['x']-target[0],b['z']-target[1]);distance=math.hypot(a['x']-b['x'],a['z']-b['z'])
+            # A precise reflection must outrank a merely approximate rotation.
+            # Treat sub-cell differences as ties; prefer rotation only on a tie.
+            if error&lt;=max(4,.05*min(w,h)):options.append((max(0,error-1),0 if kind=='rotate180_approximate' else 1,error,-distance,b['name'],b,kind))
+    if options:
+        _,_,error,_,_,b,kind=min(options)
+        if kind=='rotate180_approximate' and error&lt;=max(4,.02*min(w,h)):kind='rotate180'
+        return a,b,dict(kind=kind,position_error=error,selection_policy='closest geometric counterpart; sub-cell ties prefer rotation',
+            candidates=[dict(slot=o[-2]['name'],kind=o[-1],position_error=o[2]) for o in sorted(options)])
+    others=[s for s in nav['spawns'] if s['name']!=a['name']]
+    if len(others)==1:return a,others[0],dict(kind='only_other_slot_asymmetric',position_error=None,fallback='two-slot map; no geometric mirror assumed')
+    raise ValueError('No unambiguous mirrored opponent for slot 1')
+
+def front_metrics(d):
+    routes=d['routes']
+    if not routes:return dict(category='disconnected',route_count=0,best_bottleneck=None,median_bottleneck=None,mean_route_width=None,all_route_shared_length=0,search_limits=d.get('limits',[]))
+    widths=[r['width']['minimum_sustained_8'] for r in routes if r.get('width')]
+    best=max(widths);shared=sum(s['length'] for s in d.get('merged_sections',[]) if len(s['route_ids'])==len(routes)) if len(routes)&gt;1 else 0
+    return dict(category='closed' if best&lt;24 else 'open' if best&gt;=64 else 'mixed',route_count=len(routes),
+        route_family_count=len({tuple(r['signature']) for r in routes}),best_bottleneck=best,median_bottleneck=float(np.median(widths)),mean_route_width=float(np.mean([r['width']['mean'] for r in routes])),
+        shortest_length=min(r['length'] for r in routes),longest_length=max(r['length'] for r in routes),
+        all_route_shared_length=shared,search_limits=d.get('limits',[]),
+        widths=[dict(route=r['id'],minimum=r['width']['minimum'],sustained_8=r['width']['minimum_sustained_8'],mean=r['width']['mean']) for r in routes])
+
+def resolve_configuration(key,folder,script,nav,slots):
+    resolution=adaptive_resources.resolve(folder,script,[dict(**s,slot=int(s['name'].split('_')[-1]),slot_valid=True) for s in nav['spawns']],
+        [m for m in nav['markers'] if m['type']=='Mass'],[m for m in nav['markers'] if m['type']=='Hydrocarbon'],slots)
+    if resolution['status']=='resolved_supported_static_rules':return resolution
+    _,old=effective_resources(folder,nav,script)
+    if old['status']=='static_save_markers':return dict(status='static_save_markers',active_slots=slots,selected_options={})
+    path=ROOT/'data/manifests/strategy_static_resource_reviews.json'
+    review=json.loads(path.read_text(encoding='utf-8')).get(key) if path.exists() else None
+    if review:
+        for name,expected in review['files'].items():
+            if hashlib.sha256((folder/name).read_bytes()).hexdigest()!=expected:raise ValueError('Reviewed static helper changed: '+name)
+        return dict(status='static_save_markers',active_slots=slots,selected_options={},review=review)
+    raise ValueError('Unresolved default adaptive resources: '+'; '.join(resolution['warnings']))
+
+def error_class(message):
+    if 'mirrored opponent' in message:return 'no_mirrored_1v1_pair'
+    if 'Unresolved default adaptive resources' in message:return 'unsupported_resource_script'
+    if 'memory_budget' in message:return 'memory_limit'
+    if 'timeout' in message:return 'timeout'
+    if 'worker_exit' in message:return 'worker_exit'
+    return 'extraction_or_analysis_error'
+
+def worker(key):
+    item=next(r for r in json.loads(COHORT.read_text(encoding='utf-8'))['maps'] if r['key']==key)
+    out=OUT/key;out.mkdir(parents=True,exist_ok=True);started=time.time();sig=fingerprint()
+    try:
+        stage(out,'navigation extraction')
+        if not (INPUT/key/'navigation.json').exists():prepare_navigation(key,item['name'])
+        nav=json.loads((INPUT/key/'navigation.json').read_text());a,b,mirror=select_pair(nav);spawns=[a,b]
+        slots=[int(s['name'].split('_')[-1]) for s in spawns]
+        sources=json.loads((ROOT/'data/processed/library_overlays'/key/'asset.json').read_text(encoding='utf-8'))['sources']
+        for name,expected in sources.items():
+            if hashlib.sha256(Path(name).read_bytes()).hexdigest()!=expected:raise ValueError('Source hash changed: '+name)
+        folder=Path(next(iter(sources))).parent
+        script='\n'.join(Path(p).read_text(encoding='utf-8-sig') for p in sources if p.endswith('_script.lua'))
+        resolution=resolve_configuration(key,folder,script,nav,slots)
+        resources,scope=resources_for_record(dict(configuration=resolution),nav)
+        if not any(r['kind']=='mex' for r in resources):raise ValueError('No active mexes for selected setup')
+        dump(out/'configuration.json',resolution)
+        with np.load(INPUT/key/'regions.npz') as grids:
+            labels={k:grids[k+'_raw'] for k in ['land','amphibious','hover']}
+        masks={k:v&gt;0 for k,v in labels.items()};origins=[(int(s['x']),int(s['z'])) for s in spawns]
+        # Same grid and algorithm for equal movement layers: reuse exact results.
+        layers={};bits={};normalized={}
+        for layer in ['land','amphibious','hover']:
+            stage(out,'routes and influence: '+layer)
+            same=next((old for old in layers if np.array_equal(masks[old],masks[layer])),None)
+            if same:
+                layers[layer]=copy.deepcopy(layers[same]);bits[layer]=bits[same];normalized[layer]=normalized[same];continue
+            raw=corridor_routes(masks[layer],*origins,masks['land'])
+            if raw['routes']:
+                points=np.asarray(raw['routes'][0]['points']);mask,d=prepare_routes(masks[layer],raw,tuple(points[0].astype(int)),tuple(points[-1].astype(int)),masks['land'])
+            else:mask=masks[layer];d=raw;d['merged_sections']=[]
+            symmetry=d.get('normalized_symmetry');callback=(lambda x:symmetric_membership(x,d['routes'],symmetry['kind'])) if symmetry else None
+            metrics,membership=analyze_routes(mask,d['routes'],resources,ownership_symmetry=callback,max_route_bits=64,stream_fields=mask.size&gt;=4*1048576)
+            d['analysis']=metrics;layers[layer]=d;bits[layer]=membership;normalized[layer]=mask
+        routes=dict(map_key=key,map_name=item['name'],spawns=spawns,width=nav['width'],height=nav['height'],layers=layers)
+        dump(out/'routes.json',routes)
+        stage(out,'drop and air measurements')
+        parameters,profiles=source_profiles();parameters['island_pocket_limit']=50000;parameters['stream_area_fields']=True
+        result,arrays=analyze(masks,layers['land']['routes'],resources,spawns,parameters=parameters)
+        result.update(key=key,label=key,name=item['name'],spawns=spawns,mirror=mirror,land_routes=layers['land']['routes'],
+            configuration=resolution,resource_scope=scope,profiles=profiles,cohorts=item['cohorts'])
+        automatic=route_strength(result,labels['land']);economy=economy_profile(parameters)
+        stage(out,'destination grouping and calibration')
+        costs=destination_distances(result,masks)
+        profile,extra=calibrate(result,arrays['areas'],economy,masks,dict(route=automatic['route'],base=1),costs)
+        scores=summarize(result,profile,'medium',costs)
+        cases=[]
+        # Retain the 18 shared scenarios with summary-only evaluations (no new searches).
+        for route in [.25,.5,1]:
+            for base in [.5,1]:
+                p,_=calibrate(result,arrays['areas'],economy,masks,dict(route=route,base=base),costs)
+                for preset in ['strict','medium','permissive']:
+                    s=summarize(result,p,preset,costs)
+                    cases.append(dict(route=route,base=base,preset=preset,scores={f:s[f]['score'] for f in FLAGS}))
+        for flag in FLAGS:
+            values=[c['scores'][flag] for c in cases]
+            scores[flag]['sensitivity']=dict(p10=float(np.percentile(values,10)),p90=float(np.percentile(values,90)),min=min(values),max=max(values))
+        for side,details in profile['presets']['medium']['sides'].items():
+            for r,screened in zip(result['sides'][side]['regions'],details['regions']):
+                for flag in FLAGS[:3]:r[flag]=screened[flag]
+                r['screening_checks']=screened['checks']
+            result['sides'][side]['summary']=details['summary']
+        result['calibration']=profile;result['impact']=dict(automatic_settings=automatic,primary_preset='medium',scores=scores,sensitivity_cases=cases,
+            air_scope='generic air raids; underwater sites valid via torpedo bombers; representative gunship economics retained')
+        # This collection run does not measure reclaim. Do not encode missing measurements as zero.
+        result['reclaim_status']='not_measured_in_strategy_run'
+        for r in result['regions']:
+            r['known_reclaim_mass']=None;r['unknown_reclaim_entities']=None
+        for side in result['sides'].values():
+            for summary in side['summary'].values():summary['known_reclaim_mass']=None
+        for preset in profile['presets'].values():
+            for side in preset['sides'].values():
+                for summary in side['summary'].values():summary['known_reclaim_mass']=None
+        dump(out/'opportunities.json',result)
+        np.savez_compressed(out/'opportunity_layers.npz',**arrays)
+        np.savez_compressed(out/'automatic_layers.npz',**extra)
+        np.savez_compressed(out/'destination_costs.npz',costs=costs)
+        stage(out,'PNG assets')
+        terrain=Image.open(ROOT/'data/processed/library_overlays'/key/'terrain.png').convert('RGBA').resize((nav['width'],nav['height']),Image.Resampling.BICUBIC)
+        for layer in layers:
+            colour_image(bits[layer],layers[layer]['routes']).save(out/(layer+'_areas.png'),compress_level=1)
+        terrain.save(out/'terrain.png',compress_level=1)
+        for side in result['sides']:
+            for mode,colour in [('offensive',[255,100,70]),('expansion',[70,220,130]),('air',[215,115,255]),('combined',[255,185,65])]:
+                mask=(extra['medium_'+side+'_offensive']|extra['medium_'+side+'_expansion']) if mode=='combined' else extra['medium_'+side+'_'+mode]
+                rgba=np.zeros((*mask.shape,4),np.uint8);rgba[mask]=colour+[115];Image.fromarray(rgba).save(out/('auto_'+side+'_'+mode+'.png'),compress_level=1)
+        # A combined inspection contact is useful even without the web viewer.
+        preview=terrain.copy();preview=Image.alpha_composite(preview,Image.open(out/('auto_'+a['name']+'_air.png')).convert('RGBA'))
+        preview=Image.alpha_composite(preview,Image.open(out/'land_areas.png').convert('RGBA'));draw=ImageDraw.Draw(preview)
+        for route in layers['land']['routes']:draw.line([tuple(p) for p in route['points']],fill='white',width=max(1,nav['width']//400))
+        for r in result['resources']:
+            x,z=r['x'],r['z'];draw.ellipse((x-3,z-3,x+3,z+3),fill='#ffdc42' if r['kind']=='hydro' else '#43ffa0',outline='black')
+        for s in spawns:
+            x,z=s['x'],s['z'];draw.ellipse((x-6,z-6,x+6,z+6),fill='white',outline='black');draw.text((x+7,z-7),s['name'],fill='white',stroke_width=2,stroke_fill='black')
+        preview.thumbnail((640,640));preview.convert('RGB').save(out/'overview.jpg',quality=88)
+        summary=dict(**item,status='complete',seconds=time.time()-started,code_sha256=sig,setup=spawns,mirror=mirror,
+            automatic=automatic,scores=scores,front={k:front_metrics(d) for k,d in layers.items()},
+            configuration_status=scope,resource_count=len(resources),source_sha256=sources,
+            limitations=['static terrain opportunity, not observed defenses','route searches may reach cut budget','T1 mex economics','generic air unit class includes torpedo aircraft','no reclaim or prop extraction rerun; reclaim not part of impact score'])
+        summary.update(width=nav['width'],height=nav['height'],catalogue_dimensions=[item['width'],item['height']])
+        dump(out/'summary.json',summary);(out/'failure.json').unlink(missing_ok=True);stage(out,'complete')
+        return summary
+    except Exception as e:
+        failure=dict(**item,status='failed',error=str(e),seconds=time.time()-started,code_sha256=sig,traceback=traceback.format_exc())
+        dump(out/'failure.json',failure);stage(out,'failed');raise
+
+def relative_rating(value,values):
+    if value&lt;=0:return 1.
+    # Midrank percentile, tied values get equal scores; zero always means minimum.
+    rank=(sum(v&lt;value for v in values)+.5*sum(v==value for v in values))/len(values)
+    return round(1+4*rank,2)
+
+def report(status=None):
+    OUT.mkdir(parents=True,exist_ok=True);cohort=json.loads(COHORT.read_text(encoding='utf-8'));maps=[];failures=[]
+    for item in cohort['maps']:
+        folder=OUT/item['key']
+        if (folder/'summary.json').exists():maps.append(json.loads((folder/'summary.json').read_text(encoding='utf-8')))
+        elif (folder/'failure.json').exists():failures.append(json.loads((folder/'failure.json').read_text(encoding='utf-8')))
+    for failure in failures:failure['classification']=error_class(failure['error'])
+    for flag in FLAGS:
+        values=[m['scores'][flag]['affected_share'] for m in maps]
+        for m in maps:m['scores'][flag]['relative_rating']=relative_rating(m['scores'][flag]['affected_share'],values)
+    rankings={f:[m['key'] for m in sorted(maps,key=lambda m:(-m['scores'][f]['affected_share'],-m['scores'][f]['destinations']))] for f in FLAGS}
+    connected=[m for m in maps if m['front']['land']['best_bottleneck'] is not None]
+    rankings['open_front']=[m['key'] for m in sorted(connected,key=lambda m:-m['front']['land']['best_bottleneck'])]
+    rankings['closed_front']=[m['key'] for m in sorted(connected,key=lambda m:m['front']['land']['best_bottleneck'])]
+    rankings['land_disconnected']=[m['key'] for m in maps if m['front']['land']['category']=='disconnected']
+    data=dict(total=len(cohort['maps']),complete=len(maps),failed=len(failures),pending=len(cohort['maps'])-len(maps)-len(failures),
+        generated_3v3=cohort['generated_3v3'],updated=time.time(),maps=maps,failures=failures,rankings=rankings,
+        ratings='relative midrank percentile of affected mex share within completed cohort; zero -&gt; 1; provisional until full run complete',
+        front_definition='best sustained 8-unit bottleneck among found land routes; closed &lt;24, mixed 24-64, open &gt;=64; disconnected separate')
+    if status:data['run']=status
+    dump(OUT/'report.json',data)
+    fields=['key','name','folder','cohorts','width','height','max_players','configuration_status','front_category','land_routes','best_bottleneck','land_route_strength']
+    fields += [f+'_'+k for f in FLAGS for k in ['affected_mexes','total_mexes','affected_share','destinations','score','relative_rating']]
+    rows=[]
+    for m in maps:
+        row={k:m[k] for k in fields[:8]};row['cohorts']='|'.join(row['cohorts']);f=m['front']['land']
+        row.update(front_category=f['category'],land_routes=f['route_count'],best_bottleneck=f['best_bottleneck'],land_route_strength=m['automatic']['route'])
+        for flag in FLAGS:
+            for k in ['affected_mexes','total_mexes','affected_share','destinations','score','relative_rating']:row[flag+'_'+k]=m['scores'][flag][k]
+        rows.append(row)
+    with (OUT/'metrics.csv.tmp').open('w',encoding='utf-8',newline='') as stream:
+        writer=csv.DictWriter(stream,fieldnames=fields);writer.writeheader();writer.writerows(rows)
+    replace_retry(OUT/'metrics.csv.tmp',OUT/'metrics.csv')
+    dump(OUT/'failures.json',failures)
+    shutil.copy2(ROOT/'tools/strategy_collection_viewer.html',OUT/'index.html')
+    lines=['# Combined route, drop and air analysis','',f&quot;Completed {len(maps)}/{data['total']}; failed {len(failures)}; pending {data['pending']}.&quot;,'',
+        'Live report: http://127.0.0.1:5177/strategy_collection_1v1/index.html','',
+        'Default options, slot 1 versus mirrored opponent; one latest local version per FAF parent. Listed pool versions and substitutions are preserved in the cohort manifest. Generic air raids include water mexes via torpedo aircraft. Representative gunship economics are used for both. Relative 1-5 ratings are collection percentiles; previous absolute scores and raw shares remain available.','',
+        'This is an incremental report; top examples and relative ratings can change until all maps finish. Front width is the widest available route\'s sustained narrowest cross-section, not a count of independent fronts. Disconnected land is a separate class. Search-budget limits and asymmetric two-slot fallbacks are recorded.','']
+    bykey={m['key']:m for m in maps}
+    for kind,title in [('all_drops','Drop-heavy'),('expansion_drop','Expansion drops'),('offensive_drop','Offensive drops'),('air_raid','Air raid heavy'),('closed_front','Closed fronts'),('open_front','Open fronts')]:
+        lines+=['## '+title,'','| Map | Evidence |','|---|---|']
+        for key in rankings[kind][:10]:
+            m=bykey[key]
+            if kind.endswith('_front'):
+                f=m['front']['land'];evidence=f&quot;{f['best_bottleneck']:.1f} units best bottleneck; {f['route_count']} found routes; limits {f['search_limits']}&quot;
+            else:
+                s=m['scores'][kind];evidence=f&quot;{s['affected_share']:.1%} ({s['affected_mexes']}/{s['total_mexes']}) mexes; {s['destinations']} destinations; relative {s['relative_rating']}/5&quot;
+            lines.append(f&quot;| [{m['name']}](https://vault.jipwijnia.nl/maps/{m['folder']}) | {evidence} |&quot;)
+        lines.append('')
+    lines+=['## Coverage exceptions','']+[f&quot;- {m['name']} ({m['key']}): {m['error']}&quot; for m in failures]
+    lines+=['','The current 3v3 ladder has 10 generated-map configurations and no fixed map folder. These are documented rather than fabricated as static maps.','',
+        'Raw per-map JSON retains resources, selected configuration, routes and merged sections, width samples, route influence allocation, response measurements, all three presets and 18 sensitivity scenarios. PNG overlays are independent assets for reuse. No replay collection or hosted deployment is performed.']
+    (OUT/'report.md').write_text('\n'.join(lines)+'\n',encoding='utf-8')
+    return data
+
+def process_alive(pid):
+    import ctypes
+    kernel=ctypes.windll.kernel32;kernel.OpenProcess.restype=ctypes.c_void_p
+    kernel.GetExitCodeProcess.argtypes=[ctypes.c_void_p,ctypes.POINTER(ctypes.c_ulong)]
+    kernel.CloseHandle.argtypes=[ctypes.c_void_p]
+    handle=kernel.OpenProcess(0x1000,False,int(pid))
+    if not handle:return None if kernel.GetLastError()==5 else False
+    code=ctypes.c_ulong()
+    try:return bool(kernel.GetExitCodeProcess(handle,ctypes.byref(code))) and code.value==259
+    finally:kernel.CloseHandle(handle)
+
+def probe():
+    path=OUT/'status.json';state=json.loads(path.read_text(encoding='utf-8')) if path.exists() else {}
+    state['driver_alive']=process_alive(state['pid']) if state.get('pid') else False
+    state['heartbeat_age_seconds']=time.time()-state.get('heartbeat',0)
+    state['driver_recent_heartbeat']=state.get('state')=='running' and state['heartbeat_age_seconds']&lt;90
+    for r in state.get('running',[]):
+        r['worker_alive']=process_alive(r['pid']) if r.get('pid') else None
+        stage_path=OUT/r['key']/'stage.json';current=json.loads(stage_path.read_text(encoding='utf-8')) if stage_path.exists() else {}
+        terminal=(OUT/r['key']/'summary.json').exists() or current.get('stage') in {'failed','complete'}
+        if terminal:r['worker_alive']=False
+        r['may_be_in_progress']=not terminal and (r['worker_alive'] is True or r['worker_alive'] is None and time.time()-r.get('updated',0)&lt;2400)
+    if (OUT/'report.json').exists():
+        d=json.loads((OUT/'report.json').read_text(encoding='utf-8'))
+        state['coverage']={k:d[k] for k in ['total','complete','failed','pending']}
+    return state
+
+def available_gb():
+    import ctypes
+    class Mem(ctypes.Structure):_fields_=[('length',ctypes.c_ulong),('load',ctypes.c_ulong),*[(n,ctypes.c_ulonglong) for n in ['total','avail','page','apage','v','av','ex']]]
+    m=Mem();m.length=ctypes.sizeof(m);ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(m));return m.avail/2**30
+
+def run(workers=2,limit=None,retry=False,only_keys=None):
+    OUT.mkdir(parents=True,exist_ok=True)
+    previous=probe()
+    if (previous.get('driver_alive') or previous.get('driver_recent_heartbeat')) and previous.get('pid')!=os.getpid():
+        print('Existing controller is running:',previous['pid'],flush=True);return
+    if any(r.get('may_be_in_progress') for r in previous.get('running',[])):
+        print('Previous workers are still running; wait for them before resuming.',flush=True);return
+    items=json.loads(COHORT.read_text(encoding='utf-8'))['maps'];sig=fingerprint()
+    if only_keys:items=[m for m in items if m['key'] in set(only_keys)]
+    if limit:items=items[:limit]
+    pending=[]
+    for m in items:
+        out=OUT/m['key'];done=out/'summary.json';failed=out/'failure.json'
+        if done.exists():continue
+        if failed.exists() and not retry:continue
+        pending.append(m)
+    active=[];started=time.time();last_report=0
+    while pending or active:
+        # Keep large maps exclusive. Each map is isolated in a fresh process.
+        if pending and len(active)&lt;workers:
+            m=pending[0];cells=m['width']*m['height'];need=max(1.5,cells/1048576*.75)
+            memory=available_gb()
+            if not active and cells&gt;=4*1048576 and memory&lt;need:
+                # Explicit resource-bound failure instead of risking machine-wide OOM.
+                dump(OUT/m['key']/'failure.json',dict(**m,status='failed',error=f'memory_budget: estimated {need:.1f} GiB free required, {memory:.1f} available',code_sha256=sig));pending.pop(0)
+            elif memory&gt;=need and (not active or cells&lt;=1048576 and all(a['item']['width']*a['item']['height']&lt;=1048576 for a in active)):
+                pending.pop(0);folder=OUT/m['key'];folder.mkdir(parents=True,exist_ok=True)
+                stdout=(folder/'worker.log').open('w',encoding='utf-8');stderr=(folder/'worker_errors.log').open('w',encoding='utf-8')
+                proc=subprocess.Popen([sys.executable,'-m','supmapai.tools.analyze_strategy_collection','--worker',m['key']],cwd=ROOT,env={**os.environ,'PYTHONPATH':str(ROOT/'src'),'OMP_NUM_THREADS':'1','OPENBLAS_NUM_THREADS':'1'},stdout=stdout,stderr=stderr)
+                active.append(dict(process=proc,item=m,start=time.time(),stdout=stdout,stderr=stderr))
+                print('START',m['key'],m['name'],flush=True)
+        for a in list(active):
+            elapsed=time.time()-a['start'];p=a['process'];folder=OUT/a['item']['key']
+            if p.poll() is None and elapsed&gt;2400:
+                # Terminate this worker and its parser child only, not unrelated processes.
+                subprocess.run(['taskkill','/PID',str(p.pid),'/T','/F'],capture_output=True)
+                dump(folder/'failure.json',dict(**a['item'],status='failed',error='per_map_timeout_2400_seconds',code_sha256=sig))
+            if p.poll() is not None:
+                a['stdout'].close();a['stderr'].close();active.remove(a)
+                if p.returncode and not (folder/'failure.json').exists():dump(folder/'failure.json',dict(**a['item'],status='failed',error='worker_exit_'+str(p.returncode),code_sha256=sig))
+                print('FINISH',a['item']['key'],'exit',p.returncode,'seconds',round(elapsed),flush=True)
+        running=[]
+        for a in active:
+            path=OUT/a['item']['key']/'stage.json';s=json.loads(path.read_text(encoding='utf-8')) if path.exists() else {}
+            running.append(dict(key=a['item']['key'],name=a['item']['name'],elapsed_seconds=time.time()-a['start'],**s))
+        state=dict(available_memory_gb=available_gb(),next_map_required_gb=max(1.5,pending[0]['width']*pending[0]['height']/1048576*.75) if pending else None,pid=os.getpid(),running=running,queued=len(pending),started=started,heartbeat=time.time(),state='running' if pending or active else ('batch_finished' if limit else 'complete'))
+        try:dump(OUT/'status.json',state)
+        except PermissionError:print('Status file busy; continuing processing',flush=True)
+        if time.time()-last_report&gt;25:
+            try:
+                d=report(state);last_report=time.time();print('PROGRESS',d['complete'],d['failed'],d['pending'],flush=True)
+            except (OSError,json.JSONDecodeError) as error:print('Report temporarily busy:',str(error),flush=True)
+        if pending or active:time.sleep(5)
+    d=report(state);print('DONE',d['complete'],d['failed'],d['pending'],flush=True)
+
+if __name__=='__main__':
+    p=argparse.ArgumentParser(description=__doc__);p.add_argument('--worker');p.add_argument('--workers',type=int,default=2);p.add_argument('--limit',type=int);p.add_argument('--report',action='store_true');p.add_argument('--status',action='store_true');p.add_argument('--retry-failed',action='store_true');p.add_argument('--keys',nargs='+');a=p.parse_args()
+    if a.status:print(json.dumps(probe(),indent=2))
+    elif a.worker:worker(a.worker)
+    elif a.report:report()
+    else:run(a.workers,a.limit,a.retry_failed,a.keys)
+</pre><script src="../docs/model-atlas/public-links.js" data-public-links></script></body></html>

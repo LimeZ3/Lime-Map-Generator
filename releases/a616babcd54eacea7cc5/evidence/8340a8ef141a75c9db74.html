@@ -1,0 +1,301 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>symmetry_maps.py | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="../docs/model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1>symmetry_maps.py</h1><p class="meta">Saved public evidence snapshot: src/supmapai/export/symmetry_maps.py</p><pre>&quot;&quot;&quot;Export recent full-map symmetry samples with native heights and test markers.&quot;&quot;&quot;
+
+from __future__ import annotations
+
+import argparse
+import json
+from pathlib import Path
+import re
+
+import numpy as np
+from PIL import Image, ImageDraw
+from scipy import ndimage
+
+from supmapai.export.faf_map_v0 import _army_block, _marker_block, _neutral_civilian_block, _scenario_lua
+from supmapai.export.native_scmap import quantize, write_native
+from supmapai.export.symmetry_geometry import bilinear_height, opposite
+from supmapai.export.terrain_smoothing import PRESETS, smooth_native
+from supmapai.extract.scmap_props import read_scmap_props
+from supmapai.ml.terrain_symmetry import transform
+from supmapai.strategy.navigation import raw_layers
+from supmapai.tensors.strategy_dataset import file_hash, read_json, write_json
+
+PILOT = [
+    ('rotate180_seed101_water20','average','mapgen_sym_rot101_average','MapGen Symmetry Rot101 Average'),
+    ('rotate180_seed101_water20','refine250','mapgen_sym_rot101_refine250','MapGen Symmetry Rot101 Refine250'),
+    ('mirror_x_seed202_water20','copy_a','mapgen_sym_mirror202_copy','MapGen Symmetry Mirror202 Copy'),
+    ('rotate180_seed303_water40','water_aware','mapgen_sym_rot303_water','MapGen Symmetry Rot303 Water'),
+]
+
+
+def flatten_pair(vertices, point, mode, radius, feather, profile='rounded', *, target_height=None,
+                 preserve_water_class=False):
+    if profile not in ('legacy','rounded'):
+        raise ValueError('Unknown resource pad profile')
+    size = vertices.shape[0]-1
+    x,z = point
+    target = max(float(np.median(vertices[z-radius:z+radius+1,x-radius:x+radius+1])),1.) if target_height is None else float(target_height)
+    if not np.isfinite(target):
+        raise ValueError('Invalid pad target height')
+    reach = radius+feather
+    offsets = np.arange(-reach,reach+1)
+    dz,dx = np.meshgrid(offsets,offsets,indexing='ij')
+    if profile=='legacy':
+        distance = np.maximum(np.abs(dx),np.abs(dz))
+        weight = np.clip((reach-distance)/max(feather,1),0,1)
+    else:
+        # Preserve the square build footprint; round only its outer transition.
+        distance = np.hypot(np.maximum(np.abs(dx)-radius,0),np.maximum(np.abs(dz)-radius,0))
+        t = np.clip(distance/max(feather,1),0,1)
+        weight = 1-t*t*t*(t*(6*t-15)+10)
+    weight = weight.astype(np.float32)
+    for px,pz in [point,opposite(point,size,mode)]:
+        if not reach&lt;=px&lt;=size-reach or not reach&lt;=pz&lt;=size-reach:
+            raise ValueError('Pad would leave map bounds')
+        patch = vertices[pz-reach:pz+reach+1,px-reach:px+reach+1]
+        effective = weight*((patch&lt;0)==(target&lt;0)) if preserve_water_class else weight
+        patch[:] = patch*(1-effective)+target*effective
+
+
+class PlacementError(ValueError):
+    pass
+
+
+def place_test_markers(relative, requested, mode, pad_profile='rounded'):
+    if pad_profile not in ('legacy','rounded'):
+        raise ValueError('Unknown resource pad profile')
+    try:
+        result = _place_test_markers(relative,requested,mode,pad_profile,2 if pad_profile=='rounded' else 1)
+    except PlacementError:
+        if pad_profile!='rounded':
+            raise
+        result = _place_test_markers(relative,requested,mode,pad_profile,1)
+        result[2]['narrow_feather_fallback'] = True
+    return result
+
+
+def _place_test_markers(relative, requested, mode, pad_profile, feather_multiplier):
+    size = relative.shape[0]-1
+    if relative.shape!=(513,513) or not np.array_equal(relative,transform(relative,mode)):
+        raise ValueError('Expected exactly symmetric 513x513 native heights')
+    vertices = relative.copy()
+    original = vertices.copy()
+    dz,dx = np.gradient(vertices)
+    slope = np.hypot(dx,dz)
+    dry_distance = ndimage.distance_transform_edt(vertices&gt;.1)
+    zz,xx = np.indices(vertices.shape)
+    records,occupied = dict(spawns=[],mexes=[],hydros=[]),[]
+    moves = []
+
+    def choose(goal, kind, radius, feather, max_distance):
+        feather *= feather_multiplier
+        reach = radius+feather
+        valid = (dry_distance&gt;np.sqrt(2)*reach+2)&amp;(xx&gt;=16)&amp;(xx&lt;=size-16)&amp;(zz&gt;=16)&amp;(zz&lt;=size-16)&amp;(xx%2==0)&amp;(zz%2==0)
+        valid &amp;= slope&lt;.6
+        # Reject overlap at both symmetry-related points, including fixed axes.
+        for px,pz,other_reach in occupied:
+            valid &amp;= np.maximum(abs(xx-px),abs(zz-pz)) &gt;= reach+other_reach+2
+        if mode=='rotate180': separation=(size-2*xx)**2+(size-2*zz)**2
+        elif mode=='mirror_x': separation=(size-2*xx)**2
+        elif mode=='mirror_z': separation=(size-2*zz)**2
+        elif mode=='diagonal': separation=2*(xx-zz)**2
+        else: separation=2*(size-xx-zz)**2
+        valid &amp;= separation&gt;=(2*reach+2)**2
+        valid &amp;= (xx-goal[0])**2+(zz-goal[1])**2&lt;=max_distance**2
+        positions = np.argwhere(valid)
+        if not len(positions):
+            raise PlacementError('No safe symmetric placement for '+kind)
+        costs = (positions[:,1]-goal[0])**2+(positions[:,0]-goal[1])**2+16*slope[valid]**2
+        z,x = map(int,positions[int(costs.argmin())])
+        point = (x,z); partner = opposite(point,size,mode)
+        flatten_pair(vertices,point,mode,radius,feather,pad_profile)
+        for px,pz in [point,partner]:
+            records[kind].append(dict(x=px,z=pz,pad_radius=radius))
+            occupied.append((px,pz,reach))
+        moves.append(dict(kind=kind,requested=list(map(float,goal)),placed=[x,z],
+                          moved_world_units=float(np.hypot(x-goal[0],z-goal[1]))))
+        return point
+
+    base = choose((requested[0]['x'],requested[0]['z']),'spawns',8,4,96)
+    for dx,dz in [(-24,0),(24,0),(0,-24),(0,24)]:
+        choose((base[0]+dx,base[1]+dz),'mexes',3,3,64)
+    toward = np.array([size/2-base[0],size/2-base[1]])
+    for fraction,offset in [(.3,(-24,16)),(.5,(28,-20)),(.7,(-32,-12)),(.85,(24,36))]:
+        goal = np.array(base)+toward*fraction+offset
+        choose(goal,'mexes',3,3,100)
+    choose((base[0]+36,base[1]+24),'hydros',5,4,100)
+    vertices = .5*(vertices+transform(vertices,mode))
+    return vertices,records,dict(placement='deterministic test scaffolding, not learned resources',
+        pad_profile=pad_profile,feather_multiplier=feather_multiplier,narrow_feather_fallback=False,
+        moves=moves,height_edit_mae=float(np.abs(vertices-original).mean()),
+        height_edit_max=float(np.abs(vertices-original).max()),
+        changed_vertex_fraction=float((vertices!=original).mean()),
+        water_class_changed_fraction=float(((vertices&lt;0)!=(original&lt;0)).mean()))
+
+
+def validate_markers(vertices, records, mode, *, allow_underwater_mex=False):
+    if not np.isfinite(vertices).all() or not np.array_equal(vertices,transform(vertices,mode)):
+        raise ValueError('Invalid final terrain symmetry')
+    checks = []
+    for kind,points in records.items():
+        if len(points)%2:
+            raise ValueError('Unpaired markers')
+        for first,second in zip(points[::2],points[1::2]):
+            if opposite((first['x'],first['z']),512,mode)!=(second['x'],second['z']):
+                raise ValueError('Marker symmetry mismatch')
+        for point in points:
+            x,z,r = point['x'],point['z'],point['pad_radius']
+            patch = vertices[z-r:z+r+1,x-r:x+r+1]
+            dry = patch.shape==(2*r+1,2*r+1) and patch.min()&gt;.1
+            wet = patch.shape==(2*r+1,2*r+1) and patch.max()&lt;-.1
+            if not (dry or (allow_underwater_mex and kind=='mexes' and wet)) or np.ptp(patch)&gt;.02:
+                raise ValueError('Dry/flat footprint validation failed: '+kind)
+            checks.append(dict(kind=kind,x=x,z=z,height=float(vertices[z,x]),
+                               footprint_height_range=float(np.ptp(patch)),underwater=bool(wet)))
+    if len(records['spawns'])!=2:
+        raise ValueError('Exactly two spawns are required')
+    types = np.ones((512,512),np.uint8)
+    navigation = raw_layers(vertices,types,0.)
+    ids = [int(navigation['labels']['land'][p['z'],p['x']]) for p in records['spawns']]
+    return dict(status='passed',footprints=checks,
+        symmetry_max_error=float(np.abs(vertices-transform(vertices,mode)).max()),
+        approximate_land_connection=bool(ids[0]&gt;0 and ids[0]==ids[1]),
+        water_fraction=float((navigation['depth']&gt;0).mean()),
+        limitations='Static terrain/footprint checks, not engine validation or competitive balance')
+
+
+def preview_image(relative,records):
+    h = .25*(relative[:-1,:-1]+relative[1:,:-1]+relative[:-1,1:]+relative[1:,1:])
+    dz,dx = np.gradient(h)
+    light = np.clip((1-.5*dx-.7*dz)/np.sqrt(1+dx*dx+dz*dz),.2,1.2)
+    base = np.stack([np.full_like(h,105),np.full_like(h,125),np.full_like(h,85)],axis=-1)
+    pixels = np.clip(base*light[...,None],0,255).astype(np.uint8)
+    pixels[h&lt;0] = [35,105,160]
+    image = Image.fromarray(pixels); draw = ImageDraw.Draw(image)
+    for kind,color,radius in [('mexes','#ffdf59',2),('hydros','#5be2ff',3)]:
+        for point in records[kind]:
+            x,z=point['x'],point['z'];draw.ellipse((x-radius,z-radius,x+radius,z+radius),fill=color)
+    return image
+
+
+def save_lua(records, absolute, *, precision=3):
+    markers = []
+    for kind,marker_type,prefix in [('spawns','Blank Marker','ARMY_'),('mexes','Mass','Mass '),('hydros','Hydrocarbon','Hydrocarbon ')]:
+        for index,point in enumerate(records[kind],1):
+            x,z = point['x'],point['z']
+            markers.append(_marker_block(prefix+str(index),marker_type,x,z,
+                bilinear_height(absolute,x,z),precision=precision))
+    armies = _army_block(1)+_army_block(2)+_army_block(17)+_neutral_civilian_block([],512,512,0)
+    return &quot;&quot;&quot;-- Native terrain pilot: markers are deterministic test scaffolding.
+Scenario = {
+    next_area_id = '0', next_army_id = '0', next_group_id = '0', next_unit_id = '0',
+    Props = {}, Areas = { ['AREA_1'] = { ['rectangle'] = RECTANGLE(0, 0, 512, 512), } },
+    MasterChain = { ['_MASTERCHAIN_'] = { Markers = {
+&quot;&quot;&quot;+''.join(markers)+&quot;&quot;&quot;    } } },
+    Chains = {}, Orders = {}, Platoons = {},
+    Armies = {
+&quot;&quot;&quot;+armies+&quot;    },\n}\n&quot;
+
+
+def export_one(comparison,case_key,method,template,out_root,folder,name,terrain_smoothing='none',pad_profile='rounded'):
+    if not re.fullmatch(r'[a-z0-9_]+\.v\d{4}',folder):
+        raise ValueError('Use a simple versioned folder name')
+    comparison,out_root = Path(comparison),Path(out_root)
+    case = next(r for r in read_json(comparison/'cases.json') if r['key']==case_key)
+    source = comparison/'cases'/case_key/(method+'_native.npz')
+    variant = case['variants'][method]
+    if file_hash(comparison/variant['archive'])!=variant['sha256']:
+        raise ValueError('Comparison source fields changed')
+    # Read the same decoder output used by the comparison and independently reproduce it.
+    from supmapai.ml.train_joint_terrain import project_joint
+    with np.load(comparison/variant['archive']) as archive:
+        physical = archive['physical'].copy()
+    expected = np.asarray(Image.fromarray(project_joint(physical)).resize((513,513),Image.Resampling.BILINEAR)).copy()
+    expected = .5*(expected+transform(expected,case['mode']))
+    with np.load(source) as archive:
+        relative = archive['height_vertices'].copy()
+    if not np.array_equal(expected,relative):
+        raise ValueError('Native comparison archive changed or decoder differs')
+    provenance = dict(source_native=str(source.resolve()),source_native_sha256=file_hash(source),
+        source_fields_sha256=variant['sha256'],checkpoint=read_json(comparison/'config.json')['checkpoint_sha256'])
+    return export_prepared(relative,case['spawns'],case['mode'],template,out_root,folder,name,
+        case_key,method,provenance,terrain_smoothing,pad_profile)
+
+
+def export_prepared(relative,spawns,mode,template,out_root,folder,name,case_key,method,
+                    provenance,terrain_smoothing='none',pad_profile='rounded'):
+    &quot;&quot;&quot;Export verified native terrain through the shared placement and read-back checks.&quot;&quot;&quot;
+    if not re.fullmatch(r'[a-z0-9_]+\.v\d{4}',folder):
+        raise ValueError('Use a simple versioned folder name')
+    out_root = Path(out_root)
+    target = out_root/folder
+    if target.exists():
+        raise ValueError('Refusing to overwrite export: '+str(target))
+    smoothed,smoothing = smooth_native(relative,terrain_smoothing,mode)
+    vertices,records,repair = place_test_markers(smoothed,spawns,mode,pad_profile)
+    sea = 128.
+    template_info,_ = read_scmap_props(Path(template),include_navigation=True)
+    _,absolute = quantize(vertices+sea,template_info['navigation']['height_scale'])
+    vertices = absolute-sea
+    validation = validate_markers(vertices,records,mode)
+    preview = preview_image(vertices,records)
+    target.mkdir(parents=True)
+    basename = folder.rsplit('.v',1)[0]
+    patch,written = write_native(template,target/(basename+'.scmap'),vertices,sea,preview)
+    np.testing.assert_array_equal(written,vertices)
+    scenario = _scenario_lua(name,folder,basename,2,512,'generated')
+    old = 'MapGen ML V1 demo. Generated terrain is written into the .scmap heightmap; textures and water shader data are inherited from a template.'
+    description = f'New full-map terrain model. {case_key}, {method}, smoothing {terrain_smoothing}. Native terrain, deterministic test resources, no learned props or textures. Not balance-certified.'
+    scenario = scenario.replace(old,description)
+    (target/(basename+'_scenario.lua')).write_text(scenario,encoding='utf-8')
+    (target/(basename+'_save.lua')).write_text(save_lua(records,absolute),encoding='utf-8')
+    (target/(basename+'_script.lua')).write_text(&quot;local ScenarioUtils = import('/lua/sim/ScenarioUtilities.lua')\nfunction OnPopulate() ScenarioUtils.InitializeArmies() end\nfunction OnStart() end\n&quot;,encoding='utf-8')
+    preview.save(target/(basename+'_preview.png'))
+    np.savez_compressed(target/'mapgen_native_heights.npz',relative_vertices=vertices,sea_level=sea)
+    metadata = dict(schema='symmetry_native_export_v1',case=case_key,method=method,mode=mode,
+        **provenance,
+        template_sha256=file_hash(template),exporter_sha256=file_hash(__file__),
+        writer_sha256=file_hash(Path(__file__).with_name('native_scmap.py')),
+        smoothing_sha256=file_hash(Path(__file__).with_name('terrain_smoothing.py')),
+        folder=folder,map_name=name,points=records,terrain_smoothing=smoothing,
+        terrain_repairs=repair,validation=validation,scmap=patch,
+        source_height_difference_mae=float(np.abs(vertices-relative).mean()),
+        note='Terrain is learned; starts and economy are deterministic test scaffolding. No reclaim/props are placed.')
+    write_json(target/'mapgen_export_metadata.json',metadata)
+    files = {p.name:file_hash(p) for p in target.iterdir() if p.is_file()}
+    return dict(folder=folder,map_name=name,source=str(target.resolve()),files=files,
+        scenario=f'/maps/{folder}/{basename}_scenario.lua',case=case_key,method=method,
+        validation=validation['status'],approximate_land_connection=validation['approximate_land_connection'])
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--comparison',type=Path,required=True)
+    parser.add_argument('--template',type=Path,required=True)
+    parser.add_argument('--out-root',type=Path,required=True)
+    parser.add_argument('--pilot',action='store_true')
+    parser.add_argument('--case')
+    parser.add_argument('--method')
+    parser.add_argument('--folder',help='Versioned output folder for a single sample')
+    parser.add_argument('--name',help='In-game name for a single sample')
+    parser.add_argument('--terrain-smoothing',choices=list(PRESETS),default='none')
+    parser.add_argument('--pad-profile',choices=['legacy','rounded'],default='rounded')
+    args = parser.parse_args()
+    if args.pilot and any((args.case,args.method,args.folder,args.name)):
+        parser.error('--pilot cannot be combined with single-sample selectors')
+    if not args.pilot and not all((args.case,args.method,args.folder,args.name)):
+        parser.error('Use --pilot or provide --case, --method, --folder and --name')
+    outputs = []
+    selected = [(key,method,folder+('_'+args.terrain_smoothing if args.terrain_smoothing!='none' else '')+'.v0001',
+                 name+(' '+args.terrain_smoothing.title() if args.terrain_smoothing!='none' else ''))
+                for key,method,folder,name in PILOT] if args.pilot else [(args.case,args.method,args.folder,args.name)]
+    for key,method,folder,name in selected:
+        result = export_one(args.comparison,key,method,args.template,args.out_root,folder,name,args.terrain_smoothing,args.pad_profile)
+        outputs.append(result);print(json.dumps(result),flush=True)
+    write_json(args.out_root.parent/'manifest.json',dict(schema='symmetry_playtest_set_v1',maps=outputs))
+    return 0
+
+
+if __name__=='__main__':
+    raise SystemExit(main())
+</pre><script src="../docs/model-atlas/public-links.js" data-public-links></script></body></html>
