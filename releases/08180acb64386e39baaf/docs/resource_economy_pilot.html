@@ -1,0 +1,180 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>resource_economy_pilot.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="five-minute-economic-pull-with-mex-construction">Five-minute economic pull with mex construction</h1>
+<p>The fixed test now evaluates all11 pilot maps and their8 existing contact
+budgets. It retains the approved1s per-entity acquisition and three map-relative
+tiers. It does not rerun route finding or replace the saved route-fit weights.
+The viewer labels those old weights explicitly and adds a separate <strong>Five-minute
+economic pull</strong> panel with ranked route contributions and an engineer timeline.</p>
+<h2 id="blueprint-reference">Blueprint reference</h2>
+<p>Use one existing UEF T1 engineer (<code>UEL0105</code>) and a UEF T1 mex (<code>UEB1103</code>), from
+the pinned FAF archive at commit <code>c7d9d129cc9085ddf84cc49aa3f13af91afd9509</code>.
+Archive member hashes and extracted fields are recorded in every output.</p>
+<table>
+<thead>
+<tr>
+<th>Quantity</th>
+<th align="right">Reference value</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Mex construction mass</td>
+<td align="right">36</td>
+</tr>
+<tr>
+<td>Mex construction energy</td>
+<td align="right">360</td>
+</tr>
+<tr>
+<td>Mex blueprint build work</td>
+<td align="right">60</td>
+</tr>
+<tr>
+<td>Engineer build rate</td>
+<td align="right">5</td>
+</tr>
+<tr>
+<td>Build duration with this engineer</td>
+<td align="right">12 seconds</td>
+</tr>
+<tr>
+<td>Completed mex mass production</td>
+<td align="right">2 mass/s</td>
+</tr>
+<tr>
+<td>Completed mex upkeep</td>
+<td align="right">2 energy/s</td>
+</tr>
+</tbody></table>
+<p>One mex completed at12s produces576 mass by300s:540 net after its36-mass cost.
+It consumes360 construction energy plus576 upkeep energy. Mass payback occurs
+18 operating seconds after completion, or30s after beginning construction,
+without travel or stalls. The reference engineer is provided, so its production
+cost is outside the comparison rather than charged once per path.</p>
+<h2 id="one-shared-work-and-financing-schedule">One shared work and financing schedule</h2>
+<p>The existing eligible own-side land-front pool is reused, including a separately
+labelled Base-preferred allocation. Protected starting/rear resources used only
+for map-level tier calibration do not enter this pool. No resource or engineer
+capacity is created when the contact budget increases.</p>
+<p>The300s window is shared by building, reclaiming and any financing waits.
+A36-mass working-capital advance permits the first mex and is explicitly excluded
+from economic gain. Mass is reserved/paid before construction; this conservative
+cash model does not simulate the game&#39;s continuous construction resource drain.
+There is no assumed pre-existing starting-base income in this frontier ledger.
+Existing completed mexes generate income while the engineer works or waits.</p>
+<p>At each step, choose the feasible task with the highest incremental net horizon
+mass return per occupied engineer-second:</p>
+<ul>
+<li>Mex: income after its actual completion minus construction mass, divided by
+build time plus any required wait for financing. Negative-return late builds
+are skipped.</li>
+<li>Reclaim: attainable mass divided by <code>mass/25 + 1</code>, using the reviewed hypothesis.
+A final partial object pays acquisition once and yields only the mass processed
+before the horizon. No reward is credited for an unfinished acquisition.</li>
+</ul>
+<p>This is a feasible greedy schedule, not a proof of the optimal finite-horizon
+strategy. A complete reclaim task is credited on completion; stream financing
+within a reclaim operation is not simulated. The tiers describe its stock and
+work without adding3:2:1 multipliers.</p>
+<p>Equal-value tasks are interchangeable in a no-travel comparison. Their route
+ownership is averaged analytically. For example, building one of two equivalent
+mexes on symmetric paths gives each path half the expected credit. Physical jobs
+remain serial and completed; fractional route counts are expected attribution,
+not fractional constructions or parallel engineers. Existing tied ownership is
+also conserved. This prevents arbitrary task-ID ordering from inventing asymmetric
+path importance.</p>
+<p>For every pool:</p>
+<p><code>net mass = mex production since completion - mex construction mass + reclaimed mass</code></p>
+<p>Shared totals, per-tier collected mass/work and initial/final cash are exported.
+Mex-only and reclaim-only isolation controls each have the same300s budget. They
+cannot be added to claim the income of one engineer. The previous instant-mex +
+independent reclaim estimate is retained as a clearly labelled comparison.</p>
+<h2 id="energy-accounting-and-limits">Energy accounting and limits</h2>
+<p>Construction energy and upkeep after completion are charged to a separate ledger.
+Known energy recovered from scheduled mass-bearing props/wrecks is credited from
+the same physical operation, without charging collection work again. Unknown
+companion values remain unknown and are counted. Energy-only props stay in the
+inventory but are not selected by this mass-focused schedule.</p>
+<p>The report exposes gross energy spending, known reclaimed energy, final net demand
+and peak cumulative deficit. Construction energy is reserved upfront in this
+ledger, not a prediction of instantaneous drain. No power-generation construction,
+energy stalls, storage/overflow or energy-to-mass exchange rate is simulated.
+Rankings are therefore <strong>power-supplied mass opportunities with an energy bill</strong>,
+not energy-feasible match-income predictions. The energy stage can later compete
+for this same work budget and use a matching joint-resource processing-time model.</p>
+<p>Travel, mex upgrades, adjacency, enemy denial and additional engineer production
+are also outside this first test. Current path geometry stays unchanged, allowing
+the economic interpretation to be reviewed independently.</p>
+<h2 id="adaptive-tabula-rasa-v7-example">Adaptive Tabula Rasa v7 example</h2>
+<p>At K4, the shared schedule builds8 of34 eligible mexes and reclaims4750 mass.
+It spends96s building and204s reclaiming. Mexes produce3377.68 mass and cost288,
+leaving3089.68 net mex mass; combined economic mass is7839.68. Their construction
+and upkeep consume6257.68 energy, with no known energy recovered by the selected
+mass-focused tasks. The earlier instant-mex + independent reclaim estimate was
+27325 mass, demonstrating why construction/work accounting matters.</p>
+<table>
+<thead>
+<tr>
+<th>Pool</th>
+<th align="right">Net mex mass</th>
+<th align="right">Collected reclaim</th>
+<th align="right">Combined mass</th>
+<th align="right">Share including Base</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>F3</td>
+<td align="right">545</td>
+<td align="right">2389</td>
+<td align="right">2934</td>
+<td align="right">37.4%</td>
+</tr>
+<tr>
+<td>F1</td>
+<td align="right">636</td>
+<td align="right">1417</td>
+<td align="right">2053</td>
+<td align="right">26.2%</td>
+</tr>
+<tr>
+<td>F4</td>
+<td align="right">909</td>
+<td align="right">944</td>
+<td align="right">1853</td>
+<td align="right">23.6%</td>
+</tr>
+<tr>
+<td>F2</td>
+<td align="right">545</td>
+<td align="right">0</td>
+<td align="right">545</td>
+<td align="right">7.0%</td>
+</tr>
+<tr>
+<td>Base-preferred</td>
+<td align="right">454</td>
+<td align="right">0</td>
+<td align="right">454</td>
+<td align="right">5.8%</td>
+</tr>
+</tbody></table>
+<p>This is economic pull under the fixed assumptions, not combat strength. Base
+share is displayed so path percentages are not mistaken for a missing total.
+Map totals are identical across K1–8: only resource attribution changes when
+contacts change. Full cohort results are in
+<code>data/processed/reclaim_collection_comparison/resource_economy_report.md</code>.</p>
+<h2 id="reproduction-and-checks">Reproduction and checks</h2>
+<p>With <code>PYTHONPATH=src</code> and the existing runtime:</p>
+<pre><code>.venv-codex/Scripts/python.exe -m supmapai.tools.build_resource_economy
+.venv-codex/Scripts/python.exe -m supmapai.tools.audit_resource_economy
+.venv-codex/Scripts/python.exe -m supmapai.tools.compare_reclaim_collection --report
+</code></pre>
+<p>Each map exports <code>resource_economy.json</code>; the root has the written report,
+report JSON, <code>resource_economy_metrics.csv</code> and independent validation. Inputs,
+blueprints, territory and new model code retain provenance hashes. All193 targeted
+tests pass, including12 economic tests. The independent audit passes11 maps,
+88 configurations,5896 serial events and484 per-pool CSV rows. It reconstructs
+cash and energy ledgers without the scheduling function, checks construction
+affordability/completion, work conservation, partial reclaim, stock ownership,
+source provenance, symmetry attribution and total-capacity invariance across K.
+Browser checks cover all11 maps, standard1s/three-tier policy, budgets, timeline
+and energy details. No game execution, hosted deployment or downloads occurred.</p>
+<script src="model-atlas/public-links.js" data-public-links></script></body></html>
