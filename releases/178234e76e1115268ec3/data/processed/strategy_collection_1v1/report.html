@@ -1,0 +1,542 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>report.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="../../../docs/model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="map-strategy-collection-final-report">Map strategy collection: final report</h1>
+<blockquote>
+<p><strong>15 October correction:</strong> DualGap Adaptive was analysed with slot 1 vs 12. The validated pair is slot 1 vs 2. Its corrected offensive-drop / air shares are 18.9% / 37.7%. Pandemonium Pass also has a new experimental route-allocation scenario. See <a href="http://127.0.0.1:5177/route_response_diagnostics/index.html">targeted reruns</a>. The tables below retain the historical snapshot.</p>
+</blockquote>
+<p><strong>602 maps analysed; 28 excluded or unresolved; all 630 cohort entries attempted.</strong></p>
+<p><a href="http://127.0.0.1:5177/strategy_collection_1v1/index.html">Interactive report</a> | <a href="http://127.0.0.1:5177/strategy_collection_1v1/metrics.csv">Metrics CSV</a> | <a href="http://127.0.0.1:5177/strategy_collection_1v1/examples.png">Illustrated examples</a></p>
+<h2 id="scope">Scope</h2>
+<p>Union of 545 visible adaptive-named map entries, 33 featured maps and 93 fixed ladder maps, with overlap. Vault memberships were checked while signed in on 15 October 2026. Latest locally catalogued parent versions from the 8 October FAF snapshot are analysed; exact pool folders and version substitutions are recorded in the cohort manifest. The current 3v3 ladder has ten generated configurations rather than fixed map files, so it is documented separately.</p>
+<table>
+<thead>
+<tr>
+<th>Set</th>
+<th align="right">Analysed</th>
+<th align="right">Excluded / unresolved</th>
+<th align="right">Total</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>adaptive</td>
+<td align="right">520</td>
+<td align="right">25</td>
+<td align="right">545</td>
+</tr>
+<tr>
+<td>featured</td>
+<td align="right">30</td>
+<td align="right">3</td>
+<td align="right">33</td>
+</tr>
+<tr>
+<td>ladder</td>
+<td align="right">93</td>
+<td align="right">0</td>
+<td align="right">93</td>
+</tr>
+</tbody></table>
+<p>Default setup is slot 1 versus its mirrored opponent, with only those two slots active and default adaptive options. Prefer 180-degree symmetry, tolerate small positional changes, then use an available reflection axis; an asymmetric map with exactly two slots uses its only opponent. Maps without a meaningful mirror are excluded. These are 1v1 structural estimates even where the original map is usually played with teams.</p>
+<h2 id="how-to-read-the-results">How to read the results</h2>
+<p>Affected mex share and distinct destinations are the main drop/air evidence. Sites are deduplicated across both attacking directions. Combined drops use the union of expansion and offensive opportunities; their shares must not be added. Water mexes are valid generic air-raid targets through torpedo aircraft. Representative gunship economics are used for the entire air-raid class, as requested.</p>
+<p>The original absolute 1-5 scores remain in JSON/CSV. New relative 1-5 ratings are midrank percentiles of affected mex share in this analysed cohort, with zero always 1. This improves the interpretation of collection rankings but is not a calibrated universal measure of gameplay impact. A high share is an opportunity, not predicted damage or a win probability.</p>
+<p>Front categories use the widest available representative route&#39;s sustained narrowest cross-section: closed below 24 map units, mixed 24-64, open at least 64. Disconnected land is separate. Counts refer to found route geometries, not fully independent fronts: routes may share sections, and symmetry can add paired geometry. The JSON retains signatures, merged sections, resource allocation and search limits. Widths are measured on representative paths, not optimized army-clearance routes.</p>
+<h2 id="representative-examples">Representative examples</h2>
+<p>For familiar inspection examples, select featured/ladder maps or ranked maps with at least 500 historical plays, excluding obvious survival/practice/1vN name hints. This is a presentation filter, not a gameplay-quality judgment or a change to scores. All raw extremes, including special-purpose maps, remain in the interactive All view and CSV.</p>
+<h3 id="combined-drop-impact">Combined drop impact</h3>
+<table>
+<thead>
+<tr>
+<th>Map and version</th>
+<th>Evidence</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><a href="https://vault.jipwijnia.nl/maps/adaptive_delta_riva.v0007">adaptive delta riva</a> (adaptive_delta_riva.v0007)</td>
+<td>83.3%: 80/96 mexes, 20 destinations; relative 4.96/5</td>
+</tr>
+<tr>
+<td><a href="https://vault.jipwijnia.nl/maps/adaptive_dark_liver.v0003">Adaptive Dark Liver</a> (adaptive_dark_liver.v0003)</td>
+<td>82.2%: 74/90 mexes, 17 destinations; relative 4.94/5</td>
+</tr>
+<tr>
+<td><a href="https://vault.jipwijnia.nl/maps/adaptive_skadi.v0002">Adaptive Skadi</a> (adaptive_skadi.v0002)</td>
+<td>78.9%: 60/76 mexes, 16 destinations; relative 4.90/5</td>
+</tr>
+<tr>
+<td><a href="https://vault.jipwijnia.nl/maps/dualgap_adaptive.v0014">DualGap Adaptive</a> (dualgap_adaptive.v0014)</td>
+<td>76.8%: 53/69 mexes, 6 destinations; relative 4.87/5</td>
+</tr>
+<tr>
+<td><a href="https://vault.jipwijnia.nl/maps/dualgap_f_adaptive.v0002">DualGap F Adaptive</a> (dualgap_f_adaptive.v0002)</td>
+<td>76.8%: 53/69 mexes, 6 destinations; relative 4.87/5</td>
+</tr>
+<tr>
+<td><a href="https://vault.jipwijnia.nl/maps/chiron.v0003">Chiron</a> (chiron.v0003)</td>
+<td>76.3%: 58/76 mexes, 25 destinations; relative 4.83/5</td>
+</tr>
+</tbody></table>
+<h3 id="expansion-drops">Expansion drops</h3>
+<table>
+<thead>
+<tr>
+<th>Map and version</th>
+<th>Evidence</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><a href="https://vault.jipwijnia.nl/maps/dualgap_adaptive.v0014">DualGap Adaptive</a> (dualgap_adaptive.v0014)</td>
+<td>76.8%: 53/69 mexes, 6 destinations; relative 4.90/5</td>
+</tr>
+<tr>
+<td><a href="https://vault.jipwijnia.nl/maps/dualgap_f_adaptive.v0002">DualGap F Adaptive</a> (dualgap_f_adaptive.v0002)</td>
+<td>76.8%: 53/69 mexes, 6 destinations; relative 4.90/5</td>
+</tr>
+<tr>
+<td><a href="https://vault.jipwijnia.nl/maps/winter_dualgap_adaptive.v0002">Winter DualGap Adaptive</a> (winter_dualgap_adaptive.v0002)</td>
+<td>75.8%: 50/66 mexes, 6 destinations; relative 4.86/5</td>
+</tr>
+<tr>
+<td><a href="https://vault.jipwijnia.nl/maps/adaptive_dualgap_uprising.v0006">Adaptive Dualgap Uprising</a> (adaptive_dualgap_uprising.v0006)</td>
+<td>72.5%: 50/69 mexes, 7 destinations; relative 4.84/5</td>
+</tr>
+<tr>
+<td><a href="https://vault.jipwijnia.nl/maps/eonnacia.v0035">Eonnacia</a> (eonnacia.v0035)</td>
+<td>71.0%: 132/186 mexes, 25 destinations; relative 4.83/5</td>
+</tr>
+<tr>
+<td><a href="https://vault.jipwijnia.nl/maps/adaptive_delta_riva.v0007">adaptive delta riva</a> (adaptive_delta_riva.v0007)</td>
+<td>70.8%: 68/96 mexes, 18 destinations; relative 4.82/5</td>
+</tr>
+</tbody></table>
+<h3 id="offensive-drops">Offensive drops</h3>
+<table>
+<thead>
+<tr>
+<th>Map and version</th>
+<th>Evidence</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><a href="https://vault.jipwijnia.nl/maps/adaptive_delta_riva.v0007">adaptive delta riva</a> (adaptive_delta_riva.v0007)</td>
+<td>83.3%: 80/96 mexes, 20 destinations; relative 4.98/5</td>
+</tr>
+<tr>
+<td><a href="https://vault.jipwijnia.nl/maps/adaptive_dark_liver.v0003">Adaptive Dark Liver</a> (adaptive_dark_liver.v0003)</td>
+<td>80.0%: 72/90 mexes, 16 destinations; relative 4.95/5</td>
+</tr>
+<tr>
+<td><a href="https://vault.jipwijnia.nl/maps/adaptive_skadi.v0002">Adaptive Skadi</a> (adaptive_skadi.v0002)</td>
+<td>78.9%: 60/76 mexes, 16 destinations; relative 4.94/5</td>
+</tr>
+<tr>
+<td><a href="https://vault.jipwijnia.nl/maps/adaptive_lacrite.v0001">Adaptive_Lacrite</a> (adaptive_lacrite.v0001)</td>
+<td>75.0%: 51/68 mexes, 13 destinations; relative 4.93/5</td>
+</tr>
+<tr>
+<td><a href="https://vault.jipwijnia.nl/maps/seraphim_glaciers_-_faf_version.v0001">Seraphim Glaciers - FAF version</a> (seraphim_glaciers_-_faf_version.v0001)</td>
+<td>75.0%: 57/76 mexes, 9 destinations; relative 4.93/5</td>
+</tr>
+<tr>
+<td><a href="https://vault.jipwijnia.nl/maps/gateway_and_rose.v0002">Gateway and Rose</a> (gateway_and_rose.v0002)</td>
+<td>72.2%: 52/72 mexes, 18 destinations; relative 4.92/5</td>
+</tr>
+</tbody></table>
+<h3 id="air-raids">Air raids</h3>
+<table>
+<thead>
+<tr>
+<th>Map and version</th>
+<th>Evidence</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><a href="https://vault.jipwijnia.nl/maps/eonnacia.v0035">Eonnacia</a> (eonnacia.v0035)</td>
+<td>86.0%: 160/186 mexes, 45 destinations; relative 4.97/5</td>
+</tr>
+<tr>
+<td><a href="https://vault.jipwijnia.nl/maps/adaptive_delta_riva.v0007">adaptive delta riva</a> (adaptive_delta_riva.v0007)</td>
+<td>83.3%: 80/96 mexes, 20 destinations; relative 4.96/5</td>
+</tr>
+<tr>
+<td><a href="https://vault.jipwijnia.nl/maps/chiron.v0003">Chiron</a> (chiron.v0003)</td>
+<td>81.6%: 62/76 mexes, 27 destinations; relative 4.92/5</td>
+</tr>
+<tr>
+<td><a href="https://vault.jipwijnia.nl/maps/dualgap_scale_adaptive.v0004">DualGap Scale Adaptive</a> (dualgap_scale_adaptive.v0004)</td>
+<td>80.0%: 88/110 mexes, 27 destinations; relative 4.90/5</td>
+</tr>
+<tr>
+<td><a href="https://vault.jipwijnia.nl/maps/adaptive_dark_liver.v0003">Adaptive Dark Liver</a> (adaptive_dark_liver.v0003)</td>
+<td>80.0%: 72/90 mexes, 16 destinations; relative 4.90/5</td>
+</tr>
+<tr>
+<td><a href="https://vault.jipwijnia.nl/maps/adaptive_skadi.v0002">Adaptive Skadi</a> (adaptive_skadi.v0002)</td>
+<td>78.9%: 60/76 mexes, 16 destinations; relative 4.88/5</td>
+</tr>
+</tbody></table>
+<h3 id="open-land-fronts">Open land fronts</h3>
+<table>
+<thead>
+<tr>
+<th>Map and version</th>
+<th>Evidence</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><a href="https://vault.jipwijnia.nl/maps/adaptive_alpine_valley.v0003">Adaptive Alpine Valley</a> (adaptive_alpine_valley.v0003)</td>
+<td>Best sustained bottleneck 333.1 map units; 1 route geometries; limits: none reached</td>
+</tr>
+<tr>
+<td><a href="https://vault.jipwijnia.nl/maps/adaptive_pillars_of_sand.v0001">Adaptive Pillars of Sand</a> (adaptive_pillars_of_sand.v0001)</td>
+<td>Best sustained bottleneck 235.7 map units; 9 route geometries; limits: none reached</td>
+</tr>
+<tr>
+<td><a href="https://vault.jipwijnia.nl/maps/adaptive_kusoge.v0003">Adaptive Kusoge</a> (adaptive_kusoge.v0003)</td>
+<td>Best sustained bottleneck 205.4 map units; 10 route geometries; limits: none reached</td>
+</tr>
+<tr>
+<td><a href="https://vault.jipwijnia.nl/maps/desert_arena_-_faf_version.v0002">Desert Arena - FAF version</a> (desert_arena_-_faf_version.v0002)</td>
+<td>Best sustained bottleneck 200.7 map units; 1 route geometries; limits: none reached</td>
+</tr>
+<tr>
+<td><a href="https://vault.jipwijnia.nl/maps/adaptive_amadeo_and_eliseo.v0004">Adaptive Amadeo and Eliseo</a> (adaptive_amadeo_and_eliseo.v0004)</td>
+<td>Best sustained bottleneck 155.6 map units; 3 route geometries; limits: cut_budget</td>
+</tr>
+<tr>
+<td><a href="https://vault.jipwijnia.nl/maps/wonder%20open%205v5%20v3b.v0002">Wonder open 5v5 v3b</a> (wonder open 5v5 v3b.v0002)</td>
+<td>Best sustained bottleneck 150.8 map units; 3 route geometries; limits: none reached</td>
+</tr>
+</tbody></table>
+<h3 id="closed-land-fronts">Closed land fronts</h3>
+<table>
+<thead>
+<tr>
+<th>Map and version</th>
+<th>Evidence</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><a href="https://vault.jipwijnia.nl/maps/adaptive_pandemonium_pass.v0002">Adaptive Pandemonium Pass</a> (adaptive_pandemonium_pass.v0002)</td>
+<td>Best sustained bottleneck 6.9 map units; 11 route geometries; limits: cut_budget</td>
+</tr>
+<tr>
+<td><a href="https://vault.jipwijnia.nl/maps/adaptive_proteus.v0005">Adaptive Proteus</a> (adaptive_proteus.v0005)</td>
+<td>Best sustained bottleneck 9.9 map units; 4 route geometries; limits: none reached</td>
+</tr>
+<tr>
+<td><a href="https://vault.jipwijnia.nl/maps/adaptive_esais_vengeance.v0013">Adaptive Esais Vengeance</a> (adaptive_esais_vengeance.v0013)</td>
+<td>Best sustained bottleneck 11.4 map units; 8 route geometries; limits: none reached</td>
+</tr>
+<tr>
+<td><a href="https://vault.jipwijnia.nl/maps/tabula%20rasa%20v3.v0002">Tabula rasa v3</a> (tabula rasa v3.v0002)</td>
+<td>Best sustained bottleneck 11.7 map units; 3 route geometries; limits: none reached</td>
+</tr>
+<tr>
+<td><a href="https://vault.jipwijnia.nl/maps/adaptive_tabula_rasa.v0007">Adaptive Tabula Rasa</a> (adaptive_tabula_rasa.v0007)</td>
+<td>Best sustained bottleneck 11.7 map units; 3 route geometries; limits: none reached</td>
+</tr>
+<tr>
+<td><a href="https://vault.jipwijnia.nl/maps/the_drunken_beetles_dance.v0001">The Drunken Beetles Dance</a> (the_drunken_beetles_dance.v0001)</td>
+<td>Best sustained bottleneck 15.2 map units; 2 route geometries; limits: none reached</td>
+</tr>
+</tbody></table>
+<h2 id="combined-structural-examples">Combined structural examples</h2>
+<p>These exploratory groups combine front geometry with resource exposure. They are inspection aids, not new trained gameplay labels.</p>
+<table>
+<thead>
+<tr>
+<th>Pattern</th>
+<th>Map</th>
+<th>Land front</th>
+<th align="right">Combined-drop share</th>
+<th align="right">Air-raid share</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Open land with little qualifying drop economy</td>
+<td>Cobalt Valley</td>
+<td>80.5 units best bottleneck</td>
+<td align="right">0.0%</td>
+<td align="right">0.0%</td>
+</tr>
+<tr>
+<td>Open land with little qualifying drop economy</td>
+<td>Adaptive Archsimkats Valley</td>
+<td>108.6 units best bottleneck</td>
+<td align="right">0.0%</td>
+<td align="right">0.0%</td>
+</tr>
+<tr>
+<td>Open land with little qualifying drop economy</td>
+<td>Adaptive Wonder Open</td>
+<td>150.8 units best bottleneck</td>
+<td align="right">2.7%</td>
+<td align="right">2.7%</td>
+</tr>
+<tr>
+<td>Open land with little qualifying drop economy</td>
+<td>Funeral Plains</td>
+<td>139.1 units best bottleneck</td>
+<td align="right">2.6%</td>
+<td align="right">2.6%</td>
+</tr>
+<tr>
+<td>Narrow land with air-exposed economy</td>
+<td>The Drunken Beetles Dance</td>
+<td>15.2 units best bottleneck</td>
+<td align="right">44.8%</td>
+<td align="right">69.0%</td>
+</tr>
+<tr>
+<td>Narrow land with air-exposed economy</td>
+<td>Adaptive Hutts Clutch</td>
+<td>15.6 units best bottleneck</td>
+<td align="right">45.4%</td>
+<td align="right">42.0%</td>
+</tr>
+<tr>
+<td>Narrow land with air-exposed economy</td>
+<td>X6 1v1</td>
+<td>18.0 units best bottleneck</td>
+<td align="right">47.1%</td>
+<td align="right">41.2%</td>
+</tr>
+<tr>
+<td>Narrow land with air-exposed economy</td>
+<td>The Drunken Beetles Dance - FAF Version</td>
+<td>15.2 units best bottleneck</td>
+<td align="right">44.8%</td>
+<td align="right">69.0%</td>
+</tr>
+<tr>
+<td>Land disconnected with expansion opportunities</td>
+<td>DualGap Adaptive</td>
+<td>disconnected</td>
+<td align="right">76.8%</td>
+<td align="right">76.8%</td>
+</tr>
+<tr>
+<td>Land disconnected with expansion opportunities</td>
+<td>Point of Reach v4</td>
+<td>disconnected</td>
+<td align="right">60.5%</td>
+<td align="right">46.5%</td>
+</tr>
+<tr>
+<td>Land disconnected with expansion opportunities</td>
+<td>adaptive millennium</td>
+<td>disconnected</td>
+<td align="right">66.7%</td>
+<td align="right">40.7%</td>
+</tr>
+<tr>
+<td>Land disconnected with expansion opportunities</td>
+<td>Virmire</td>
+<td>disconnected</td>
+<td align="right">63.5%</td>
+<td align="right">63.5%</td>
+</tr>
+<tr>
+<td>Narrow land with little qualifying air economy</td>
+<td>Eye of the Storm - FAF version</td>
+<td>18.6 units best bottleneck</td>
+<td align="right">25.0%</td>
+<td align="right">8.3%</td>
+</tr>
+<tr>
+<td>Narrow land with little qualifying air economy</td>
+<td>Adaptive Hardshield Oasis</td>
+<td>20.0 units best bottleneck</td>
+<td align="right">0.0%</td>
+<td align="right">0.0%</td>
+</tr>
+<tr>
+<td>Narrow land with little qualifying air economy</td>
+<td>Adaptive Pandemonium Pass</td>
+<td>6.9 units best bottleneck</td>
+<td align="right">0.0%</td>
+<td align="right">0.0%</td>
+</tr>
+<tr>
+<td>Narrow land with little qualifying air economy</td>
+<td>Monaki</td>
+<td>16.1 units best bottleneck</td>
+<td align="right">13.3%</td>
+<td align="right">0.0%</td>
+</tr>
+</tbody></table>
+<h2 id="approved-four-map-check">Approved four-map check</h2>
+<p>The combined pipeline reproduces the original primary scores for Maridia, Point of Reason, Hilly Plateau and Canis River exactly. Their ordering was not used to tune per-map thresholds.</p>
+<table>
+<thead>
+<tr>
+<th>Map</th>
+<th align="right">Expansion share</th>
+<th align="right">Offensive share</th>
+<th align="right">Air share</th>
+<th align="right">Relative combined drops</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Adaptive Maridia</td>
+<td align="right">44.4%</td>
+<td align="right">46.3%</td>
+<td align="right">75.9%</td>
+<td align="right">4.28/5</td>
+</tr>
+<tr>
+<td>Adaptive Point of Reason</td>
+<td align="right">52.2%</td>
+<td align="right">42.2%</td>
+<td align="right">55.6%</td>
+<td align="right">4.50/5</td>
+</tr>
+<tr>
+<td>Adaptive Hilly Plateau</td>
+<td align="right">0.0%</td>
+<td align="right">0.0%</td>
+<td align="right">0.0%</td>
+<td align="right">1.00/5</td>
+</tr>
+<tr>
+<td>Adaptive Canis River</td>
+<td align="right">0.0%</td>
+<td align="right">0.0%</td>
+<td align="right">0.0%</td>
+<td align="right">1.00/5</td>
+</tr>
+</tbody></table>
+<p>Low primary impact does not mean drops never work. Eighteen shared preset/strength combinations are preserved per map; weaker defenses and permissive thresholds can change opportunities substantially. Base defense strength stays fixed at 1 in the primary estimate, and land-route strength derives from land-connected economic coverage times route directness. Actual army allocation is unknown. Contested island targets may assume enemy occupation; conditional pockets are identified in per-map JSON and the inspector.</p>
+<h2 id="coverage-exceptions">Coverage exceptions</h2>
+<ul>
+<li>memory_limit: 3</li>
+<li>no_mirrored_1v1_pair: 19</li>
+<li>unsupported_resource_script: 6</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>Map</th>
+<th>Reason</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Triad Terraces (8512_15191)</td>
+<td>No unambiguous mirrored opponent for slot 1</td>
+</tr>
+<tr>
+<td>Argon (9232_17006)</td>
+<td>No unambiguous mirrored opponent for slot 1</td>
+</tr>
+<tr>
+<td>Casseopeia (6653_10882)</td>
+<td>No unambiguous mirrored opponent for slot 1</td>
+</tr>
+<tr>
+<td>Adaptive Eyjafjallajokull (13923_29524)</td>
+<td>memory_budget: estimated 35.2 GiB free required, 5.1 available</td>
+</tr>
+<tr>
+<td>Adaptive Pacific Survival (13726_28843)</td>
+<td>No unambiguous mirrored opponent for slot 1</td>
+</tr>
+<tr>
+<td>Adaptive Ivano Frankivsk (14343_30741)</td>
+<td>No unambiguous mirrored opponent for slot 1</td>
+</tr>
+<tr>
+<td>Adaptive Pacific Survival 20km (13741_28886)</td>
+<td>No unambiguous mirrored opponent for slot 1</td>
+</tr>
+<tr>
+<td>Adaptive Trinity (11110_21709)</td>
+<td>No unambiguous mirrored opponent for slot 1</td>
+</tr>
+<tr>
+<td>Adaptive Equestria at War (14471_30945)</td>
+<td>No unambiguous mirrored opponent for slot 1</td>
+</tr>
+<tr>
+<td>Adaptive Borgarnes Truescale (13749_28921)</td>
+<td>memory_budget: estimated 35.2 GiB free required, 4.8 available</td>
+</tr>
+<tr>
+<td>Adaptive Borgarnes Reloaded (13734_29376)</td>
+<td>No unambiguous mirrored opponent for slot 1</td>
+</tr>
+<tr>
+<td>Adaptive Canyon Survival (13314_28970)</td>
+<td>No unambiguous mirrored opponent for slot 1</td>
+</tr>
+<tr>
+<td>Adaptive Survival Runner (11948_23889)</td>
+<td>Unresolved default adaptive resources: Expected exactly one adaptive tables file</td>
+</tr>
+<tr>
+<td>Adaptive Phantom Pentacle (12684_25800)</td>
+<td>No unambiguous mirrored opponent for slot 1</td>
+</tr>
+<tr>
+<td>Adaptive Caldera Survival (13775_29167)</td>
+<td>No unambiguous mirrored opponent for slot 1</td>
+</tr>
+<tr>
+<td>Adaptive Borgarnes Heavy1600 (13737_28887)</td>
+<td>No unambiguous mirrored opponent for slot 1</td>
+</tr>
+<tr>
+<td>Adaptive Alt Survival (14578_31217)</td>
+<td>No unambiguous mirrored opponent for slot 1</td>
+</tr>
+<tr>
+<td>DualGap Scale Adaptive Navy Practice (14652_31357)</td>
+<td>Unresolved default adaptive resources: Expected exactly one adaptive tables file</td>
+</tr>
+<tr>
+<td>Adaptive Phantom Island Seven (11636_23001)</td>
+<td>No unambiguous mirrored opponent for slot 1</td>
+</tr>
+<tr>
+<td>Adaptive Big Survival (14655_31360)</td>
+<td>No unambiguous mirrored opponent for slot 1</td>
+</tr>
+<tr>
+<td>Adaptive Bornholm DK (13900_29452)</td>
+<td>memory_budget: estimated 35.2 GiB free required, 4.1 available</td>
+</tr>
+<tr>
+<td>Adaptive Snake Way (15148_32683)</td>
+<td>No unambiguous mirrored opponent for slot 1</td>
+</tr>
+<tr>
+<td>Adaptive Arena Micro skill (10737_20651)</td>
+<td>Unresolved default adaptive resources: Resource activation script pattern unsupported</td>
+</tr>
+<tr>
+<td>Adaptive Niihau FFA (15296_33023)</td>
+<td>No unambiguous mirrored opponent for slot 1</td>
+</tr>
+<tr>
+<td>Adaptive Toda (15035_32458)</td>
+<td>Unresolved default adaptive resources: Resource activation script pattern unsupported</td>
+</tr>
+<tr>
+<td>Adaptive Agro-intestinal complex (12434_25102)</td>
+<td>Unresolved default adaptive resources: Expected exactly one adaptive tables file</td>
+</tr>
+<tr>
+<td>DualGap Adaptive Land (15225_32881)</td>
+<td>Unresolved default adaptive resources: Resource activation script pattern unsupported</td>
+</tr>
+<tr>
+<td>Adaptive Sealnd Beach (9415_17438)</td>
+<td>No unambiguous mirrored opponent for slot 1</td>
+</tr>
+</tbody></table>
+<p>Six listed ladder-pool version references differ from the analysed latest local version; see pool_version_substitutions.csv for exact folders and queues.</p>
+<p>No-mirror layouts are exclusions from this setup, not broken-map findings. Unknown resource scripts and memory failures are not assigned low scores. Hidden entries and generated ladder configurations are not silently substituted.</p>
+<h2 id="validation-and-limits">Validation and limits</h2>
+<p>End-to-end validation checked 602 maps with 0 errors and 0 warnings. It checks two-slot/default resource scope, unique mex denominators, score arithmetic, fractional route-area conservation, registered terrain/overlay dimensions, and PNG/numeric-mask agreement. Four early numeric archives were reconstructed from approved cached paths and reproduced all scores exactly.</p>
+<p>The pipeline retains .75 slope and amphibious depth 25, hover engineer water unloading, approximate map symmetry, merged route sections and 18 sensitivity cases. A streamed distance-field implementation preserves measurements while reducing memory. Symmetry signature collisions with a blocked centre retain valid mirrored polylines rather than inventing an illegal central route.</p>
+<p>Limits: terrain-only movement does not simulate unit collisions, prop obstruction, steering, actual units/AA/intel, projectiles, economy upgrades or naval fire support. Known civilian defenses and special map restrictions are not simulated. Reclaim was not re-extracted and is explicitly null in this strategy export; it does not enter the impact score. Search-budget limits make route discovery incomplete. Special-purpose maps can have extreme geometric scores that do not describe ordinary competitive gameplay.</p>
+<p>Artifacts include registered PNG overlays, raw opportunity and route JSON, numeric masks, metrics CSV, source hashes, selected configurations and explicit failure records. No replay scraping, new map-download attempts or hosted deployment was performed.</p>
+<script src="../../../docs/model-atlas/public-links.js" data-public-links></script></body></html>

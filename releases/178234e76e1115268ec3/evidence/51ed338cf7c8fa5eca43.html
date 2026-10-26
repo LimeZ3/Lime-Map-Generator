@@ -1,0 +1,542 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>lua_entities.py | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="../docs/model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1>lua_entities.py</h1><p class="meta">Saved public evidence snapshot: src/supmapai/extract/lua_entities.py</p><pre>&quot;&quot;&quot;Extract V1 Lua entities from canonical SupCom map inventories.&quot;&quot;&quot;
+
+from __future__ import annotations
+
+import argparse
+import csv
+import json
+import re
+from collections import Counter
+from dataclasses import asdict, dataclass, field
+from pathlib import Path
+from typing import Any
+
+NUMBER = r&quot;[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?&quot;
+STRING_VALUE_RE = re.compile(
+    r&quot;\[['\&quot;](?P&lt;key&gt;[^'\&quot;]+)['\&quot;]\]\s*=\s*STRING\(\s*['\&quot;](?P&lt;value&gt;[^'\&quot;]*)['\&quot;]&quot;,
+    re.I,
+)
+TYPE_RE = re.compile(r&quot;\['type'\]\s*=\s*STRING\(\s*['\&quot;]([^'\&quot;]+)['\&quot;]\s*\)&quot;, re.I)
+PROP_RE = re.compile(r&quot;\['prop'\]\s*=\s*STRING\(\s*['\&quot;]([^'\&quot;]+)['\&quot;]\s*\)&quot;, re.I)
+VECTOR3_RE = re.compile(rf&quot;VECTOR3\(\s*({NUMBER})\s*,\s*({NUMBER})\s*,\s*({NUMBER})\s*\)&quot;, re.I)
+POSITION_RE = re.compile(
+    rf&quot;\[['\&quot;]position['\&quot;]\]\s*=\s*VECTOR3\(\s*({NUMBER})\s*,\s*({NUMBER})\s*,\s*({NUMBER})\s*\)&quot;,
+    re.I,
+)
+POSITION_BRACE_RE = re.compile(
+    rf&quot;\bPosition\b\s*=\s*{{\s*({NUMBER})\s*,\s*({NUMBER})\s*,\s*({NUMBER})\s*,?\s*}}&quot;,
+    re.I,
+)
+ORIENTATION_RE = re.compile(
+    rf&quot;\[['\&quot;]orientation['\&quot;]\]\s*=\s*VECTOR3\(\s*({NUMBER})\s*,\s*({NUMBER})\s*,\s*({NUMBER})\s*\)&quot;,
+    re.I,
+)
+ORIENTATION_BRACE_RE = re.compile(
+    rf&quot;\bOrientation\b\s*=\s*{{\s*({NUMBER})\s*,\s*({NUMBER})\s*,\s*({NUMBER})\s*,?\s*}}&quot;,
+    re.I,
+)
+BLUEPRINT_RE = re.compile(
+    r&quot;(?:\[['\&quot;](?:type|blueprint|Blueprint)['\&quot;]\]|(?:type|blueprint|Blueprint))\s*=\s*['\&quot;]([^'\&quot;]+)['\&quot;]&quot;,
+    re.I,
+)
+ARMY_BLOCK_RE = re.compile(r&quot;\['(?P&lt;army&gt;ARMY_\d+|NEUTRAL_CIVILIAN)'\]\s*=\s*{&quot;, re.I)
+MARKER_START_RE = re.compile(r&quot;\['(?P&lt;name&gt;[^'\&quot;]+)'\]\s*=\s*{&quot;)
+GROUP_START_RE = re.compile(r&quot;\['(?P&lt;name&gt;[^'\&quot;]+)'\]\s*=\s*GROUP\s*{&quot;)
+UNIT_START_RE = re.compile(r&quot;\['(?P&lt;name&gt;UNIT_[^'\&quot;]*)'\]\s*=\s*{&quot;, re.I)
+RECTANGLE_RE = re.compile(
+    rf&quot;RECTANGLE\(\s*({NUMBER})\s*,\s*({NUMBER})\s*,\s*({NUMBER})\s*,\s*({NUMBER})\s*\)&quot;,
+    re.I,
+)
+
+RECLAIM_HINTS = (&quot;tree&quot;, &quot;rock&quot;, &quot;boulder&quot;, &quot;wreck&quot;, &quot;reclaim&quot;, &quot;log&quot;, &quot;debris&quot;)
+CIVILIAN_HINTS = (&quot;civilian&quot;, &quot;/civilian/&quot;, &quot;uec&quot;, &quot;uac&quot;, &quot;urb&quot;, &quot;xsc&quot;, &quot;xec&quot;)
+BUILDING_HINTS = (&quot;uab&quot;, &quot;ueb&quot;, &quot;urb&quot;, &quot;xsb&quot;, &quot;ueb5&quot;, &quot;uab5&quot;, &quot;urb5&quot;, &quot;building&quot;)
+
+
+@dataclass(frozen=True)
+class Point3:
+    x: float
+    y: float
+    z: float
+
+
+@dataclass
+class MarkerEntity:
+    name: str
+    marker_type: str
+    position: Point3 | None = None
+    prop: str = &quot;&quot;
+
+
+@dataclass
+class UnitEntity:
+    army: str
+    name: str
+    blueprint: str
+    position: Point3 | None = None
+    orientation: Point3 | None = None
+    kind: str = &quot;unit&quot;
+    group_path: list[str] = field(default_factory=list)
+
+
+@dataclass
+class AreaEntity:
+    name: str
+    rectangle: list[float] = field(default_factory=list)
+
+
+def _read_text(path: Path | None) -&gt; tuple[str, str | None]:
+    if path is None:
+        return &quot;&quot;, &quot;missing_file&quot;
+    try:
+        return path.read_text(encoding=&quot;utf-8&quot;, errors=&quot;replace&quot;), None
+    except OSError as exc:
+        return &quot;&quot;, f&quot;failed_to_read_{path.name}: {exc}&quot;
+
+
+def _file_entries(map_record: dict[str, Any], key: str) -&gt; list[dict[str, Any]]:
+    direct_entries = map_record.get(key)
+    if direct_entries is not None:
+        return direct_entries
+    return map_record.get(&quot;files&quot;, {}).get(key, [])
+
+
+def _first_path(map_record: dict[str, Any], key: str, maps_root: Path) -&gt; Path | None:
+    entries = _file_entries(map_record, key)
+    if not entries:
+        return None
+    relative = entries[0].get(&quot;path&quot;)
+    if not relative:
+        return None
+    return maps_root / Path(relative)
+
+
+def _block_end(text: str, open_brace_index: int) -&gt; int:
+    depth = 0
+    in_string: str | None = None
+    index = open_brace_index
+    while index &lt; len(text):
+        char = text[index]
+        if in_string:
+            if char == &quot;\\&quot;:
+                index += 2
+                continue
+            if char == in_string:
+                in_string = None
+        elif char in (&quot;'&quot;, '&quot;'):
+            in_string = char
+        elif char == &quot;{&quot;:
+            depth += 1
+        elif char == &quot;}&quot;:
+            depth -= 1
+            if depth == 0:
+                return index + 1
+        index += 1
+    return len(text)
+
+
+def _named_blocks(text: str, start_re: re.Pattern[str]) -&gt; list[tuple[str, str]]:
+    blocks: list[tuple[str, str]] = []
+    for name, block, _, _ in _named_blocks_with_spans(text, start_re):
+        blocks.append((name, block))
+    return blocks
+
+
+def _named_blocks_with_spans(
+    text: str, start_re: re.Pattern[str]
+) -&gt; list[tuple[str, str, int, int]]:
+    blocks: list[tuple[str, str, int, int]] = []
+    for match in start_re.finditer(text):
+        open_index = text.find(&quot;{&quot;, match.end() - 1)
+        if open_index == -1:
+            continue
+        end_index = _block_end(text, open_index)
+        blocks.append((match.group(&quot;name&quot;), text[open_index:end_index], match.start(), end_index))
+    return blocks
+
+
+def _section_block(text: str, section_name: str) -&gt; str:
+    match = re.search(rf&quot;\b{re.escape(section_name)}\s*=\s*{{&quot;, text)
+    if not match:
+        return &quot;&quot;
+    open_index = text.find(&quot;{&quot;, match.end() - 1)
+    return text[open_index : _block_end(text, open_index)]
+
+
+def _master_markers_block(text: str) -&gt; str:
+    markers_match = re.search(r&quot;\bMarkers\s*=\s*{&quot;, text)
+    if not markers_match:
+        return &quot;&quot;
+    open_index = text.find(&quot;{&quot;, markers_match.end() - 1)
+    return text[open_index : _block_end(text, open_index)]
+
+
+def _point_from_match(match: re.Match[str] | None) -&gt; Point3 | None:
+    if not match:
+        return None
+    return Point3(float(match.group(1)), float(match.group(2)), float(match.group(3)))
+
+
+def _position_from_block(block: str) -&gt; Point3 | None:
+    return _point_from_match(POSITION_RE.search(block) or POSITION_BRACE_RE.search(block))
+
+
+def _orientation_from_block(block: str) -&gt; Point3 | None:
+    return _point_from_match(ORIENTATION_RE.search(block) or ORIENTATION_BRACE_RE.search(block))
+
+
+def _parse_markers(text: str) -&gt; list[MarkerEntity]:
+    markers_block = _master_markers_block(text)
+    if not markers_block:
+        return []
+
+    markers: list[MarkerEntity] = []
+    for name, block in _named_blocks(markers_block, MARKER_START_RE):
+        type_match = TYPE_RE.search(block)
+        if not type_match:
+            continue
+        prop_match = PROP_RE.search(block)
+        markers.append(
+            MarkerEntity(
+                name=name,
+                marker_type=type_match.group(1),
+                position=_point_from_match(POSITION_RE.search(block)),
+                prop=prop_match.group(1) if prop_match else &quot;&quot;,
+            )
+        )
+    return markers
+
+
+def _parse_areas(text: str) -&gt; list[AreaEntity]:
+    areas_block = _section_block(text, &quot;Areas&quot;)
+    areas: list[AreaEntity] = []
+    for name, block in _named_blocks(areas_block, MARKER_START_RE):
+        rectangle_match = RECTANGLE_RE.search(block)
+        rectangle = [float(value) for value in rectangle_match.groups()] if rectangle_match else []
+        areas.append(AreaEntity(name=name, rectangle=rectangle))
+    return areas
+
+
+def _context_has_any(values: list[str], hints: tuple[str, ...]) -&gt; bool:
+    joined = &quot; &quot;.join(values).lower()
+    return any(hint in joined for hint in hints)
+
+
+def _classify_blueprint(
+    blueprint: str,
+    army: str,
+    name: str = &quot;&quot;,
+    group_path: list[str] | None = None,
+) -&gt; str:
+    lower = blueprint.lower()
+    context = [name, *(group_path or [])]
+    if any(hint in lower for hint in RECLAIM_HINTS) or _context_has_any(context, RECLAIM_HINTS):
+        return &quot;reclaim&quot;
+    if (
+        &quot;civilian&quot; in army.lower()
+        or any(hint in lower for hint in CIVILIAN_HINTS)
+        or _context_has_any(context, (&quot;civilian&quot;,))
+    ):
+        if any(hint in lower for hint in BUILDING_HINTS):
+            return &quot;civilian_building&quot;
+        return &quot;civilian_unit&quot;
+    if any(hint in lower for hint in BUILDING_HINTS):
+        return &quot;building&quot;
+    return &quot;unit&quot;
+
+
+def _army_for_index(text: str, index: int) -&gt; str:
+    army = &quot;&quot;
+    for match in ARMY_BLOCK_RE.finditer(text, 0, index):
+        army = match.group(&quot;army&quot;)
+    return army
+
+
+def _group_path_for_index(
+    group_spans: list[tuple[str, str, int, int]], index: int
+) -&gt; list[str]:
+    return [name for name, _, start, end in group_spans if start &lt;= index &lt; end]
+
+
+def _parse_units(text: str) -&gt; list[UnitEntity]:
+    units: list[UnitEntity] = []
+    group_spans = _named_blocks_with_spans(text, GROUP_START_RE)
+    for name, block, start, _ in _named_blocks_with_spans(text, UNIT_START_RE):
+        blueprint_match = BLUEPRINT_RE.search(block)
+        if not blueprint_match:
+            continue
+        army = _army_for_index(text, start)
+        blueprint = blueprint_match.group(1)
+        group_path = _group_path_for_index(group_spans, start)
+        units.append(
+            UnitEntity(
+                army=army,
+                name=name,
+                blueprint=blueprint,
+                position=_position_from_block(block),
+                orientation=_orientation_from_block(block),
+                kind=_classify_blueprint(blueprint, army, name=name, group_path=group_path),
+                group_path=group_path,
+            )
+        )
+    return units
+
+
+def _parse_props(text: str) -&gt; list[UnitEntity]:
+    props: list[UnitEntity] = []
+    props_block = _section_block(text, &quot;Props&quot;)
+    for name, block in _named_blocks(props_block, MARKER_START_RE):
+        string_values = {
+            match.group(&quot;key&quot;): match.group(&quot;value&quot;) for match in STRING_VALUE_RE.finditer(block)
+        }
+        blueprint = (
+            string_values.get(&quot;prop&quot;)
+            or string_values.get(&quot;type&quot;)
+            or string_values.get(&quot;blueprint&quot;)
+            or &quot;&quot;
+        )
+        if not blueprint:
+            blueprint_match = BLUEPRINT_RE.search(block)
+            blueprint = blueprint_match.group(1) if blueprint_match else &quot;&quot;
+        if not blueprint:
+            continue
+        props.append(
+            UnitEntity(
+                army=&quot;PROP&quot;,
+                name=name,
+                blueprint=blueprint,
+                position=_position_from_block(block) or _point_from_match(VECTOR3_RE.search(block)),
+                orientation=_orientation_from_block(block),
+                kind=_classify_blueprint(blueprint, &quot;PROP&quot;, name=name),
+            )
+        )
+    return props
+
+
+def _positions(items: list[MarkerEntity | UnitEntity]) -&gt; list[dict[str, float | str]]:
+    output = []
+    for item in items:
+        if item.position is None:
+            continue
+        record: dict[str, float | str] = {
+            &quot;name&quot;: item.name,
+            &quot;x&quot;: item.position.x,
+            &quot;y&quot;: item.position.y,
+            &quot;z&quot;: item.position.z,
+        }
+        if isinstance(item, MarkerEntity):
+            record[&quot;type&quot;] = item.marker_type
+        else:
+            record[&quot;blueprint&quot;] = item.blueprint
+            record[&quot;army&quot;] = item.army
+            record[&quot;kind&quot;] = item.kind
+            record[&quot;group_path&quot;] = &quot;/&quot;.join(item.group_path)
+        output.append(record)
+    return output
+
+
+def _team_counts_from_scenario(text: str) -&gt; tuple[int | None, list[int]]:
+    team_sizes: list[int] = []
+    team_re = r&quot;\{\s*name\s*=\s*['\&quot;][^'\&quot;]+['\&quot;].*?armies\s*=\s*{(.*?)}&quot;
+    for team_block in re.findall(team_re, text, re.I | re.S):
+        armies = re.findall(r&quot;ARMY_\d+&quot;, team_block, re.I)
+        if armies:
+            team_sizes.append(len(set(armies)))
+    return (len(team_sizes) if team_sizes else None), team_sizes
+
+
+def parse_map_entities(map_record: dict[str, Any], maps_root: Path, *, markers_only: bool = False) -&gt; dict[str, Any]:
+    warnings: list[str] = []
+    scenario_text, scenario_warning = _read_text(_first_path(map_record, &quot;scenario_lua&quot;, maps_root))
+    save_text, save_warning = _read_text(_first_path(map_record, &quot;save_lua&quot;, maps_root))
+    if scenario_warning:
+        warnings.append(f&quot;scenario:{scenario_warning}&quot;)
+    if save_warning:
+        warnings.append(f&quot;save:{save_warning}&quot;)
+
+    markers = _parse_markers(save_text)
+    # Overlay extraction reads these once with full source identities later.
+    units = [] if markers_only else _parse_units(save_text)
+    props = [] if markers_only else _parse_props(save_text)
+    areas = _parse_areas(save_text)
+
+    marker_counts = Counter(marker.marker_type for marker in markers)
+    unit_blueprints = Counter(unit.blueprint for unit in units)
+    prop_blueprints = Counter(prop.blueprint for prop in props)
+    unit_kinds = Counter(unit.kind for unit in units)
+    prop_kinds = Counter(prop.kind for prop in props)
+    reclaim_entities = [unit for unit in [*units, *props] if unit.kind == &quot;reclaim&quot;]
+    civilian_units = [unit for unit in units if unit.kind == &quot;civilian_unit&quot;]
+    civilian_buildings = [unit for unit in units if unit.kind == &quot;civilian_building&quot;]
+    team_count, team_sizes = _team_counts_from_scenario(scenario_text)
+
+    return {
+        &quot;map_dir&quot;: map_record.get(&quot;top_level_dir&quot;) or map_record.get(&quot;map_dir&quot;) or &quot;&quot;,
+        &quot;selected_map_dir&quot;: map_record.get(&quot;selected_map_dir&quot;, &quot;&quot;),
+        &quot;team_count_declared&quot;: team_count,
+        &quot;team_sizes_declared&quot;: team_sizes,
+        &quot;area_count&quot;: len(areas),
+        &quot;areas&quot;: [asdict(area) for area in areas],
+        &quot;marker_count&quot;: len(markers),
+        &quot;marker_type_counts&quot;: dict(sorted(marker_counts.items())),
+        &quot;spawn_positions&quot;: _positions(
+            [marker for marker in markers if marker.name.upper().startswith(&quot;ARMY_&quot;)]
+        ),
+        &quot;mex_positions&quot;: _positions([marker for marker in markers if marker.marker_type == &quot;Mass&quot;]),
+        &quot;hydro_positions&quot;: _positions(
+            [marker for marker in markers if marker.marker_type == &quot;Hydrocarbon&quot;]
+        ),
+        &quot;unit_count&quot;: len(units),
+        &quot;unit_kind_counts&quot;: dict(sorted(unit_kinds.items())),
+        &quot;unit_blueprint_counts&quot;: dict(sorted(unit_blueprints.items())),
+        &quot;prop_count&quot;: len(props),
+        &quot;prop_kind_counts&quot;: dict(sorted(prop_kinds.items())),
+        &quot;prop_blueprint_counts&quot;: dict(sorted(prop_blueprints.items())),
+        &quot;reclaim_entity_count&quot;: len(reclaim_entities),
+        &quot;reclaim_entity_positions&quot;: _positions(reclaim_entities),
+        &quot;reclaim_entity_type_counts&quot;: dict(
+            sorted(Counter(entity.blueprint for entity in reclaim_entities).items())
+        ),
+        &quot;civilian_unit_count&quot;: len(civilian_units),
+        &quot;civilian_unit_positions&quot;: _positions(civilian_units),
+        &quot;civilian_building_count&quot;: len(civilian_buildings),
+        &quot;civilian_building_positions&quot;: _positions(civilian_buildings),
+        &quot;civilian_type_counts&quot;: dict(
+            sorted(
+                Counter(
+                    entity.blueprint for entity in [*civilian_units, *civilian_buildings]
+                ).items()
+            )
+        ),
+        &quot;warnings&quot;: warnings,
+    }
+
+
+def extract_entities(inventory: dict[str, Any]) -&gt; list[dict[str, Any]]:
+    maps_root = Path(inventory[&quot;maps_root&quot;])
+    return [parse_map_entities(map_record, maps_root) for map_record in inventory.get(&quot;maps&quot;, [])]
+
+
+SUMMARY_COLUMNS = [
+    &quot;map_dir&quot;,
+    &quot;selected_map_dir&quot;,
+    &quot;team_count_declared&quot;,
+    &quot;team_sizes_declared&quot;,
+    &quot;area_count&quot;,
+    &quot;marker_count&quot;,
+    &quot;spawn_count&quot;,
+    &quot;mex_count&quot;,
+    &quot;hydro_count&quot;,
+    &quot;spawn_positions_json&quot;,
+    &quot;mex_positions_json&quot;,
+    &quot;hydro_positions_json&quot;,
+    &quot;unit_count&quot;,
+    &quot;prop_count&quot;,
+    &quot;reclaim_entity_count&quot;,
+    &quot;reclaim_entity_positions_json&quot;,
+    &quot;civilian_unit_count&quot;,
+    &quot;civilian_unit_positions_json&quot;,
+    &quot;civilian_building_count&quot;,
+    &quot;civilian_building_positions_json&quot;,
+    &quot;marker_type_counts_json&quot;,
+    &quot;unit_kind_counts_json&quot;,
+    &quot;prop_kind_counts_json&quot;,
+    &quot;reclaim_entity_type_counts_json&quot;,
+    &quot;civilian_type_counts_json&quot;,
+    &quot;warnings&quot;,
+]
+
+
+def _summary_row(record: dict[str, Any]) -&gt; dict[str, Any]:
+    marker_counts = record[&quot;marker_type_counts&quot;]
+    return {
+        &quot;map_dir&quot;: record[&quot;map_dir&quot;],
+        &quot;selected_map_dir&quot;: record[&quot;selected_map_dir&quot;],
+        &quot;team_count_declared&quot;: record[&quot;team_count_declared&quot;] or &quot;&quot;,
+        &quot;team_sizes_declared&quot;: &quot;|&quot;.join(str(size) for size in record[&quot;team_sizes_declared&quot;]),
+        &quot;area_count&quot;: record[&quot;area_count&quot;],
+        &quot;marker_count&quot;: record[&quot;marker_count&quot;],
+        &quot;spawn_count&quot;: len(record[&quot;spawn_positions&quot;]),
+        &quot;mex_count&quot;: marker_counts.get(&quot;Mass&quot;, 0),
+        &quot;hydro_count&quot;: marker_counts.get(&quot;Hydrocarbon&quot;, 0),
+        &quot;spawn_positions_json&quot;: json.dumps(record[&quot;spawn_positions&quot;], sort_keys=True),
+        &quot;mex_positions_json&quot;: json.dumps(record[&quot;mex_positions&quot;], sort_keys=True),
+        &quot;hydro_positions_json&quot;: json.dumps(record[&quot;hydro_positions&quot;], sort_keys=True),
+        &quot;unit_count&quot;: record[&quot;unit_count&quot;],
+        &quot;prop_count&quot;: record[&quot;prop_count&quot;],
+        &quot;reclaim_entity_count&quot;: record[&quot;reclaim_entity_count&quot;],
+        &quot;reclaim_entity_positions_json&quot;: json.dumps(
+            record[&quot;reclaim_entity_positions&quot;], sort_keys=True
+        ),
+        &quot;civilian_unit_count&quot;: record[&quot;civilian_unit_count&quot;],
+        &quot;civilian_unit_positions_json&quot;: json.dumps(
+            record[&quot;civilian_unit_positions&quot;], sort_keys=True
+        ),
+        &quot;civilian_building_count&quot;: record[&quot;civilian_building_count&quot;],
+        &quot;civilian_building_positions_json&quot;: json.dumps(
+            record[&quot;civilian_building_positions&quot;], sort_keys=True
+        ),
+        &quot;marker_type_counts_json&quot;: json.dumps(marker_counts, sort_keys=True),
+        &quot;unit_kind_counts_json&quot;: json.dumps(record[&quot;unit_kind_counts&quot;], sort_keys=True),
+        &quot;prop_kind_counts_json&quot;: json.dumps(record[&quot;prop_kind_counts&quot;], sort_keys=True),
+        &quot;reclaim_entity_type_counts_json&quot;: json.dumps(
+            record[&quot;reclaim_entity_type_counts&quot;], sort_keys=True
+        ),
+        &quot;civilian_type_counts_json&quot;: json.dumps(record[&quot;civilian_type_counts&quot;], sort_keys=True),
+        &quot;warnings&quot;: &quot;|&quot;.join(record[&quot;warnings&quot;]),
+    }
+
+
+def write_jsonl(records: list[dict[str, Any]], out_path: Path) -&gt; None:
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with out_path.open(&quot;w&quot;, encoding=&quot;utf-8&quot;, newline=&quot;\n&quot;) as handle:
+        for record in records:
+            handle.write(json.dumps(record, sort_keys=True) + &quot;\n&quot;)
+
+
+def write_summary_csv(records: list[dict[str, Any]], out_path: Path) -&gt; None:
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with out_path.open(&quot;w&quot;, encoding=&quot;utf-8&quot;, newline=&quot;&quot;) as handle:
+        writer = csv.DictWriter(handle, fieldnames=SUMMARY_COLUMNS)
+        writer.writeheader()
+        writer.writerows(_summary_row(record) for record in records)
+
+
+def parse_args() -&gt; argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description=&quot;Extract V1 marker, unit, prop, civilian, and reclaim entities from Lua files.&quot;
+    )
+    parser.add_argument(
+        &quot;--inventory&quot;,
+        required=True,
+        type=Path,
+        help=&quot;Canonical inventory JSON generated by supmapai.extract.canonical_inventory.&quot;,
+    )
+    parser.add_argument(
+        &quot;--out&quot;,
+        required=True,
+        type=Path,
+        help=&quot;Detailed JSONL output path.&quot;,
+    )
+    parser.add_argument(
+        &quot;--summary-out&quot;,
+        type=Path,
+        help=&quot;Optional flat CSV summary output path.&quot;,
+    )
+    return parser.parse_args()
+
+
+def main() -&gt; int:
+    args = parse_args()
+    inventory = json.loads(args.inventory.read_text(encoding=&quot;utf-8-sig&quot;))
+    records = extract_entities(inventory)
+    write_jsonl(records, args.out)
+    if args.summary_out:
+        write_summary_csv(records, args.summary_out)
+    print(f&quot;Wrote {len(records)} Lua entity record(s) to {args.out}&quot;)
+    return 0
+
+
+if __name__ == &quot;__main__&quot;:
+    raise SystemExit(main())
+</pre><script src="../docs/model-atlas/public-links.js" data-public-links></script></body></html>
