@@ -1,0 +1,148 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>terrain_smoothing.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="terrain-smoothing-investigation">Terrain Smoothing Investigation</h1>
+<h2 id="what-causes-the-faceting">What Causes the Faceting?</h2>
+<p>The full-map model predicts a 128x128 grid. A 10 km map is exported as 513x513
+height vertices. Bilinear enlargement creates almost planar patches, with slope
+changes concentrated at the coarse sample boundaries. This is already visible
+in the saved heights, before resource placement or game rendering.</p>
+<p>For Rot101 Refine250, native-grid curvature RMS is 0.05285 before file
+quantization and 0.05313 after it. Quantization changes heights by about 0.00195
+world units on average. It is a secondary contribution, not the main cause of
+the large facets. The normal-map channels match the installed terrain shader&#39;s
+A/G convention, and normal maps are rebuilt from the exported geometry.</p>
+<p>The model can also produce genuinely angular coarse hills. Uniform inherited
+materials make their lighting more obvious; engine level-of-detail may add its
+own effect. These tests do not establish a single cause for every visible artifact.</p>
+<h2 id="optional-terrain-filter">Optional Terrain Filter</h2>
+<p><code>supmapai.export.terrain_smoothing.smooth_native</code> offers:</p>
+<table>
+<thead>
+<tr>
+<th>Preset</th>
+<th align="right">Gaussian sigma in native/world units</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>none</td>
+<td align="right">0</td>
+<td>Unchanged control, still the CLI default</td>
+</tr>
+<tr>
+<td>light</td>
+<td align="right">2</td>
+<td>Round coarse interpolation joints</td>
+</tr>
+<tr>
+<td>medium</td>
+<td align="right">4</td>
+<td>Stronger rounding, more loss of small relief</td>
+</tr>
+</tbody></table>
+<p>At 10 km/512 cells these sigmas represent approximately 39 m and 78 m
+horizontally. Smoothing happens before the validator flattens resource footprints.
+Normals are then rebuilt from the final quantized geometry, rather than blurred
+independently of the terrain.</p>
+<p>Mixed-sign shoreline vertices and a two-vertex surrounding band are frozen;
+smoothing fades in outside the band. All vertex and cell land/water classifications
+must remain unchanged. Exact symmetry is restored and checked. A sign-preserving
+bound prevents new lakes/islands. There is no new procedural detail and no change
+to the model checkpoint or training dataset. This is deliberately not a shoreline
+slope limiter: steep coasts remain steep.</p>
+<p>Four saved cases were compared with all three presets (12 comparisons). On
+Rot101 Refine250, before placement/quantization:</p>
+<table>
+<thead>
+<tr>
+<th>Filter</th>
+<th align="right">Curvature RMS</th>
+<th align="right">Mean height edit</th>
+<th align="right">p95-p05 relief</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>none</td>
+<td align="right">0.05285</td>
+<td align="right">0</td>
+<td align="right">13.998</td>
+</tr>
+<tr>
+<td>light</td>
+<td align="right">0.02511</td>
+<td align="right">0.03688</td>
+<td align="right">13.949</td>
+</tr>
+<tr>
+<td>medium</td>
+<td align="right">0.01848</td>
+<td align="right">0.11301</td>
+<td align="right">13.828</td>
+</tr>
+</tbody></table>
+<p>These are diagnostics, not quality scores. Peak heights change more than the
+mean edit suggests. Light is the conservative review candidate; medium loses
+more small-scale detail. Neither can recover detail absent from a 128x128 model.
+Higher-resolution native training targets and a 256x256 model or learned detail
+refiner are possible later steps, not part of this change.</p>
+<p>Reports and native-grid lighting comparisons:
+<code>data/exports/terrain_smoothing_v1/report.md</code>. These plots are scientific
+height-derived shading comparisons, not game screenshots.</p>
+<h2 id="separate-resource-pad-artifacts">Separate Resource-Pad Artifacts</h2>
+<p>The first smoothing exports still used legacy resource repair: a flat square
+footprint with a short, linear, square-shaped outer ramp. This can create visible
+square shelves independently of model terrain quality.</p>
+<p>The new default pad profile, <code>rounded</code>, keeps the same required flat square core
+but uses distance from that core for a rounded outer blend. A quintic transition
+has zero first and second derivatives at both ends. Feather widths are doubled where there is room:
+spawn 8, mex 6, hydro 8 world units. This spreads the height adjustment instead
+of leaving a short sharp ramp. Local dry-clearance and overlap checks use the
+larger footprint; placeholder resources may move further to fit it.
+If placement fails, the entire placement pass retries with the old narrower
+widths but still the rounded quintic profile. It never relaxes dry/flat/symmetry
+checks. The actual multiplier and fallback flag are recorded in repair metadata.</p>
+<p>All existing flat-core, exact symmetry and read-back checks still apply. The old
+repair is available as <code>--pad-profile legacy</code>. Broad terrain smoothing remains
+optional and is independent of this pad setting.</p>
+<h2 id="export-and-review">Export and Review</h2>
+<p>Two initial smoothed maps were installed with legacy pads:
+<code>MapGen Symmetry Rot101 Refine250 Light</code> and
+<code>MapGen Symmetry Rot101 Refine250 Medium</code>.
+The light version was directly launched and terrain rendering confirmed. Its log:
+<code>data/exports/launch_logs/mapgen_sym_rot101_refine250_light_scenario_20261023_193959_427_utc.log</code>.
+Both final exported maps have zero water vertex/cell classification changes
+relative to the original installed Refine250 map. The game still starts with an
+overly close camera, and empty texture-name fallback warnings remain separate
+follow-ups.</p>
+<p>The subsequent rounded-pad candidate, <code>MapGen Rot101 Smooth Pads</code>, is installed
+as a separate map. It passed automated checks but has not yet been game-tested;
+the running session was left untouched. All four saved pilot terrains passed
+rounded-pad placement checks with light smoothing. The water-heavy seed303 case
+used the narrower rounded-blend fallback; the other three fitted wider blends.</p>
+<p>Reproduce with:</p>
+<pre><code class="language-powershell">$env:PYTHONPATH = &#39;src&#39;
+.venv-codex/Scripts/python.exe -m supmapai.export.symmetry_maps `
+  --comparison data/models/terrain_symmetry_comparison_v1 `
+  --template &#39;C:/Program Files (x86)/Steam/steamapps/common/FAF_modsmaps/maps/adaptive_canis_river.v0002/adaptive_canis_river.scmap&#39; `
+  --out-root data/exports/terrain_smoothing_pads_v1/maps `
+  --case rotate180_seed101_water20 --method refine250 `
+  --folder mapgen_sym_rot101_smoothpads.v0001 `
+  --name &#39;MapGen Rot101 Smooth Pads&#39; `
+  --terrain-smoothing light --pad-profile rounded
+./scripts/Install-SymmetryMaps.ps1 `
+  -Manifest data/exports/terrain_smoothing_pads_v1/manifest.json
+</code></pre>
+<p>Use a fresh output root for another experiment; existing map folders are never
+overwritten. Close the current game before using the direct launcher:</p>
+<pre><code class="language-powershell">./scripts/Launch-FAFMap.ps1 `
+  -Scenario &#39;/maps/mapgen_sym_rot101_smoothpads.v0001/mapgen_sym_rot101_smoothpads_scenario.lua&#39;
+</code></pre>
+<p>To reproduce the terrain-only comparison, use the existing scientific environment
+(or install the project extras <code>strategic,plots</code> in a CPU analysis environment):</p>
+<pre><code class="language-powershell">$env:MPLCONFIGDIR = Join-Path $PWD &#39;.tmp/matplotlib&#39;
+.venv-codex/Scripts/python.exe -m supmapai.tools.compare_terrain_smoothing `
+  --comparison data/models/terrain_symmetry_comparison_v1 `
+  --out data/exports/terrain_smoothing_another_run
+</code></pre>
+<p>The comparison tool intentionally uses legacy pads when <code>--template</code> is supplied
+so its two exports isolate broad terrain smoothing. The single-map exporter
+defaults to rounded pads. No models were retrained and no community maps removed.</p>
+<script src="model-atlas/public-links.js" data-public-links></script></body></html>

@@ -1,0 +1,273 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>curate_terrain.py | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="../docs/model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1>curate_terrain.py</h1><p class="meta">Saved public evidence snapshot: src/supmapai/tensors/curate_terrain.py</p><pre>&quot;&quot;&quot;Freeze human exclusions and one representative per terrain family for new runs.&quot;&quot;&quot;
+
+from __future__ import annotations
+
+import argparse
+import copy
+import json
+import re
+from collections import Counter, defaultdict
+from pathlib import Path
+
+import numpy as np
+
+from supmapai.strategy.pipeline_contract import digest, dump, file_hash, lease
+from supmapai.terrain_controls.half_targets import encode_targets, fit_scaling
+from supmapai.tools.dataset_review import load_cohort
+
+
+def name_key(folder):
+    value = re.sub(r&quot;\.v\d+(?:\.\d+)*$&quot;, &quot;&quot;, folder.casefold())
+    value = re.sub(r&quot;\b\d+v\d+\b|\b\d+x\d+\b&quot;, &quot; &quot;, value.replace(&quot;_&quot;, &quot; &quot;))
+    value = re.sub(r&quot;\bv\d+\b&quot;, &quot; &quot;, value)
+    value = re.sub(r&quot;\b(adaptive|flooded|dry|fixed|edition|faf|version|teamplay|ai)\b&quot;, &quot; &quot;, value)
+    return re.sub(r&quot;[^a-z0-9]&quot;, &quot;&quot;, value)
+
+
+def version_rank(entry):
+    folder = entry[&quot;folder&quot;].casefold()
+    match = re.search(r&quot;\.v(\d+(?:\.\d+)*)$&quot;, folder)
+    version = tuple(map(int, match[1].split(&quot;.&quot;))) if match else (0,)
+    # Author versions take priority over vault upload IDs, which are not version numbers.
+    explicit = [int(x) for x in re.findall(r&quot;(?:^|[ _-])v(\d+)(?:$|[ ._-])&quot;, folder)]
+    return (
+        bool(re.search(r&quot;(?:^|[ _-])faf(?:$|[ ._-])&quot;, folder)),
+        version,
+        max(explicit, default=0),
+        &quot;adaptive&quot; in folder,
+        int(entry[&quot;key&quot;].split(&quot;_&quot;)[-1]) if entry[&quot;key&quot;].split(&quot;_&quot;)[-1].isdigit() else 0,
+        entry[&quot;key&quot;],
+    )
+
+
+class Groups:
+    def __init__(self, keys):
+        self.parent = {k: k for k in keys}
+
+    def root(self, key):
+        if self.parent[key] != key:
+            self.parent[key] = self.root(self.parent[key])
+        return self.parent[key]
+
+    def union(self, a, b):
+        a, b = self.root(a), self.root(b)
+        self.parent[max(a, b)] = min(a, b)
+
+
+def select(rows, entries, decisions, geometry_pairs=()):
+    groups = Groups(r[&quot;key&quot;] for r in rows)
+    seen = {}
+    evidence = []
+    for row in rows:
+        key, entry = row[&quot;key&quot;], entries[row[&quot;key&quot;]]
+        tokens = [(&quot;source_family&quot;, row[&quot;family&quot;])]
+        normalized = name_key(entry[&quot;folder&quot;])
+        if len(normalized) &gt;= 4:
+            tokens.append((&quot;normalized_name&quot;, normalized))
+        map_id = key.split(&quot;_&quot;)[0]
+        if map_id.isdigit() and int(map_id) &gt; 0:
+            tokens.append((&quot;vault_map&quot;, map_id))
+        # Explicit user-requested alias: do not generalize this to gap/pass/crater.
+        if &quot;canis&quot; in entry[&quot;folder&quot;].casefold():
+            tokens.append((&quot;confirmed_alias&quot;, &quot;canis&quot;))
+        for kind, value in tokens:
+            token = kind, value
+            if token in seen:
+                other = seen[token]
+                groups.union(key, other)
+                evidence.append(dict(a=other, b=key, kind=kind, value=value))
+            else:
+                seen[token] = key
+    for pair in geometry_pairs:
+        groups.union(pair[&quot;a&quot;], pair[&quot;b&quot;])
+        evidence.append(dict(pair, kind=&quot;near_identical_height&quot;))
+    members = defaultdict(list)
+    for row in rows:
+        members[groups.root(row[&quot;key&quot;])].append(row)
+    selected, families, omitted = [], [], []
+    for group in members.values():
+        candidates = [r for r in group if decisions.get(r[&quot;key&quot;], {}).get(&quot;status&quot;) != &quot;exclude&quot;]
+        if not candidates:
+            continue
+        winner = max(candidates, key=lambda r: version_rank(entries[r[&quot;key&quot;]]))
+        # If a newly recognized family crosses splits, all of it is held out.
+        split = &quot;validation&quot; if any(r[&quot;split&quot;] == &quot;validation&quot; for r in group) else &quot;train&quot;
+        family = &quot;curated_&quot; + digest(sorted(r[&quot;key&quot;] for r in group))[:16]
+        selected.append(
+            dict(
+                winner,
+                family=family,
+                split=split,
+                original_family=winner[&quot;family&quot;],
+                original_split=winner[&quot;split&quot;],
+            )
+        )
+        families.append(
+            dict(
+                family=family,
+                selected=winner[&quot;key&quot;],
+                split=split,
+                selected_name=entries[winner[&quot;key&quot;]][&quot;folder&quot;],
+                members=[
+                    dict(
+                        key=r[&quot;key&quot;],
+                        folder=entries[r[&quot;key&quot;]][&quot;folder&quot;],
+                        original_split=r[&quot;split&quot;],
+                        manually_excluded=decisions.get(r[&quot;key&quot;], {}).get(&quot;status&quot;) == &quot;exclude&quot;,
+                    )
+                    for r in group
+                ],
+            )
+        )
+        for row in candidates:
+            if row[&quot;key&quot;] != winner[&quot;key&quot;]:
+                omitted.append(
+                    dict(key=row[&quot;key&quot;], selected=winner[&quot;key&quot;], reason=&quot;superseded_family_member&quot;)
+                )
+    return selected, dict(families=families, omitted=omitted, merge_evidence=evidence)
+
+
+def geometry_duplicates(source, rows):
+    &quot;&quot;&quot;Conservative high-correlation check, invariant to eight grid orientations.
+
+    This is for almost identical geometry, not broad thematic resemblance. Flat
+    or near-constant maps are never matched just because both have little relief.
+    &quot;&quot;&quot;
+    features, eligible = [], []
+    for row in rows:
+        path = Path(source) / row[&quot;archive&quot;]
+        if file_hash(path) != row[&quot;sha256&quot;]:
+            raise ValueError(&quot;Source target checksum changed: &quot; + row[&quot;key&quot;])
+        with np.load(path, allow_pickle=False) as archive:
+            height = archive[&quot;target&quot;][0].copy()
+        # Asinh height is monotonic; affine offsets/scales are removed on this
+        # representation only. Require sub-percent agreement, not loose similarity.
+        low = height.reshape(32, 8, 32, 8).mean(axis=(1, 3))
+        low = low - low.mean()
+        norm = float(np.linalg.norm(low))
+        eligible.append(norm &gt; 0.05 and len(np.unique(np.round(low, 4))) &gt; 32)
+        features.append(low / max(norm, 1e-8))
+    base = np.stack(features).astype(np.float32)
+    best = np.full((len(rows), len(rows)), -1.0, dtype=np.float32)
+    for rotation in range(4):
+        rotated = np.rot90(base, rotation, axes=(-2, -1))
+        for flip in (False, True):
+            variant = rotated[..., ::-1] if flip else rotated
+            score = base.reshape(len(rows), -1) @ variant.reshape(len(rows), -1).T
+            np.maximum(best, score, out=best)
+    pairs = []
+    for i, j in zip(*np.where(np.triu(best &gt;= 0.9998, 1)), strict=True):
+        if eligible[i] and eligible[j]:
+            pairs.append(dict(a=rows[i][&quot;key&quot;], b=rows[j][&quot;key&quot;], correlation=float(best[i, j])))
+    return pairs
+
+
+def build(source, review_dir, out):
+    source, cohort, rows = load_cohort(source)
+    review_dir, out = Path(review_dir).resolve(), Path(out).resolve()
+    decisions_path = review_dir / &quot;decisions.json&quot;
+    state = json.loads(decisions_path.read_text(encoding=&quot;utf-8&quot;))
+    catalog = json.loads((review_dir / &quot;catalog.json&quot;).read_text(encoding=&quot;utf-8&quot;))
+    if state[&quot;cohort&quot;] != cohort or catalog[&quot;cohort&quot;] != cohort:
+        raise ValueError(&quot;Review/source cohort mismatch&quot;)
+    entries = {m[&quot;key&quot;]: m for m in catalog[&quot;maps&quot;]}
+    identity = dict(
+        source=str(source),
+        source_release_sha256=cohort,
+        review_sha256=file_hash(decisions_path),
+        code_sha256=file_hash(__file__),
+    )
+    out.mkdir(parents=True, exist_ok=True)
+    with lease(out / &quot;build.lock&quot;):
+        if (out / &quot;release_manifest.json&quot;).exists():
+            if json.loads((out / &quot;curation_contract.json&quot;).read_text()) != identity:
+                raise ValueError(&quot;Curation inputs changed; choose a new output directory&quot;)
+            load_cohort(out)
+            return json.loads((out / &quot;audit.json&quot;).read_text())
+        print(&quot;Checking near-identical terrain across orientations...&quot;, flush=True)
+        pairs = geometry_duplicates(source, rows)
+        selected, report = select(rows, entries, state[&quot;decisions&quot;], pairs)
+        if not all(any(r[&quot;split&quot;] == s for r in selected) for s in (&quot;train&quot;, &quot;validation&quot;)):
+            raise ValueError(&quot;Curation would leave an empty split&quot;)
+        controls = fit_scaling([dict(split=r[&quot;split&quot;], **r[&quot;targets&quot;]) for r in selected])
+        norm = json.loads((source / &quot;normalization.json&quot;).read_text())
+        norm = copy.deepcopy(norm)
+        norm.update(
+            controls=controls,
+            training_schema=&quot;terrain_curated_overnight_v1&quot;,
+            control_scaling=&quot;refitted_on_retained_train_only&quot;,
+            physical_encoding=&quot;frozen_source_physical_units_for_comparable_targets&quot;,
+        )
+        # Target encodings are fixed physical coordinates. Refit condition scaling,
+        # not terrain values: this preserves measured labels and avoids resampling.
+        for row in selected:
+            row[&quot;archive&quot;] = str((source / row[&quot;archive&quot;]).resolve())
+            row[&quot;profile&quot;] = encode_targets(row[&quot;targets&quot;], controls, row[&quot;water_enabled&quot;]).tolist()
+        for split in (&quot;train&quot;, &quot;validation&quot;):
+            path = out / (split + &quot;.jsonl&quot;)
+            path.write_text(
+                &quot;&quot;.join(
+                    json.dumps(r, allow_nan=False) + &quot;\n&quot; for r in selected if r[&quot;split&quot;] == split
+                ),
+                encoding=&quot;utf-8&quot;,
+            )
+        audit = dict(
+            status=&quot;passed&quot;,
+            maps=len(selected),
+            splits=dict(Counter(r[&quot;split&quot;] for r in selected)),
+            manually_excluded=sum(v[&quot;status&quot;] == &quot;exclude&quot; for v in state[&quot;decisions&quot;].values()),
+            superseded=len(report[&quot;omitted&quot;]),
+            near_identical_pairs=len(pairs),
+            cross_split_families=[
+                g
+                for g in report[&quot;families&quot;]
+                if len({m[&quot;original_split&quot;] for m in g[&quot;members&quot;]}) &gt; 1
+            ],
+            checks=[
+                &quot;Human exclusions preserved; unreviewed retained&quot;,
+                &quot;One map per merged family&quot;,
+                &quot;FAF-labelled version preferred, otherwise highest author version&quot;,
+                &quot;Cross-split merged families held out&quot;,
+                &quot;Control scaling fit on retained train only&quot;,
+                &quot;Target checksums verified; no original maps or tensors modified&quot;,
+            ],
+            test_used=False,
+        )
+        dump(out / &quot;normalization.json&quot;, norm)
+        dump(out / &quot;curation_contract.json&quot;, identity)
+        dump(out / &quot;review_snapshot.json&quot;, state)
+        dump(out / &quot;family_selection.json&quot;, report)
+        dump(out / &quot;audit.json&quot;, audit)
+        artifacts = [
+            &quot;normalization.json&quot;,
+            &quot;train.jsonl&quot;,
+            &quot;validation.jsonl&quot;,
+            &quot;curation_contract.json&quot;,
+            &quot;review_snapshot.json&quot;,
+            &quot;family_selection.json&quot;,
+            &quot;audit.json&quot;,
+        ]
+        dump(
+            out / &quot;release_manifest.json&quot;,
+            dict(
+                schema=&quot;terrain_full256_controls_v3&quot;,
+                status=&quot;ready&quot;,
+                artifacts={p: file_hash(out / p) for p in artifacts},
+            ),
+        )
+        load_cohort(out)
+        return audit
+
+
+def main():
+    p = argparse.ArgumentParser(description=__doc__)
+    p.add_argument(&quot;--source&quot;, type=Path, required=True)
+    p.add_argument(&quot;--review-dir&quot;, type=Path, required=True)
+    p.add_argument(&quot;--out&quot;, type=Path, required=True)
+    args = p.parse_args()
+    print(json.dumps(build(args.source, args.review_dir, args.out), indent=2))
+
+
+if __name__ == &quot;__main__&quot;:
+    main()
+</pre><script src="../docs/model-atlas/public-links.js" data-public-links></script></body></html>

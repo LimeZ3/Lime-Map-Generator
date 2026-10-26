@@ -1,0 +1,333 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>adaptive_settings.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="../../../../docs/model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="map-settings">Map settings</h1>
+<p>Active slots: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]</p>
+<p>Each alternative changes one option while keeping all other settings fixed. Counts are initial deposits; runtime growth is not simulated.
+Descriptions below come from the map author. Calculated counts follow the inspected script.</p>
+<h2 id="audio-lines-optional_replicas">Audio lines (<code>optional_replicas</code>)</h2>
+<p>Audio lines disabled/enabled.</p>
+<p>Effect support: <code>unresolved_or_no_populated_table</code></p>
+<table>
+<thead>
+<tr>
+<th>Choice</th>
+<th align="right">Key</th>
+<th>Default / selected</th>
+<th align="right">Initial mexes</th>
+<th align="right">Initial hydros</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>disabled</td>
+<td align="right">1</td>
+<td>default, selected</td>
+<td align="right">133</td>
+<td align="right">12</td>
+</tr>
+<tr>
+<td>enabled</td>
+<td align="right">2</td>
+<td></td>
+<td align="right">133</td>
+<td align="right">12</td>
+</tr>
+</tbody></table>
+<ul>
+<li><strong>disabled</strong>: No Audio lines.</li>
+<li><strong>enabled</strong>: Yes Audio lines.</li>
+</ul>
+<h2 id="reaction-to-acu-death-optional_xaxaxa">Reaction to ACU death (<code>optional_XAXAXA</code>)</h2>
+<p>HA-HA-ha-HA.</p>
+<p>Effect support: <code>unresolved_or_no_populated_table</code></p>
+<table>
+<thead>
+<tr>
+<th>Choice</th>
+<th align="right">Key</th>
+<th>Default / selected</th>
+<th align="right">Initial mexes</th>
+<th align="right">Initial hydros</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>disabled</td>
+<td align="right">1</td>
+<td>default, selected</td>
+<td align="right">133</td>
+<td align="right">12</td>
+</tr>
+<tr>
+<td>enabled</td>
+<td align="right">2</td>
+<td></td>
+<td align="right">133</td>
+<td align="right">12</td>
+</tr>
+</tbody></table>
+<ul>
+<li><strong>disabled</strong>: No HA-HA.</li>
+<li><strong>enabled</strong>: Yes HA-HA.</li>
+</ul>
+<h2 id="natural-reclaim-values-naturalreclaimmodifier">Natural Reclaim Values (<code>naturalReclaimModifier</code>)</h2>
+<p>Change mass &amp; energy values of rock &amp; tree props.</p>
+<p>Effect support: <code>natural_reclaim_multiplier</code></p>
+<table>
+<thead>
+<tr>
+<th>Choice</th>
+<th align="right">Key</th>
+<th>Default / selected</th>
+<th align="right">Initial mexes</th>
+<th align="right">Initial hydros</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>300 percent</td>
+<td align="right">3</td>
+<td></td>
+<td align="right">133</td>
+<td align="right">12</td>
+</tr>
+<tr>
+<td>200 percent</td>
+<td align="right">2</td>
+<td></td>
+<td align="right">133</td>
+<td align="right">12</td>
+</tr>
+<tr>
+<td>150 percent</td>
+<td align="right">1.5</td>
+<td></td>
+<td align="right">133</td>
+<td align="right">12</td>
+</tr>
+<tr>
+<td>125 percent</td>
+<td align="right">1.25</td>
+<td></td>
+<td align="right">133</td>
+<td align="right">12</td>
+</tr>
+<tr>
+<td>100 percent</td>
+<td align="right">1</td>
+<td>default, selected</td>
+<td align="right">133</td>
+<td align="right">12</td>
+</tr>
+<tr>
+<td>75 percent</td>
+<td align="right">0.75</td>
+<td></td>
+<td align="right">133</td>
+<td align="right">12</td>
+</tr>
+<tr>
+<td>50 percent</td>
+<td align="right">0.5</td>
+<td></td>
+<td align="right">133</td>
+<td align="right">12</td>
+</tr>
+<tr>
+<td>25 percent</td>
+<td align="right">0.25</td>
+<td></td>
+<td align="right">133</td>
+<td align="right">12</td>
+</tr>
+<tr>
+<td>0 percent</td>
+<td align="right">0</td>
+<td></td>
+<td align="right">133</td>
+<td align="right">12</td>
+</tr>
+</tbody></table>
+<ul>
+<li><strong>300 percent</strong>: Mass &amp; energy values are 3 times higher.</li>
+<li><strong>200 percent</strong>: Mass &amp; energy values are 2 times higher.</li>
+<li><strong>150 percent</strong>: Mass &amp; energy values are 1.5 times higher.</li>
+<li><strong>125 percent</strong>: Mass &amp; energy values are 1.25 times higher.</li>
+<li><strong>100 percent</strong>: Don&#39;t change the mass &amp; energy values.</li>
+<li><strong>75 percent</strong>: Mass &amp; energy values are 0.75 times lower.</li>
+<li><strong>50 percent</strong>: Mass &amp; energy values are 0.5 times lower.</li>
+<li><strong>25 percent</strong>: Mass &amp; energy values are 0.25 times lower.</li>
+<li><strong>0 percent</strong>: Remove Mass &amp; energy values from rock &amp; tree props.</li>
+</ul>
+<h2 id="dynamic-spawn-of-resources-dynamic_spawn">Dynamic Spawn Of Resources (<code>dynamic_spawn</code>)</h2>
+<p>Determine which mexes &amp; hydros should be spawned.</p>
+<p>Effect support: <code>supported_static_resource_rule</code></p>
+<table>
+<thead>
+<tr>
+<th>Choice</th>
+<th align="right">Key</th>
+<th>Default / selected</th>
+<th align="right">Initial mexes</th>
+<th align="right">Initial hydros</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>mirror slots</td>
+<td align="right">1</td>
+<td>default, selected</td>
+<td align="right">133</td>
+<td align="right">12</td>
+</tr>
+<tr>
+<td>used slots</td>
+<td align="right">2</td>
+<td></td>
+<td align="right">133</td>
+<td align="right">12</td>
+</tr>
+<tr>
+<td>no mirror = no resources</td>
+<td align="right">3</td>
+<td></td>
+<td align="right">133</td>
+<td align="right">12</td>
+</tr>
+</tbody></table>
+<ul>
+<li><strong>mirror slots</strong>: Spawn resources for player &amp; mirror slot (balanced resources).</li>
+<li><strong>used slots</strong>: Only spawn resources for player on used slots (unbalanced resources).</li>
+<li><strong>no mirror = no resources</strong>: Only spawn resources if mirror slot is also occupied by a player (not recommended, but it can make uneven matches fairer).</li>
+</ul>
+<h2 id="middle-mexes-middle_mexes">Middle Mexes (<code>middle_mexes</code>)</h2>
+<p>Configure the amount of mexes at the middle of the map.</p>
+<p>Effect support: <code>supported_static_resource_rule</code></p>
+<table>
+<thead>
+<tr>
+<th>Choice</th>
+<th align="right">Key</th>
+<th>Default / selected</th>
+<th align="right">Initial mexes</th>
+<th align="right">Initial hydros</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>disabled</td>
+<td align="right">1</td>
+<td>default, selected</td>
+<td align="right">133</td>
+<td align="right">12</td>
+</tr>
+<tr>
+<td>enabled</td>
+<td align="right">2</td>
+<td></td>
+<td align="right">135</td>
+<td align="right">12</td>
+</tr>
+</tbody></table>
+<ul>
+<li><strong>disabled</strong>: No additional mexes in the middle.</li>
+<li><strong>enabled</strong>: Spawn 4 mexes in the middle.</li>
+</ul>
+<h2 id="underwater-mexes-underwater_mexes">Underwater Mexes (<code>underwater_mexes</code>)</h2>
+<p>Configure the amount of underwater mexes.</p>
+<p>Effect support: <code>supported_static_resource_rule</code></p>
+<table>
+<thead>
+<tr>
+<th>Choice</th>
+<th align="right">Key</th>
+<th>Default / selected</th>
+<th align="right">Initial mexes</th>
+<th align="right">Initial hydros</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>disabled</td>
+<td align="right">1</td>
+<td>default, selected</td>
+<td align="right">133</td>
+<td align="right">12</td>
+</tr>
+<tr>
+<td>enabled</td>
+<td align="right">2</td>
+<td></td>
+<td align="right">136</td>
+<td align="right">12</td>
+</tr>
+</tbody></table>
+<ul>
+<li><strong>disabled</strong>: No additional underwater mexes.</li>
+<li><strong>enabled</strong>: Spawn 4 mexes in the water around the islands.</li>
+</ul>
+<h2 id="additional-plateau-mex-side_mexes">Additional plateau mex (<code>side_mexes</code>)</h2>
+<p>Configure the amount of mexes at the sides of the map.</p>
+<p>Effect support: <code>supported_static_resource_rule</code></p>
+<table>
+<thead>
+<tr>
+<th>Choice</th>
+<th align="right">Key</th>
+<th>Default / selected</th>
+<th align="right">Initial mexes</th>
+<th align="right">Initial hydros</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>disabled</td>
+<td align="right">1</td>
+<td>default, selected</td>
+<td align="right">133</td>
+<td align="right">12</td>
+</tr>
+<tr>
+<td>enabled - 2/4</td>
+<td align="right">2</td>
+<td></td>
+<td align="right">137</td>
+<td align="right">12</td>
+</tr>
+<tr>
+<td>enabled - 4/4</td>
+<td align="right">3</td>
+<td></td>
+<td align="right">141</td>
+<td align="right">12</td>
+</tr>
+</tbody></table>
+<ul>
+<li><strong>disabled</strong>: Spawn no additional mexes on the side.</li>
+<li><strong>enabled - 2/4</strong>: Spawn 1 additional mexes.</li>
+<li><strong>enabled - 4/4</strong>: Spawn 2 additional mexes.</li>
+</ul>
+<h2 id="wreckage-optional_wreckage">Wreckage (<code>optional_wreckage</code>)</h2>
+<p>Scale amount of unit wrecks.</p>
+<p>Effect support: <code>unresolved_or_no_populated_table</code></p>
+<table>
+<thead>
+<tr>
+<th>Choice</th>
+<th align="right">Key</th>
+<th>Default / selected</th>
+<th align="right">Initial mexes</th>
+<th align="right">Initial hydros</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>disabled</td>
+<td align="right">1</td>
+<td>default, selected</td>
+<td align="right">133</td>
+<td align="right">12</td>
+</tr>
+<tr>
+<td>T3 wreckage</td>
+<td align="right">2</td>
+<td></td>
+<td align="right">133</td>
+<td align="right">12</td>
+</tr>
+</tbody></table>
+<ul>
+<li><strong>disabled</strong>: No wrecks.</li>
+<li><strong>T3 wreckage</strong>: Add T3 wreckage MID.</li>
+</ul>
+<script src="../../../../docs/model-atlas/public-links.js" data-public-links></script></body></html>

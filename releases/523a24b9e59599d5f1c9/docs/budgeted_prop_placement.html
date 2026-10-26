@@ -1,0 +1,209 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>budgeted_prop_placement.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="budget-controlled-learned-prop-placement">Budget-Controlled Learned Prop Placement</h1>
+<h2 id="change-in-formulation">Change In Formulation</h2>
+<p>The previous twelve-channel diffusion pilot predicted count, mass, and energy
+independently and produced diffuse positive background with inflated integrals.
+This experiment separates cardinality from spatial placement:</p>
+<ul>
+<li>Four explicit nonnegative integer budgets: trees, rocks, wrecks, other props.</li>
+<li>A supervised U-Net predicts a normalized spatial PDF for each category.</li>
+<li>The decoder samples exactly the requested number of points from that PDF.</li>
+<li>A zero budget produces no points, regardless of the unused PDF head&#39;s output.</li>
+<li>No procedural forests, radial reclaim templates, land-only mask, collision
+cleanup, or fallback positions substitute for model predictions.</li>
+</ul>
+<p>This is a fast supervised placement baseline, not another diffusion model.
+Its neural field is deterministic for fixed conditioning. The decoding seed
+controls sampled positions and within-cell offsets, not a new neural layout.
+Independent point sampling does not yet model fine forest/rock relationships.</p>
+<p>Exact counts are a decoder guarantee, not evidence of neural count accuracy.
+Generated examples average the full-map PDF with its 180-degree counterpart,
+then sample whole point pairs. Current symmetric budgets must be even.
+Sampling with replacement allows multiple entities per model cell. Fine offsets
+are decoded uniformly within the selected four-world-unit cell; these offsets
+were not predicted by the network. Coordinates use a 1/1024-world-unit grid.</p>
+<h2 id="tensor-audit-and-fix">Tensor Audit And Fix</h2>
+<p><code>data/tensors/prop_distributions_128_v1</code> preserves the full 1,020/97 family-separated
+split and uses original linear count fields, not previously clipped log targets.
+Raw 256-grid counts are sum-pooled to 128 and normalized per nonempty category.
+Terrain/base/resource conditions are mean-pooled using the same operation for
+training and inference. Profiles contain four train-normalized log-count controls
+plus water state. No per-map min/max scaling or count clipping is applied.</p>
+<p>The audit found that the old log encoding capped count-density peaks and lost
+this fraction of count amplitude after decoding:</p>
+<table>
+<thead>
+<tr>
+<th>Category</th>
+<th align="right">Overall Loss</th>
+<th align="right">Worst Single Map Loss</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Trees</td>
+<td align="right">5.48%</td>
+<td align="right">66.45%</td>
+</tr>
+<tr>
+<td>Rocks</td>
+<td align="right">5.62%</td>
+<td align="right">52.62%</td>
+</tr>
+<tr>
+<td>Wrecks</td>
+<td align="right">2.02%</td>
+<td align="right">24.31%</td>
+</tr>
+<tr>
+<td>Other</td>
+<td align="right">2.62%</td>
+<td align="right">94.93%</td>
+</tr>
+</tbody></table>
+<p>These are losses in the old encoded training targets, not deleted source entities
+or the explanation for the entire previous generation overshoot. New PDF targets
+use all original count amplitude and preserve relative dense-patch weights.
+Previous tensors, source maps, and checkpoints remain unchanged.</p>
+<p>Important remaining label limits:</p>
+<ul>
+<li>A tree-group blueprint is one source entity, not one visible tree. Split group
+and individual-tree labels or retain explicit instance-based budget semantics.</li>
+<li>The broad <code>other</code> class mixes non-reclaim decoration and valuable reclaim;
+split by blueprint role before claiming meaningful economic/style control.</li>
+<li>Wreck sources include different prop/unit-wreck mechanisms; resolve them to
+concrete instantiable assets rather than treating all blueprint IDs identically.</li>
+<li>Exact per-instance 3D scale and orientation are absent from current snapshots.
+Blueprint appearance data and yaw are retained, but exact reconstruction needs
+additional extraction. This is not a blocker for the present XY-placement test.</li>
+<li>Counts remain known even when mass/energy is unresolved; the new placement loss
+does not replace unknown values with zero because it does not regress values.</li>
+</ul>
+<h2 id="training-and-evaluation">Training And Evaluation</h2>
+<p><code>data/models/prop_distribution_128_pilot_v1</code> is a five-minute fresh training trial:
+4,725,796 parameters, batch eight, bfloat16, EMA, spatial augmentation, and
+category-balanced spatial cross entropy on nonempty categories. Empty categories
+have no location target, and their zero-budget output is handled explicitly.</p>
+<p>The trial completed at 3,658 updates with approximately 1,083 MB peak allocation.
+Held-out NLL is 9.101 nats versus 9.704 for a uniform PDF, a gain of 0.87 bits.
+This is a modest placement improvement, not a claim of competitive map quality.
+The source target entropies are substantially lower, so clustering remains weak.</p>
+<pre><code class="language-powershell">$env:PYTHONPATH = &#39;src&#39;
+$env:OPENBLAS_NUM_THREADS = &#39;1&#39;
+$env:OMP_NUM_THREADS = &#39;1&#39;
+.venv\Scripts\python.exe -m supmapai.ml.prop_distribution `
+  --dataset data\tensors\prop_distributions_128_v1 `
+  --out data\models\prop_distribution_128_pilot_v1 --seconds 300 --batch-size 8
+</code></pre>
+<h2 id="readable-review">Readable Review</h2>
+<p>Current gallery: <code>data/models/budgeted_props_review_v2/index.html</code>.
+Version two refines the shoreline diagnostic using bilinear vertex sampling,
+rather than classifying fractional points at the floored vertex. It does not
+change model weights or introduce a water filter.</p>
+<p>Six generated examples use the approved terrain and learned symmetric resources:</p>
+<table>
+<thead>
+<tr>
+<th>Preset</th>
+<th align="right">Trees</th>
+<th align="right">Rocks</th>
+<th align="right">Wrecks</th>
+<th align="right">Other</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Sparse</td>
+<td align="right">512</td>
+<td align="right">128</td>
+<td align="right">0</td>
+<td align="right">0</td>
+</tr>
+<tr>
+<td>Medium</td>
+<td align="right">1024</td>
+<td align="right">256</td>
+<td align="right">0</td>
+<td align="right">0</td>
+</tr>
+<tr>
+<td>Rich</td>
+<td align="right">2048</td>
+<td align="right">512</td>
+<td align="right">16</td>
+<td align="right">32</td>
+</tr>
+</tbody></table>
+<p>Two decoding seeds sample the same neural field for each preset. Two held-out
+examples show original source entity positions for comparison. Every example
+has exact supplied counts, including zero categories. Generated points have
+exact 180-degree pairs. Underwater locations remain visible and are reported.
+Large high-contrast typed markers, enlarged base crops, and shared-scale PDF
+heatmaps replace the previous faint density overlay. JSON point lists and raw
+probability arrays are retained for inspection.</p>
+<p>These are decoded typed XY points, not selected blueprint meshes or exported
+game props. Blueprint binding must determine actual mass/energy; those values
+are no longer independently generated. Some locations still need footprint,
+collision, and access validation. The count overshoot is eliminated by design,
+but spatial quality is still a baseline rather than a finished forest generator.</p>
+<h2 id="first-native-in-game-example">First Native In-Game Example</h2>
+<p><code>data/exports/learned_props_medium11_v1/manifest.json</code> installs
+<code>mapgen_sym_props_medium11.v0001</code>, displayed as <strong>MapGen Learned Props Medium 11</strong>.
+It uses the approved terrain, symmetric learned 32-mex/two-hydro layout, and the
+medium seed-11 decoded prop points. This is a visualization binding, not learned
+asset selection: trees use stock <code>Pine06_prop.bp</code>, rocks use stock <code>Rock01_prop.bp</code>.
+Blueprint references and reclaim values are verified against the installed FAF
+<code>env.nx2</code> archive. Unit instance scale is one; yaw is seeded and rotated with pairs.
+No texture model is used.</p>
+<p>Resource footprint repair is bounded to 24 world units and is performed in whole
+symmetry pairs. In this example the largest move is 15.054 units, both starts
+remain fixed, and no water-class vertices change. Two underwater mexes remain
+underwater with flat footprints. Rounded smoothing feathers may overlap while
+protecting earlier flat cores; feathers stop at the original water-class boundary.
+The terrain-only land-connectivity check passes. Prop collision pathing is not
+independently certified by that terrain check.</p>
+<p>Of 1,024 decoded trees and 256 rocks, eight tree pairs are removed for protected
+starts/resources, map edges, or terrestrial pine shoreline compatibility. No
+replacement locations are invented and retained XY positions are unchanged.
+The actual map therefore contains <strong>1,008 trees and 256 rocks</strong>, with exact pair
+symmetry. The resulting verified-blueprint baseline is 2,832.16 mass and 2,872.8
+energy, not values independently predicted by the placement network.</p>
+<p>Native prop serialization writes positions, orientation basis, and scale into
+the <code>.scmap</code> prop section and independently reads it back. Four new tests cover
+prop round-trip/scale, bounded repair, coast-preserving underwater pads and paired
+removal without replacement; six existing native-export tests also pass.</p>
+<p>The direct <code>/map</code> launch succeeded, and the game log reported the map loader
+finished, loaded the save/script, and <code>NUM PROPS = 1264</code>, with no prop asset-load
+errors found. Log: <code>data/exports/launch_logs/mapgen_sym_props_medium11_scenario_20261024_182856_751_utc.log</code>.
+No existing game session was terminated. The interactive game was left running
+for the user&#39;s inspection. This is a static/export and engine-load check, not a
+claim of competitive balance or complete in-game buildability testing.</p>
+<h2 id="raw-diagnostic-export-is-now-the-default">Raw Diagnostic Export Is Now The Default</h2>
+<p>At the user&#39;s request, the active <code>prop_playtest</code> exporter no longer invokes
+resource terrain validation or repair. The former repair routine was removed
+from this active exporter; historical validated output is retained separately.</p>
+<p>Current raw map: <code>mapgen_sym_props_medium11_raw.v0001</code>, displayed as
+<strong>MapGen RAW Medium 11</strong>, installed from
+<code>data/exports/learned_props_medium11_raw_v1/manifest.json</code>.</p>
+<ul>
+<li>No mex/spawn/hydro snapping, relocation, flattening, footprint rejection,
+passability check, shoreline cleanup, or connectivity acceptance check.</li>
+<li>No prop clearance, shoreline, or edge-margin filtering. All decoded in-bounds
+prop positions are retained: 1,024 trees and 256 rocks.</li>
+<li>The original approved native terrain is unchanged, verified array-for-array
+against the saved terrain condition after <code>.scmap</code> read-back.</li>
+<li>Marker Lua uses ten decimal places and bilinear grounding so fractional XY
+coordinates are serialized unchanged. All 36 markers&#39; XY coordinates were independently
+parsed back and compared exactly with their source values.</li>
+<li>Prop/marker heights are sampled from terrain, not used to accept/reject or move
+a point. Only finite-number, map-bounds, supported-asset and binary/Lua-format
+checks remain. Export metadata labels this <code>format_only</code>, not playable validation.</li>
+<li>Existing symmetry/count decoding remains upstream. Raw here means unaltered
+decoded locations, not unconstrained diffusion noise or removal of prior terrain
+postprocessing. Starts are planned conditioning anchors, not neural predictions.</li>
+<li>The game engine can still enforce its own rules; raw exports may deliberately
+contain unbuildable mexes/hydros, unsuitable starts, overlaps or underwater trees.</li>
+</ul>
+<p>The raw direct-map launch succeeded after the user closed the prior game. The
+engine log confirmed map/save/script loading and <code>NUM PROPS = 1280</code>:
+<code>data/exports/launch_logs/mapgen_sym_props_medium11_raw_scenario_20261024_184501_639_utc.log</code>.
+The old exporter source was archived under the previous export&#39;s <code>code_snapshot/</code>
+before changing this behavior. No model weights or training tensors were changed.</p>
+<script src="model-atlas/public-links.js" data-public-links></script></body></html>
