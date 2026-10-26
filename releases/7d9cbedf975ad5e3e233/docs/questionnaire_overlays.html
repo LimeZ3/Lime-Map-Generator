@@ -1,0 +1,92 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>questionnaire_overlays.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="questionnaire-png-overlays">Questionnaire PNG overlays</h1>
+<p>The questionnaire stacks ordinary HTML images. No 3D renderer or shader is
+needed. The vault preview stays the default background; all overlays start off.
+Open <strong>Map overlays</strong> below the picture to choose layers and opacity. Click the
+map to enlarge it; the enlarged view loads native-resolution PNGs.</p>
+<p>Six transparent layers: passability, static spawns/resources, supported adaptive
+slot links, reclaim mass, reclaim energy, and props/units/wrecks. Labels and
+legends live in the controls, not in the PNG pixels. Dense masks appear below
+resource markers. Adaptive settings remain outside the MVP: links describe
+default options with all recorded spawn slots open, independently of the
+configuration selected in the questionnaire answers. Static resources show all
+definitions; the adaptive layer shows which are inactive.</p>
+<p>All overlays use world x to the right and world z downward, the same full map
+extent, no crop or vertical flip. Reclaim retains sums per 4×4 world-unit tile;
+empty tiles are transparent and unknown values do not contribute. Pathing is
+the existing static slope/depth estimate (0.75 slope, 25 amphibious depth), not
+engine pathfinding. Unknown movement validity produces transparent pixels.</p>
+<p>Some vault pictures are custom artwork, cropped, or perspective views. Their
+coordinate registration has not been verified. Choose <strong>Extracted terrain</strong>
+for guaranteed alignment between extracted layers. Rectangular maps retain
+their aspect ratio on that background. No claim is made that arbitrary vault
+artwork can be registered automatically.</p>
+<p>The original smoke covered Adaptive Diversity, Adaptive Archsimkats Valley,
+Blackstar, and Paradise-Stream. Full-library assets are now generated separately
+in <code>data/processed/library_overlays</code>. The original master render collection is
+preserved. The viewer marks maps unavailable until their new package is ready.</p>
+<p>From the repository root, export the entire ready questionnaire pool:</p>
+<pre><code class="language-powershell">$env:PYTHONPATH=&#39;src&#39;
+.venv-codex/Scripts/python.exe -m supmapai.tools.export_questionnaire_overlays
+</code></pre>
+<p>For the entire supported library, including hidden maps:</p>
+<pre><code class="language-powershell">$env:PYTHONPATH=&#39;src&#39;
+.venv-codex/Scripts/python.exe -m supmapai.tools.export_questionnaire_overlays --scope library --workers 4 --memory-budget-mib 1536 --output data/processed/library_overlays
+</code></pre>
+<p>The library selection is the 14,749 successfully decoded maps in the existing
+master manifest. The six already unsupported render sources are excluded from
+this run. No previously failed map download is retried.</p>
+<p>Omit <code>--map-id</code> for the whole pool, or repeat it for a subset. This reads
+downloaded sources and the existing pinned blueprint/rule cache; no download
+retries or FAF requests occur. It re-extracts with the current decoder, including
+legacy water/prop fixes and map-local blueprints, rather than removing backgrounds
+from old annotated PNGs. The overlay-only path skips terrain component statistics,
+duplicate unit/prop parsing, legacy views and comparison panels. Four persistent
+workers reuse blueprint caches; a 1.5 GiB budget reduces simultaneous large maps.
+The scheduler looks ahead for smaller jobs that fit spare memory behind a large
+map, and reserves a solo turn for maps larger than the whole shared budget.
+Lossless PNG compression level 2 reduces encoding cost without changing pixels.
+Native and web references share one file for maps at or below 1024 pixels.
+The six-map benchmark found 2.24–4.17× lower extraction time, with all 42 layer
+images pixel-identical and reclaim totals unchanged; timings are in
+<code>data/processed/overlay_benchmark/results.json</code>.</p>
+<p>Stalled maps are skipped after 240 seconds (<code>--timeout</code>). Run one exporter at a
+time; a PID lock prevents competing writers. <code>progress.json</code> updates every five
+seconds with ready/failed/pending counts, active maps, heartbeat and remaining
+time estimate. Manifests, the CSV and questionnaire lookup refresh every minute
+and at completion. Each finished map has its own immediate <code>asset.json</code>
+checkpoint. Resume validates native/web PNG hashes and source size/mtime;
+extraction/packaging, pinned-blueprint or compression changes invalidate the cache;
+operational scheduling changes preserve it. Failures
+are in <code>failures.json</code>, and are skipped on resume unless <code>--retry-failed</code> is set.</p>
+<p>Outputs:</p>
+<ul>
+<li><code>data/processed/library_overlays/&lt;map_id&gt;_&lt;version_id&gt;/</code>: six RGBA
+layers and terrain base, web PNGs capped at 1024 without enlargement, plus
+native PNGs and an <code>asset.json</code> with hashes, source identities and validation.</li>
+<li><code>data/processed/library_overlays/progress.json</code>: active maps, completed/total, elapsed time,
+heartbeat, failures, and final state.</li>
+<li><code>src/data/overlay-assets.json</code>: compact exact-version questionnaire lookup;
+no basename guessing or fallback to another map version.</li>
+<li><code>data/processed/library_overlays/manifest.json</code> and <code>overlay_catalog.csv</code>:
+the complete library lookup, PNG paths, map/version identity, hidden/ranked
+flags and per-map status. Detailed numerical validation stays in each package.</li>
+</ul>
+<p>The local Vite server serves <code>/overlays</code> from the library directory, with fallback
+to the original <code>public/overlays</code> smoke packages. The hosted build copies only
+PNG paths referenced by the questionnaire into <code>dist/client</code>; other library
+maps, work directories and progress logs are excluded. Set <code>MAPGEN_OVERLAY_DIR</code>
+to use a different local asset root. For an external static asset
+host, set <code>VITE_OVERLAY_BASE_URL</code> before building and upload the same overlay
+directory structure there separately. Rebuild after bulk export to include the
+updated lookup. No deployment or publication occurs during collection.</p>
+<p>Validation: extraction test suite includes empty alpha, preserved wreck mass,
+energy zero transparency, inactive crosses, and RGBA resizing with rectangular
+aspect ratio. Browser checks cover multiple loaded layers over the actual vault
+image, terrain switching, opacity, and native images in the enlarged view.</p>
+<p>After the library run completes, verify every PNG and the library-wide coverage:</p>
+<pre><code class="language-powershell">$env:PYTHONPATH=&#39;src&#39;
+.venv-codex/Scripts/python.exe -m supmapai.tools.audit_overlay_library
+</code></pre>
+<p>This checks hashes, PNG CRCs, dimensions, RGBA modes, exact manifest/CSV identities
+and explicit failures against the original master collection, then saves <code>audit.json</code>.</p>
+<script src="model-atlas/public-links.js" data-public-links></script></body></html>

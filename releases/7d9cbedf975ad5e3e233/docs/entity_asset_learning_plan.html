@@ -1,0 +1,70 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>entity_asset_learning_plan.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="learned-asset-diversity-and-terrain-attachment">Learned Asset Diversity And Terrain Attachment</h1>
+<p><strong>Status: alternative proposal, superseded for the MVP.</strong> The active direction
+is learned physical-value heatmaps plus an asset/budget composer, starting with
+tree energy and natural-rock mass. See <code>reclaim_value_heatmaps.md</code>. Blueprint-ID
+and pose learning below are not prerequisites for the current experiment.</p>
+<h2 id="what-the-current-model-does">What The Current Model Does</h2>
+<p>The placement baseline predicts four conditional spatial PDFs and independently
+samples typed points with explicit count budgets. It does not predict blueprint
+IDs, joint forest/rock configurations, local pose, or instanced mesh footprints.
+The one-pine/one-rock appearance is a fixed visualization palette in the exporter,
+not a lack of variety in source maps. Random asset substitution could add visual
+variety but would not teach terrain relationships.</p>
+<p>The extracted catalog contains 1,508 blueprint references: 328 tree, 358 rock,
+530 wreck and 292 other references. These are references, including custom assets
+and different wreck mechanisms, not a claim that every entry is a portable stock
+prop. Existing compact metadata preserves the blueprint IDs and source provenance;
+the four-field PDF targets discarded that identity for the first baseline.</p>
+<h2 id="data-to-add-or-retain-in-training-targets">Data To Add Or Retain In Training Targets</h2>
+<p>For each entity retain a canonical asset ID, broad role, asset family/palette,
+tree-group flag, instance XYZ, orientation basis, scale, footprint and known
+blueprint economy values with availability masks. Resolve stock assets against
+actual installed archives and custom assets against their bundled files/hashes.
+Do not treat unknown asset values as zero or transfer custom map paths blindly.
+Separate singular trees, tree groups, rock families, decorative props and wreck
+types; budgets must state whether they count source instances or visible stems.</p>
+<p>Current snapshots lack full per-instance orientation/scale; the <code>.scmap</code> reader
+already traverses those fields but did not retain them. Re-extract those fields
+for accurate pose/footprint learning. Do not overwrite the frozen historical
+training releases; publish a new aligned release with the same family split.</p>
+<p>Living civilian buildings are absent from current reclaim targets by design.
+Use original extraction records to add a separate structure layer carrying unit
+blueprint, army/allegiance, orientation and live/wreck state. Natural props belong
+in the <code>.scmap</code> prop section; live civilian units/buildings belong in save-Lua
+army/group records. A unit blueprint must not be emitted as a rock-style prop.</p>
+<h2 id="proposed-learned-model">Proposed Learned Model</h2>
+<p>Use a hierarchy rather than a global arbitrary asset shuffle:</p>
+<ol>
+<li>A map-level palette/style condition or learned palette selector chooses a
+coherent asset-family context. Texture/material data can supply additional
+context when that stage is ready.</li>
+<li>A stochastic, cluster-aware layout model learns forest patches, rock fields,
+cliff-edge bands and expansion reclaim regions. Derive multiscale cluster
+supervision from source entities; do not create fixed procedural cluster
+layouts at generation time. Generate full maps, then apply chosen symmetry.</li>
+<li>A local placement/asset head predicts precise offsets and family/blueprint
+identity given the cluster, nearby terrain and neighboring entities. This
+replaces the current independent within-cell jitter and coarse category-only
+asset binding. Footprint, scale and pose predictions follow from the richer
+source labels; blueprint values determine actual mass and energy.</li>
+</ol>
+<p>Keep exact budget control in decoding. Do not restore an inference-time terrain
+validator as a way of making the learned model appear more terrain-aware.</p>
+<p>The terrain inputs already contain height, water distance/depth and passability,
+but explicit multiscale slope, normals, curvature, plateau/cliff/shore distances,
+and resource/base proximity can make local relationships easier to learn.
+These are conditioning features, not hard placement masks. Exact native features
+and local offsets matter near narrow terrain features that a 128-grid PDF smears.
+Pose grounding and terrain-normal relationships are distinct from deciding where
+an entity belongs and should be evaluated separately.</p>
+<h2 id="evaluation">Evaluation</h2>
+<p>Keep raw in-game exports. Measure placement likelihood against held-out targets,
+per-asset slope/shore/cliff-distance distributions, pairwise spacing and cluster
+size distributions, palette coherence and asset-type reconstruction. Count
+matching is a decoder guarantee, not a model quality score. Where several asset
+variants are equivalent, exact author-ID matching alone is not a quality measure.
+Use player review alongside those diagnostics.</p>
+<p>Next implementation priority is a new asset/pose/terrain target release followed
+by a small cluster-aware placement plus asset-selection trial. No asset-diversity
+or civilian-building training run was started while making the raw export change.</p>
+<script src="model-atlas/public-links.js" data-public-links></script></body></html>

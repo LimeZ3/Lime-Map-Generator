@@ -1,0 +1,90 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>atlas-publication.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="atlas-publication-and-maintenance">Atlas publication and maintenance</h1>
+<p>The atlas under <code>docs/model-atlas</code> is the project&#39;s main source of truth. The
+public address is <a href="https://mapgen-project-atlas.elven-bowl-7506.chatgpt.site">https://mapgen-project-atlas.elven-bowl-7506.chatgpt.site</a> .
+ChatGPT Sites hosts the portal; the <code>codex/atlas-live</code> branch of the project GitHub
+repository holds immutable, sanitized public snapshots and <code>latest.json</code>.
+The portal checks that pointer every 60 seconds while open, on returning to the
+tab, or when Check updates is pressed. It has a bundled initial fallback. It
+never reads uncommitted desktop files or infers progress from a running process.</p>
+<h2 id="record-and-publish-meaningful-progress">Record and publish meaningful progress</h2>
+<ol>
+<li>Update the atlas catalog/control registry, method/work notes and
+<code>docs/map-extraction-todos.md</code> as appropriate. Preserve exact checkpoint and
+map identities; record completed, active, experimental and planned separately.</li>
+<li>Refresh the offline model reference using project GPU Python, metadata only:
+<code>$env:PYTHONPATH=&#39;src&#39;; .venv/Scripts/python.exe -m supmapai.tools.build_model_atlas</code>.</li>
+<li>Run <code>node tools/refresh_project_status.mjs</code> to refresh the structured progress
+page and dated GitHub report from atlas receipts and saved supervisor states.
+Check wording before publication, especially a running/paused/completed state.</li>
+<li>Run <code>node tools/publish_project_atlas.mjs --push</code>. This builds a public snapshot
+and pushes only the dedicated <code>codex/atlas-live</code> publication branch. It does not
+stage or commit the research checkout or modify <code>main</code>. Git write access is
+required; failures must not be reported as published. Verify the remote pointer
+after a push. No Site deployment is needed for a data/content update.</li>
+<li>Commit reviewed source documentation/progress changes to the research branch
+through the normal GitHub workflow. Keep a dated report as history; the current
+atlas status is authoritative. Update the local offline reference too.</li>
+</ol>
+<p>A content publisher must run after meaningful recorded progress. The minute
+browser check does <strong>not</strong> itself turn local edits into public updates. This
+workflow is agent-driven/event-driven publication, not an unattended training
+monitor, and creates no recurring tasks or Netlify deployment.</p>
+<p>The Datasets → 1x1, 10km audit is rebuilt from the exact local reviewer cohort
+using the steps in <code>dataset-atlas.md</code> after relevant source or processing changes.
+UI-only and shared review changes do not require rerendering the dataset. Keep
+the original audit population distinct from current curated role memberships.</p>
+<h2 id="public-packaging-boundaries">Public packaging boundaries</h2>
+<p>The publisher includes reviewed atlas images/scripts, rendered project notes and
+selected small source/evidence snapshots. It scrubs machine-specific absolute
+paths. It excludes checkpoints, full raw tensor archives, private response exports,
+portfolio drafts and local review applications; links become explanatory evidence
+pages rather than broken file URLs. It must never upload credentials or expand
+an excluded artifact merely because a document links to it.</p>
+<p>A public snapshot has a content digest, immutable release directory, recorded
+source timestamp and per-file hashes. The version pointer advances only after
+its snapshot is uploaded in the same Git push. GitHub retains prior versions.
+The Site portal embeds only this fixed project&#39;s owner-published source; it does
+not allow arbitrary remote document origins.</p>
+<h2 id="portalcode-updates">Portal/code updates</h2>
+<p>Site identity is in <code>sites/mapgen-project-atlas/.openai/hosting.json</code>. Reuse it.
+Use the Sites skill&#39;s source helper and native save/deploy workflow for changes
+to the portal itself, preserving public access. Do not deploy to Netlify. Source
+credentials belong only in session memory/stdin. The initial bundled fallback is
+packaged under <code>sites/mapgen-project-atlas/public</code>; newer content comes from GitHub.</p>
+<h2 id="shared-review-flags">Shared review flags</h2>
+<p>Every atlas page and heading has a human review flag: unflagged, complete,
+needs some work, or far from done. The Review flags page gathers the flagged
+sections and exports their public JSON. These judgements are independent of
+scientific validation, training receipts and extraction TODO completion.</p>
+<p>The Site&#39;s <code>/api/review-flags</code> stores flags in its D1 database. Public visitors
+can read them; only the project owner can write after Sign in with ChatGPT.
+The initial owner must match the private <code>ATLAS_OWNER_EMAIL</code> environment value
+from trusted Site ownership, then the Site-scoped authenticated user ID is
+pinned. Never replace this with first-visitor registration or a browser secret.
+No owner identity or email is returned by the public API. Cross-origin writes
+are rejected, and version checks prevent concurrent tabs overwriting changes.</p>
+<p>Flags survive atlas content publications and Site deployments. Changes appear
+immediately in the editing tab; other open tabs refresh within a minute or on
+returning to the tab. Local offline atlas files show shared flags read only.
+The local preview uses the supplied test identity and a separate local database;
+test flags must never be imported into the production database.</p>
+<p>Dataset inclusion decisions and manual symmetry suggestions use
+<code>/api/dataset-curation</code> and the same pinned owner authorization. The schema and
+membership contract live in the existing Site source. Defaults keep every map
+except the 50 original local exclusions. Server-side validation binds edits to
+the exact cohort and caps a page batch at 24 maps. One guarded atomic statement
+prevents partial writes on stale versions. The selection export is the current
+shared curation receipt; rebuilding an atlas snapshot does not reset these edits.</p>
+<p>Section notes use the same owner-only write access and public visibility as flags.
+Expand Notes beside a flag, type up to 10,000 characters, then Save notes. Notes
+are plain text and are included in the review list and JSON export even when the
+section is unflagged. Refreshing shared data preserves unsaved drafts in the open
+page. A stale-version conflict retains the draft and requires another explicit
+save after reviewing the latest state. Older flag-only clients preserve notes.</p>
+<p>Keep review keys stable when renaming sections: page keys are <code>page:&lt;route&gt;</code>,
+layer keys use their existing <code>layer-*</code> IDs, other section keys derive from the
+route and heading. If a heading is renamed, migrate its saved key deliberately
+rather than silently treating its old flag as a judgement of the new section.</p>
+<p>The Markdown renderer uses the bundled <code>marked</code> dependency. Set
+<code>ATLAS_MARKED_MODULE</code> to its absolute module path when a runtime bundle moves.</p>
+<script src="model-atlas/public-links.js" data-public-links></script></body></html>

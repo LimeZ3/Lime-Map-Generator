@@ -1,0 +1,32 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>symmetry-x-central-hydro.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="-x--central-hydro-and-symmetry-matching">(-X-): central hydro and symmetry matching</h1>
+<p>Diagnostic for map <code>963_1306</code>, folder <code>(-X-).v0001</code>. No detector, source coordinates, human suggestions or labels were changed.</p>
+<p>The original save Lua records Hydrocarbon 00 at <code>(252.740, 120.406, 252.298)</code>. The horizontal playable bounds are <code>[0,0,512,512]</code>, so the geometric centre is <code>(256,256)</code> in x/z. The marker offset is <code>(-3.260,-3.702)</code>, distance <strong>4.933 world units</strong> (0.963% of the map side).</p>
+<table>
+<thead>
+<tr>
+<th>Transform about map centre</th>
+<th align="right">Hydro displacement</th>
+<th>Passes 4-unit marker tolerance?</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Horizontal mirror</td>
+<td align="right">7.404</td>
+<td>No</td>
+</tr>
+<tr>
+<td>Vertical mirror</td>
+<td align="right">6.520</td>
+<td>No</td>
+</tr>
+<tr>
+<td>Half-turn</td>
+<td align="right">9.866</td>
+<td>No</td>
+</tr>
+</tbody></table>
+<p>The hydro is a singleton: it can match itself, but its transformed location must be within tolerance. The detector does not require exact coordinates. Under a half-turn, the offset doubles; a 4-unit matching tolerance therefore allows only 2 units of radial displacement for a singleton.</p>
+<p>The user&#39;s proposed cause is real, but <strong>not the only rejection</strong> on this map. Under the canonical half-turn, only 6/24 mexes match within tolerance; maximum nearest-marker error is 21.804 units. Only 2/4 source starts match; the maximum error is 12.395 units. The selected ARMY_1/ARMY_2 pair is much closer to half-turn symmetry than the other two starts. The saved candidate checks also reject broad terrain mismatch, independently of hydro matching. Removing the hydro alone would not make this detector accept the map. These measurements do not demonstrate that the map is competitively unfair.</p>
+<p>A possible future refinement is to distinguish central shared resources from paired resources and measure their bias/access separately. Proximity to the centre alone must not silently waive asymmetry: shared-marker accessibility can still differ between actual bases. Keep human-suggested symmetry separate from measured invariance. No tolerance or algorithm was changed in this investigation.</p>
+<p>Evidence: <code>data/processed/symmetry_x_central_hydro_diagnostic_v1/report.json</code>; source marker extraction and saved v2 result hashes are pinned there. Source save coordinates were independently checked against the original Lua.</p>
+<script src="model-atlas/public-links.js" data-public-links></script></body></html>

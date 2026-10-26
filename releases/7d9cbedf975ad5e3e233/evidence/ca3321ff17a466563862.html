@@ -1,0 +1,119 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>reclaim_heatmaps.py | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="../docs/model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1>reclaim_heatmaps.py</h1><p class="meta">Saved public evidence snapshot: src/supmapai/tensors/reclaim_heatmaps.py</p><pre>&quot;&quot;&quot;Budget-independent tree-energy and natural-rock-mass allocation targets.&quot;&quot;&quot;
+
+import argparse
+import json
+from collections import Counter
+from pathlib import Path
+
+import numpy as np
+
+from supmapai.tensors.strategy_dataset import file_hash, pool, read_json, read_rows
+from supmapai.tools.windows_io import write_json
+
+SCHEMA = 'reclaim_value_heatmaps_v1'
+ROLES = ('tree_energy', 'rock_mass')
+INDICES = [2, 4]
+GRID = 128
+
+
+def allocation_targets(values):
+    values = np.asarray(values, dtype=np.float64)
+    if values.ndim != 3 or values.shape[0] != 2 or not np.isfinite(values).all() or (values &lt; 0).any():
+        raise ValueError('Expected two finite nonnegative value grids')
+    totals = values.sum((1, 2))
+    present = totals &gt; 0
+    target = np.divide(values, totals[:, None, None], out=np.zeros_like(values),
+                       where=present[:, None, None]).astype(np.float32)
+    return target, present, totals
+
+
+def check_split(rows):
+    keys, families = set(), {}
+    for row in rows:
+        if row['split'] not in ('train', 'validation'):
+            raise ValueError('Unexpected split')
+        if row['key'] in keys or families.setdefault(row['family'], row['split']) != row['split']:
+            raise ValueError('Duplicate key or family leakage')
+        keys.add(row['key'])
+
+
+def build(source, out):
+    source, out = Path(source).resolve(), Path(out).resolve()
+    if out.exists():
+        raise ValueError('Choose a new output directory')
+    release = read_json(source/'release_manifest.json')
+    if release['schema'] != 'typed_reclaim_props_v1' or release['status'] != 'ready':
+        raise ValueError('A ready typed physical reclaim release is required')
+    for name, sha in release['artifacts'].items():
+        if file_hash(source/name) != sha:
+            raise ValueError('Changed source artifact: '+name)
+    rows = read_rows(source/'train.jsonl')+read_rows(source/'validation.jsonl')
+    check_split(rows)
+    (out/'maps').mkdir(parents=True)
+    packed, totals, largest_error = [], np.zeros(2), 0.
+    for index, row in enumerate(rows, 1):
+        path = source/row['physical_archive']
+        if file_hash(path) != row['files']['physical.npz']:
+            raise ValueError('Changed physical source: '+row['key'])
+        with np.load(path, allow_pickle=False) as archive:
+            values = archive['physical'][INDICES].copy()
+            if not archive['loss_mask'][INDICES].all():
+                raise ValueError('Unknown energy/mass target: '+row['key'])
+            spatial = np.stack([pool(a, GRID) for a in archive['spatial']]).astype(np.float16)
+        if values.shape != (2, 256, 256) or spatial.shape != (9, GRID, GRID):
+            raise ValueError('Unexpected physical tensor dimensions')
+        pooled = np.stack([pool(a, GRID, total=True) for a in values])
+        target, present, amounts = allocation_targets(pooled)
+        expected = np.asarray(row['totals'])[INDICES]
+        np.testing.assert_allclose(amounts, expected, rtol=1e-6, atol=.001)
+        reconstructed = target.astype(float)*amounts[:, None, None]
+        error = float(np.abs(reconstructed-pooled).sum()/max(1., amounts.sum()))
+        largest_error = max(largest_error, error)
+        totals += amounts
+        output = out/'maps'/(row['key']+'.npz')
+        np.savez_compressed(output, target=target, present=present, spatial=spatial)
+        packed.append(dict(key=row['key'], family=row['family'], split=row['split'],
+            archive='maps/'+output.name, sha256=file_hash(output), totals=amounts.tolist(),
+            present=present.tolist(), source_metadata=row['metadata'],
+            source_metadata_sha256=row['source_metadata_sha256'], source_physical=str(path),
+            source_physical_sha256=row['files']['physical.npz']))
+        if index % 100 == 0 or index == len(rows):
+            print(f'prepared={index}/{len(rows)}', flush=True)
+            write_json(out/'progress.json', dict(status='preparing', complete=index, total=len(rows)))
+    for split in ('train', 'validation'):
+        (out/(split+'.jsonl')).write_text(''.join(json.dumps(r)+'\n' for r in packed if r['split'] == split), encoding='utf-8')
+    norm = dict(schema=SCHEMA, roles=ROLES, grid=GRID, spatial_channels=9,
+        conditioning=['height', 'water_sdf', 'water_depth', 'land_passability', 'hover_passability',
+                      'spawn_a', 'spawn_b', 'mexes', 'hydros'],
+        target='Unclipped linear physical value divided by its per-map role total',
+        amount_input=False, asset_id_input=False, terrain_filter=False,
+        absence='Empty roles are masked in training; composer zero budget means no entities')
+    write_json(out/'normalization.json', norm)
+    audit = dict(status='passed', maps=len(rows), splits=dict(Counter(r['split'] for r in rows)),
+        roles=ROLES, units=['reclaim_energy', 'reclaim_mass'], physical_totals=totals.tolist(),
+        present_maps=np.sum([r['present'] for r in packed], axis=0).tolist(),
+        max_value_reconstruction_relative_l1=largest_error, clipping=False,
+        source_release=str(source), source_release_sha256=file_hash(source/'release_manifest.json'),
+        builder_sha256=file_hash(__file__),
+        limitations=['Trees also yield mass; a future composer must account for both resources',
+            'Source targets retain the existing small raster blur; exact individual poses are not targets',
+            'Energy and mass are role-filtered, not total reclaim from wrecks or civilian buildings',
+            '128x128 targets represent 4 world units per cell on a 10km map'])
+    write_json(out/'audit.json', audit)
+    names = ['train.jsonl', 'validation.jsonl', 'normalization.json', 'audit.json']
+    write_json(out/'release_manifest.json', dict(schema=SCHEMA, status='ready', artifacts={n:file_hash(out/n) for n in names}))
+    write_json(out/'progress.json', dict(status='complete', complete=len(rows), total=len(rows)))
+    return audit
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--source', type=Path, required=True)
+    parser.add_argument('--out', type=Path, required=True)
+    args = parser.parse_args()
+    print(json.dumps(build(args.source, args.out), indent=2))
+
+
+if __name__ == '__main__':
+    main()
+</pre><script src="../docs/model-atlas/public-links.js" data-public-links></script></body></html>
