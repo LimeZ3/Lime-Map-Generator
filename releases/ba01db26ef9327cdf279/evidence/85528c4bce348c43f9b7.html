@@ -1,0 +1,316 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>layout_symmetry.py | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="../docs/model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1>layout_symmetry.py</h1><p class="meta">Saved public evidence snapshot: src/supmapai/extract/layout_symmetry.py</p><pre>&quot;&quot;&quot;Anchor-assisted, movement-checked layout symmetry; asymmetry is not repaired.&quot;&quot;&quot;
+from dataclasses import dataclass,asdict
+import copy,math
+import numpy as np
+from scipy import ndimage
+from scipy.spatial import cKDTree
+from scipy.sparse import csr_matrix
+from scipy.sparse.csgraph import min_weight_full_bipartite_matching,shortest_path
+from .terrain_symmetry import Comparison,rotation,reflection,overlap_fraction,accepted,Settings
+
+
+@dataclass(frozen=True)
+class LayoutSettings:
+    point_tolerance:float=4.
+    minimum_spawns:int=2
+    minimum_mexes:int=4
+    minimum_span:float=.2
+    domain_preservation:float=.995
+    height_guard_error:float=.20
+    height_guard_p95:float=.40
+    mask_disagreement:float=.08
+    union_disagreement:float=.15
+    water_disagreement:float=.02
+    edge_tolerance:float=2.
+    far_disagreement:float=.01
+    endpoint_snap:float=2.
+    clearance_radii:tuple=(0,1,2,4)
+    travel_cell:int=4
+    travel_relative:float=.20
+    travel_absolute:float=8.
+
+
+def travel_costs(mask,starts,targets,cell):
+    h,w=mask.shape
+    coarse=mask[:h//cell*cell,:w//cell*cell].reshape(h//cell,cell,w//cell,cell).all(axis=(1,3))
+    shape=coarse.shape
+    if not coarse.any():return None
+    distance,near=ndimage.distance_transform_edt(~coarse,return_indices=True)
+    def locate(points):
+        xy=np.floor(points/cell).astype(int);xy[:,0]=np.clip(xy[:,0],0,shape[1]-1);xy[:,1]=np.clip(xy[:,1],0,shape[0]-1)
+        valid=distance[xy[:,1],xy[:,0]]&lt;=2
+        ids=near[0,xy[:,1],xy[:,0]]*shape[1]+near[1,xy[:,1],xy[:,0]]
+        return ids,valid
+    a,av=locate(starts);b,bv=locate(targets)
+    if not av.any():return None
+    ids=np.arange(coarse.size).reshape(shape)
+    hgood=coarse[:,:-1]&amp;coarse[:,1:];vgood=coarse[:-1]&amp;coarse[1:]
+    left=np.concatenate([ids[:,:-1][hgood],ids[:-1][vgood]])
+    right=np.concatenate([ids[:,1:][hgood],ids[1:][vgood]])
+    graph=csr_matrix((np.ones(len(left)*2), (np.concatenate([left,right]),np.concatenate([right,left]))),shape=(coarse.size,coarse.size))
+    costs=shortest_path(graph,directed=False,indices=a,unweighted=True)[:,b]*cell
+    costs[~av,:]=np.inf;costs[:,~bv]=np.inf
+    return costs
+
+
+class Points:
+    def __init__(self,points):
+        self.points=list(points);self.xy=np.array([[p['x'],p['z']] for p in points],float).reshape(-1,2)
+        self.tree=cKDTree(self.xy) if len(points) else None
+
+    def measure(self,matrix,tolerance,keep_names=False):
+        n=len(self.xy)
+        if not n:return dict(count=0,available=False,all_matched=True,matched_fraction=None,matches=[])
+        transformed=self.xy@matrix[:2,:2].T+matrix[:2,2]
+        distance,index=self.tree.query(transformed)
+        nearest_fraction=float((distance&lt;=tolerance+1e-8).mean())
+        bijective=len(np.unique(index))==n
+        good=bool(nearest_fraction==1)
+        if good and not bijective:
+            neighborhoods=self.tree.query_ball_point(transformed,tolerance+1e-8)
+            rows=[];cols=[];costs=[]
+            for i,neighbors in enumerate(neighborhoods):
+                for j in neighbors:rows.append(i);cols.append(j);costs.append(float(np.linalg.norm(transformed[i]-self.xy[j]))+1e-9)
+            try:
+                _,index=min_weight_full_bipartite_matching(csr_matrix((costs,(rows,cols)),shape=(n,n)))
+                distance=np.linalg.norm(transformed-self.xy[index],axis=1);bijective=True
+            except ValueError:good=False
+        good=bool(good and bijective)
+        matches=[]
+        if keep_names:
+            matches=[dict(source=p.get('name',str(i)),target=self.points[int(j)].get('name',str(int(j))),distance=float(d),
+                matched=bool(good and d&lt;=tolerance+1e-8),self_match=bool(i==j)) for i,(p,j,d) in enumerate(zip(self.points,index,distance))]
+        return dict(count=n,available=True,all_matched=good,one_to_one=bijective,
+            matched_fraction=1. if good else nearest_fraction,unique_targets=int(len(np.unique(index))),
+            mean_distance=float(distance.mean()),p95_distance=float(np.quantile(distance,.95)),max_distance=float(distance.max()),
+            moved_matches=int(np.count_nonzero(index!=np.arange(n))) if good else 0,matches=matches,
+            method='Bijective nearest matching or sparse minimum-cost matching within tolerance; no target reuse')
+
+
+class Movement:
+    def __init__(self,land,hover,wet,points,starts,settings):
+        self.masks={'land':np.asarray(land,bool),'hover':np.asarray(hover,bool),'wet':np.asarray(wet,bool)}
+        self.settings=settings;self.points=points;self.starts=starts
+        shape=self.masks['land'].shape
+        z,x=np.indices(shape,dtype=float);self.x=x+.5;self.z=z+.5
+        self.clearance={k:ndimage.distance_transform_edt(v) for k,v in self.masks.items() if k!='wet'}
+        self.boundaries={k:ndimage.distance_transform_edt(~(v^ndimage.binary_erosion(v))) for k,v in self.masks.items()}
+        self.original={k:self._labels(v,self.clearance[k]) for k,v in self.masks.items() if k!='wet'}
+        self.travel={k:travel_costs(v,starts,points,settings.travel_cell) for k,v in self.masks.items() if k!='wet'}
+        self.native_travel={}
+
+    def _labels(self,mask,clearance):
+        out={}
+        for radius in self.settings.clearance_radii:
+            region=mask if radius==0 else mask&amp;(clearance&gt;=radius)
+            labels,_=ndimage.label(region)
+            xy=np.floor(self.points).astype(int)
+            xy[:,0]=np.clip(xy[:,0],0,region.shape[1]-1);xy[:,1]=np.clip(xy[:,1],0,region.shape[0]-1)
+            at=labels[xy[:,1],xy[:,0]].copy()
+            if radius==0 and self.settings.endpoint_snap&gt;0:
+                distance,near=ndimage.distance_transform_edt(~region,return_indices=True)
+                use=(at==0)&amp;(distance[xy[:,1],xy[:,0]]&lt;=self.settings.endpoint_snap)
+                xx=xy[use,0];zz=xy[use,1]
+                at[use]=labels[near[0,zz,xx],near[1,zz,xx]]
+            out[radius]=at
+        return out
+
+    def measure(self,matrix):
+        s=self.settings;tx=matrix[0,0]*self.x+matrix[0,1]*self.z+matrix[0,2]-.5
+        tz=matrix[1,0]*self.x+matrix[1,1]*self.z+matrix[1,2]-.5
+        valid=(tx&gt;=-1e-7)&amp;(tx&lt;=self.x.shape[1]-1+1e-7)&amp;(tz&gt;=-1e-7)&amp;(tz&lt;=self.x.shape[0]-1+1e-7)
+        evidence={};reasons=[]
+        for name,mask in self.masks.items():
+            other=ndimage.map_coordinates(mask.astype(np.uint8),[tz,tx],order=0,mode='nearest',prefilter=False)&gt;0
+            delta=(mask!=other)&amp;valid;union=(mask|other)&amp;valid
+            fraction=float(delta.sum()/max(valid.sum(),1));uf=float(delta.sum()/max(union.sum(),1))
+            far=float((delta&amp;(self.boundaries[name]&gt;s.edge_tolerance)).sum()/max(valid.sum(),1))
+            row=dict(disagreement=fraction,union_disagreement=uf,far_disagreement=far)
+            if name=='wet':
+                if fraction&gt;s.water_disagreement or (union.mean()&gt;=.01 and uf&gt;s.union_disagreement):reasons.append('water occupancy differs')
+            else:
+                if fraction&gt;s.mask_disagreement or uf&gt;s.union_disagreement or far&gt;s.far_disagreement:
+                    reasons.append(name+' geometry differs')
+                clearance=ndimage.distance_transform_edt(other)
+                counterpart=self._labels(other,clearance);topology={}
+                for radius in s.clearance_radii:
+                    a=self.original[name][radius];b=counterpart[radius]
+                    stable=(a&gt;0)&amp;(b&gt;0)
+                    availability_changes=int(np.count_nonzero((a==0)!=(b==0))) if radius==0 else 0
+                    aa=a[stable];bb=b[stable]
+                    pairs=lambda counts:int(np.sum(counts.astype(np.int64)*(counts-1)//2))
+                    _,ca=np.unique(aa,return_counts=True);_,cb=np.unique(bb,return_counts=True)
+                    _,cab=np.unique(np.column_stack([aa,bb]),axis=0,return_counts=True)
+                    changes=pairs(ca)+pairs(cb)-2*pairs(cab)
+                    topology[str(radius)]=dict(stable_points=int(stable.sum()),connectivity_changes=changes,endpoint_changes=availability_changes)
+                    if changes or availability_changes:reasons.append(f'{name} connectivity/clearance differs at {radius} cells')
+                row['topology']=topology
+                before=self.travel[name];after=travel_costs(other,self.starts,self.points,s.travel_cell)
+                if before is not None and after is not None:
+                    comparable=np.isfinite(before)&amp;np.isfinite(after)
+                    difference=np.abs(before[comparable]-after[comparable]);minimum=np.minimum(before[comparable],after[comparable])
+                    failing=difference&gt;s.travel_absolute+s.travel_relative*minimum
+                    row['coarse_travel']=dict(comparable_pairs=int(comparable.sum()),large_cost_changes=int(failing.sum()),
+                        max_absolute_change=float(difference.max()) if len(difference) else 0,
+                        uncomparable_pairs=int(np.count_nonzero(np.isfinite(before)!=np.isfinite(after))),
+                        method='Conservative 4-cell grid; comparable finite paths only; native clearance checks handle connectivity')
+                    if failing.any():
+                        # A coarse grid can erase a narrow opening. Confirm every
+                        # suspected cost conflict at native resolution before vetoing.
+                        if name not in self.native_travel:self.native_travel[name]=travel_costs(mask,self.starts,self.points,1)
+                        native_before=self.native_travel[name];native_after=travel_costs(other,self.starts,self.points,1)
+                        if native_before is not None and native_after is not None:
+                            comparable=np.isfinite(native_before)&amp;np.isfinite(native_after)
+                            diff=np.abs(native_before[comparable]-native_after[comparable]);base=np.minimum(native_before[comparable],native_after[comparable])
+                            conflicts=diff&gt;s.travel_absolute+s.travel_relative*base
+                            row['native_travel_confirmation']=dict(comparable_pairs=int(comparable.sum()),large_cost_changes=int(conflicts.sum()),max_absolute_change=float(diff.max()) if len(diff) else 0)
+                            if conflicts.any():reasons.append(name+' native travel costs differ materially')
+            evidence[name]=row
+        return dict(accepted=not reasons,reasons=sorted(set(reasons)),layers=evidence,
+            method='Native static masks; 4-neighbor endpoint partitions at clearance 0/1/2/4; no combat or engine certification')
+
+
+def _group(center,n,axis=None):
+    transforms=[dict(kind='rotation',angle_degrees=k*360/n,matrix=rotation(center,k*360/n).tolist()) for k in range(1,n)]
+    if axis is not None:transforms.extend(dict(kind='reflection',angle_degrees=(axis+k*180/n)%180,matrix=reflection(center,axis+k*180/n).tolist()) for k in range(n))
+    return dict(classification='reflection' if n==1 else 'rotation_with_reflection' if axis is not None else 'rotation',
+        rotation_order=n,center=np.asarray(center).tolist(),reference_axis_degrees=axis,transforms=transforms)
+
+
+def calculate(height,land,hover,wet,*,previous,spawns,source_mexes,source_hydros,active_spawns,active_mexes,active_hydros,settings=None):
+    s=settings or LayoutSettings();height=np.asarray(height,float);bounds=previous['bounds']
+    x0,z0,x1,z1=bounds;center=np.array([(x0+x1)/2,(z0+z1)/2]);extent=max(x1-x0,z1-z0)
+    pools={name:Points([p for p in rows if x0&lt;=p['x']&lt;x1 and z0&lt;=p['z']&lt;z1]) for name,rows in
+        [('spawns',spawns),('source_mexes',source_mexes),('source_hydros',source_hydros),
+         ('active_spawns',active_spawns),('active_mexes',active_mexes),('active_hydros',active_hydros)]}
+    inventory={name:dict(input_count=len(rows),used_count=len(pools[name].xy),excluded_outside_playable=len(rows)-len(pools[name].xy)) for name,rows in
+        [('spawns',spawns),('source_mexes',source_mexes),('source_hydros',source_hydros),('active_spawns',active_spawns),('active_mexes',active_mexes),('active_hydros',active_hydros)]}
+    source_points=np.unique(np.concatenate([p.xy for p in pools.values()]),axis=0)
+    # These are endpoint checks, not a promise that all routes have equal widths.
+    start_points=np.unique(np.concatenate([pools[k].xy for k in ['spawns','active_spawns']]),axis=0)
+    movement=None
+    terrain_settings=Settings(**previous['settings']);scale=max(previous['robust_relief'],terrain_settings.minimum_relief)
+    fine=Comparison(height,bounds,161,scale);cache={}
+    def finish(evidence,matrix):
+        nonlocal movement
+        if evidence.get('basic_accepted') and evidence.get('movement') is None:
+            if movement is None:movement=Movement(land,hover,wet,source_points,start_points,s)
+            measured=movement.measure(matrix);evidence['movement']=measured
+            if not measured['accepted']:
+                evidence['accepted']=False;evidence['reasons']=sorted(set(evidence['reasons']+measured['reasons']))
+        return evidence
+    def check(t,with_movement=False):
+        matrix=np.asarray(t['matrix']);key=tuple(np.round(matrix.ravel(),8))
+        if key in cache:return finish(cache[key],matrix) if with_movement else cache[key]
+        coverage=overlap_fraction(bounds,matrix)
+        if coverage&lt;s.domain_preservation:
+            evidence=dict(accepted=False,basic_accepted=False,source_ok=False,default_ok=False,reasons=['whole playable domain is not preserved'],coverage=coverage)
+            cache[key]=evidence;return evidence
+        anchors={name:p.measure(matrix,s.point_tolerance,keep_names=name in ['spawns','active_spawns']) for name,p in pools.items()}
+        def supports(names):
+            a,b,c=[anchors[k] for k in names]
+            enough=a['count']&gt;=s.minimum_spawns and b['count']&gt;=s.minimum_mexes
+            xy=np.concatenate([pools[k].xy for k in names]);span=float(np.linalg.norm(np.ptp(xy,axis=0))/extent) if len(xy) else 0
+            nontrivial=sum(anchors[k].get('moved_matches',0) for k in names)&gt;=2
+            return bool(enough and span&gt;=s.minimum_span and nontrivial and all(anchors[k]['all_matched'] for k in names))
+        source_ok=supports(['spawns','source_mexes','source_hydros']);default_ok=supports(['active_spawns','active_mexes','active_hydros'])
+        score=fine.score(matrix,True);strict=accepted(score,terrain_settings)
+        reasons=[]
+        if not source_ok and not default_ok:reasons.append('source and default anchors do not support this transform')
+        if score['error']&gt;s.height_guard_error or score['normalized_p95']&gt;s.height_guard_p95:reasons.append('broad terrain mismatch exceeds guard')
+        evidence=dict(accepted=not reasons,basic_accepted=not reasons,source_ok=source_ok,default_ok=default_ok,score=score,strict_height_match=strict,
+            anchors=anchors,movement=None,reasons=reasons,coverage=coverage)
+        cache[key]=evidence;return finish(evidence,matrix) if with_movement else evidence
+    groups=[];seen=set()
+    def add(g):
+        key=tuple(tuple(np.round(np.asarray(t['matrix']).ravel(),5)) for t in g['transforms'])
+        if key and key not in seen:seen.add(key);groups.append(g)
+    # Full-square groups are always proposed even if terrain screening missed them.
+    for n in [2,4]:
+        add(_group(center,n))
+        for axis in ([0.,45.] if n==2 else [0.]):add(_group(center,n,axis))
+    for axis in [0.,45.,90.,135.]:add(_group(center,1,axis))
+    for r in previous.get('rotations',[]):
+        add(_group(r['center'],r['order']))
+        if r['order'] in [2,4]:
+            for axis in [0.,45.]:add(_group(r['center'],r['order'],axis))
+    axes=[r['axis_angle_degrees'] for r in previous.get('reflections',[])]
+    for r in previous.get('reflections',[]):add(_group(r['axis_point'],1,r['axis_angle_degrees']))
+    # Spawn pairs propose mirror axes independently of height. They are hypotheses.
+    xy=pools['spawns'].xy
+    for i in range(len(xy)):
+        for j in range(i):
+            delta=xy[i]-xy[j]
+            if np.linalg.norm(delta)&lt;1:continue
+            axis=(math.degrees(math.atan2(delta[1],delta[0]))+90)%180
+            midpoint=(xy[i]+xy[j])/2
+            m=reflection(midpoint,axis)
+            if overlap_fraction(bounds,m)&gt;=s.domain_preservation:
+                point=.5*(center+m[:2,:2]@center+m[:2,2]);add(_group(point,1,axis));axes.append(axis)
+    for axis in axes:
+        for n in [2,4]:add(_group(center,n,axis))
+    summaries=[];source_groups=[];default_groups=[]
+    # Search complete groups from largest to smallest, canonical proposals first.
+    # Once both scopes have a larger verified group, testing its smaller/equal
+    # alternatives cannot add axes or a higher order. Avoid pixel-fit tuning.
+    for g in sorted(groups,key=lambda item:-len(item['transforms'])):
+        if source_groups and default_groups and len(g['transforms'])&lt;=min(len(source_groups[0][0]['transforms']),len(default_groups[0][0]['transforms'])):
+            summaries.append(dict(classification=g['classification'],rotation_order=g['rotation_order'],
+                reference_axis_degrees=g['reference_axis_degrees'],source_accepted=None,default_accepted=None,
+                status='not_evaluated_after_larger_complete_groups'))
+            continue
+        evidence=[check(t) for t in g['transforms']]
+        source_possible=all(e['basic_accepted'] and e['source_ok'] for e in evidence)
+        default_possible=all(e['basic_accepted'] and e['default_ok'] for e in evidence)
+        if source_possible or default_possible:evidence=[check(t,True) for t in g['transforms']]
+        source_good=source_possible and all(e['accepted'] for e in evidence)
+        default_good=default_possible and all(e['accepted'] for e in evidence)
+        strict=all(e.get('strict_height_match',False) for e in evidence)
+        summary=dict(classification=g['classification'],rotation_order=g['rotation_order'],reference_axis_degrees=g['reference_axis_degrees'],
+            center=g['center'],source_accepted=source_good,default_accepted=default_good,
+            quality='terrain_close' if strict else 'approximate_layout',rejection_reasons=sorted(set(reason for e in evidence for reason in e['reasons'])))
+        summaries.append(summary)
+        if source_good:source_groups.append((g,evidence,strict))
+        if default_good:default_groups.append((g,evidence,strict))
+    def best(items):
+        if not items:return None
+        return max(items,key=lambda item:(len(item[0]['transforms']),item[0]['rotation_order'],
+            -max(e['score']['error'] for e in item[1]),-sum(e['anchors']['spawns'].get('mean_distance',0) for e in item[1])))
+    source=best(source_groups);default=best(default_groups);selected=source or default
+    result=copy.deepcopy(previous)
+    result.update(schema='layout_symmetry_v2',layout_settings=asdict(s),terrain_settings=previous['settings'],
+        settings={**previous['settings'],'point_tolerance':s.point_tolerance},
+        terrain_descriptor={k:copy.deepcopy(previous.get(k)) for k in ['classification','rotation_order','center','reference_axis_degrees','domain_preserved','model_condition_valid']},
+        candidate_groups=summaries,layout_confirmed=selected is not None,
+        source_layout=_descriptor(source),default_layout=_descriptor(default),
+        genuine_asymmetry_allowed=True,ranked_status_used=False,anchor_inventory=inventory,
+        checked_movement_profiles=['cached_land','cached_hover','water_occupancy'],unchecked_profiles=['naval_unit_depth_profiles','engine_navigation','combat_balance'])
+    if default:
+        result['default_layout']['opponent_swap_confirmed']=any(e['anchors']['active_spawns'].get('moved_matches',0)==2 for e in default[1]) if len(active_spawns)==2 else False
+    if selected:
+        g,evidence,strict=selected
+        transforms=[]
+        for t,e in zip(g['transforms'],evidence):
+            transforms.append(dict(**t,score=e['score'],spawns=e['anchors']['spawns'],mexes=e['anchors']['active_mexes'],
+                source_mexes=e['anchors']['source_mexes'],hydros=e['anchors']['active_hydros'],source_hydros=e['anchors']['source_hydros'],
+                layout_evidence=e))
+        result.update(**{k:v for k,v in g.items() if k!='transforms'},transforms=transforms,
+            symmetry_basis='source_layout' if source else 'default_configuration_layout',
+            match_quality='terrain_close' if strict else 'approximate_layout',domain_preserved=True,
+            model_condition_valid=True,unrepresented_mirror_candidates=[],status='layout_supported')
+    elif previous['classification'] not in ('none','unknown_uninformative'):
+        result.update(symmetry_basis='terrain_only',match_quality='terrain_only',model_condition_valid=False,status='terrain_only_layout_conflict')
+    else:
+        result.update(symmetry_basis='unresolved',match_quality='unresolved',model_condition_valid=False,status='asymmetric_or_unresolved',
+            classification='none',rotation_order=1,transforms=[],domain_preserved=True)
+    result['spawn_correspondences']=[dict(transform=t['kind'],angle_degrees=t['angle_degrees'],**m)
+        for t in result['transforms'] for m in t['spawns'].get('matches',[]) if m['matched'] and not m['self_match']]
+    result['pair_policy']='Source correspondences only; default group separately verifies both bases and active resources, never renames or moves source slots'
+    return result
+
+
+def _descriptor(selected):
+    if selected is None:return dict(classification='none',rotation_order=1,transforms=[],confirmed=False)
+    group,evidence,strict=selected
+    return dict(**group,confirmed=True,match_quality='terrain_close' if strict else 'approximate_layout')
+</pre><script src="../docs/model-atlas/public-links.js" data-public-links></script></body></html>

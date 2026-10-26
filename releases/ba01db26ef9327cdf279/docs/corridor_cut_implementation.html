@@ -1,0 +1,113 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>corridor_cut_implementation.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="corridor-cut-implementation">Corridor-cut implementation</h1>
+<p>Implemented 14 October 2026. The user&#39;s proposed midpoint-cut search replaces
+waypoint sampling in this new pilot; historical previews remain available.
+Scope is Adaptive Archsimkats Valley, slots 1 to 2, using cached land/amphibious/
+hover masks. It performs no new naval reach calculation or library-wide run.</p>
+<p>Follow-up: see docs/route_areas_and_widths.md for width profiles, walking-distance
+territories, shared sections/resources and the rotation diagnostic for routes
+6/7. These enrich the same route geometry.</p>
+<h2 id="algorithm">Algorithm</h2>
+<ol>
+<li>Expand shortest travel distance through the current grid with compiled
+weighted Dijkstra. This gives the same shortest-distance objective as two
+correctly terminated weighted waves; it does not literally simulate two
+circular fronts. Straight moves cost 1, diagonals sqrt(2), with both adjoining
+side cells required for a diagonal.</li>
+<li>Locate the route midpoint by travelled distance. Estimate its local tangent
+from nearby route points. Find nearest original terrain-boundary cells in
+each left/right half-plane, including the map edge as a boundary.</li>
+<li>Rasterize a cross-section obstacle→midpoint→obstacle. This is two line
+segments when the nearest endpoints are not collinear; it guarantees the
+cut crosses the route. Make its cells temporarily impassable and search again.
+Later cuts use the subproblem&#39;s original boundary, not earlier temporary cuts.</li>
+<li>Check a cut on both the modified grid and the original subproblem. A cut that
+closes only the remaining connection means the available corridors have been
+exhausted. It is not automatically a shared chokepoint.</li>
+<li>If the cut also disconnects the original subproblem, look for a genuinely
+narrow separator along the route. Use 19 samples between 15% and 85% of route
+length. A shared choke must be no wider than 24 map units and at most 65% of
+the widest sampled section. A wide separator through a uniform open field
+does not become a fake choke.</li>
+<li>Create an intermediate node at a real passable cell of the choke. Restrict
+the two subproblem masks to their respective components plus the restored
+original passable cut cells. Discover alternatives on both sides and form
+route combinations through the node. Record each segment as a graph edge.</li>
+<li>Merge repeated terrain-side signatures and crossing choices. Retain the
+inherited significant-barrier thresholds (area 128 cells, or area 16 with
+span 32) to avoid reporting tiny terrain variations as strategic corridors.
+Validate every full route against the untouched original movement mask.</li>
+</ol>
+<p>The graph records spawn and shared-chokepoint nodes and segment edges. This
+version does not yet split every overlapping near-spawn stretch into junctions.
+The chosen intermediate cell approximates an entire gate; gate-wide entrance
+optimization and complete corridor graph topology remain future refinements.</p>
+<h2 id="results">Results</h2>
+<p>Local preview: <code>http://127.0.0.1:5177/navigation_corridors/index.html</code>.
+Files: <code>data/processed/navigation_corridors</code>, including <code>routes.json</code>, PNG
+backgrounds and comparison. Source artifact and code SHA256 hashes are retained.</p>
+<p>The cut method yields exactly five land families, matching the barrier-side
+signatures of all five user-approved candidates from the prior sampler:</p>
+<table>
+<thead>
+<tr>
+<th>New route</th>
+<th>Prior route</th>
+<th align="right">Length, map units</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>1</td>
+<td>1</td>
+<td align="right">399.8</td>
+</tr>
+<tr>
+<td>2</td>
+<td>2</td>
+<td align="right">496.8</td>
+</tr>
+<tr>
+<td>3</td>
+<td>3</td>
+<td align="right">499.9</td>
+</tr>
+<tr>
+<td>4</td>
+<td>10</td>
+<td align="right">609.5</td>
+</tr>
+<tr>
+<td>5</td>
+<td>11</td>
+<td align="right">609.7</td>
+</tr>
+</tbody></table>
+<p>Matching means identical significant-barrier and new-passage signatures, not
+identical cell polylines. Shortest-path tie choices and temporary cuts can change
+the exact geometry. Amphibious and hover each yield seven families: the five
+land-style options plus two central crossing choices. No search budget/depth/
+stretch limit was reached on this pilot. All three layers take about four seconds
+including registered PNG output on this machine.</p>
+<p>The viewer exposes each temporary cut and its decision, graph nodes, route-to-
+edge sequences, previous route IDs, distance, detour and clearance. The separate
+synthetic shared-gate fixture has two branching regions joined by one neck. It
+produces one intermediate node, four segment edges and all four 2×2 combinations.
+This verifies that shared bottlenecks do not delete alternatives beyond them.
+The interactive synthetic demonstration is available at
+<code>http://127.0.0.1:5177/navigation_corridors/shared_gate_demo/index.html</code>.</p>
+<h2 id="validation-and-limits">Validation and limits</h2>
+<p>Twenty-one navigation/route tests pass, including open-ground grouping, both
+sides of a barrier, movement-specific water access, no diagonal corner cutting,
+source-mask immutability, shared-gate combinations and explicit depth limits.</p>
+<p>The algorithm is a bounded greedy prototype, not exhaustive route enumeration
+or a guarantee of army clearance. Default guards: 20 cuts per segment, depth 6,
+64 subproblems, 24 combinations, 2.5× length and 24-unit minimum segment length.
+Truncation reasons appear in JSON. Terrain masks preserve the existing 0.75
+height difference and amphibious maximum depth of 25. Props, unit footprints,
+dynamic obstructions and engine steering are not modeled. Nearest-side width is
+a geometric cross-section estimate, not validated usable corridor width.</p>
+<pre><code class="language-powershell">$env:PYTHONPATH=&#39;src&#39;
+.venv-codex/Scripts/python.exe -m supmapai.tools.inspect_route_alternatives --method corridor-cut --output data/processed/navigation_corridors
+.venv-codex/Scripts/python.exe -m supmapai.tools.inspect_route_alternatives --shared-gate-demo --output data/processed/navigation_corridors/shared_gate_demo
+.venv-codex/Scripts/python.exe -m unittest discover -s tests -p &#39;test_strategic*.py&#39; -v
+</code></pre>
+<script src="model-atlas/public-links.js" data-public-links></script></body></html>

@@ -1,0 +1,255 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>reclaim_heatmaps.py | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="../docs/model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1>reclaim_heatmaps.py</h1><p class="meta">Saved public evidence snapshot: src/supmapai/ml/reclaim_heatmaps.py</p><pre>&quot;&quot;&quot;Conditional two-role allocation baseline; no asset IDs or abundance controls.&quot;&quot;&quot;
+
+import argparse
+import copy
+import math
+import shutil
+import time
+from collections import deque
+from pathlib import Path
+
+import numpy as np
+import torch
+from torch import nn
+from torch.nn import functional as F
+
+from supmapai.ml.multiscale_terrain import MultiscaleTerrainUNet
+from supmapai.strategy.pipeline_contract import lease
+from supmapai.tensors.reclaim_heatmaps import GRID, ROLES, SCHEMA, check_split
+from supmapai.tensors.strategy_dataset import file_hash, read_json, read_rows
+from supmapai.tools.windows_io import atomic_checkpoint, write_json
+
+
+class ReclaimHeatmapUNet(MultiscaleTerrainUNet):
+    def __init__(self, base=32):
+        super().__init__(base=base, profile_dim=1, embedding=128, dropout=.1, activation_checkpointing=False)
+        self.input = nn.Conv2d(9, base, 3, padding=1)
+        self.output[-1] = nn.Conv2d(base, 2, 3, padding=1)
+
+    def forward(self, spatial):
+        batch = len(spatial)
+        return super().forward(spatial[:, :0], torch.zeros(batch, device=spatial.device, dtype=torch.long),
+                               spatial, spatial.new_zeros((batch, 1)))
+
+
+class HeatmapDataset:
+    def __init__(self, root, split):
+        root = Path(root)
+        release = read_json(root/'release_manifest.json')
+        if release['schema'] != SCHEMA or release['status'] != 'ready':
+            raise ValueError('A ready value-heatmap release is required')
+        for name, sha in release['artifacts'].items():
+            if file_hash(root/name) != sha:
+                raise ValueError('Changed heatmap dataset artifact')
+        check_split(read_rows(root/'train.jsonl')+read_rows(root/'validation.jsonl'))
+        self.rows, self.values = read_rows(root/(split+'.jsonl')), []
+        for row in self.rows:
+            path = root/row['archive']
+            if file_hash(path) != row['sha256']:
+                raise ValueError('Changed heatmap target')
+            with np.load(path, allow_pickle=False) as archive:
+                target, spatial, present = (archive[k].copy() for k in ('target', 'spatial', 'present'))
+            if target.shape != (2, GRID, GRID) or spatial.shape != (9, GRID, GRID) or present.shape != (2,):
+                raise ValueError('Unexpected heatmap dimensions')
+            if not np.isfinite(target).all() or (target &lt; 0).any() or not np.isfinite(spatial).all():
+                raise ValueError('Invalid heatmap values')
+            np.testing.assert_allclose(target.sum((1, 2), dtype=float), present, atol=1e-6)
+            self.values.append((target, spatial.astype(np.float16), present))
+
+    def batch(self, indices, device, rng=None, shuffled=False):
+        values = [[], [], []]
+        for index in indices:
+            target, spatial, present = self.values[int(index)]
+            if shuffled:
+                spatial = self.values[(int(index)+17) % len(self.values)][1]
+            spatial = spatial.astype(np.float32)
+            if rng is not None:
+                turns, flip = int(rng.integers(4)), rng.random() &lt; .5
+                target, spatial = [np.rot90(a, turns, axes=(-2, -1)) for a in (target, spatial)]
+                if flip:
+                    target, spatial = target[..., ::-1], spatial[..., ::-1]
+                if rng.random() &lt; .5:
+                    spatial = spatial.copy()
+                    spatial[[5, 6]] = spatial[[6, 5]]
+            for arrays, array in zip(values, (target, spatial, present), strict=True):
+                arrays.append(array.copy())
+        return tuple(torch.from_numpy(np.stack(a)).to(device) for a in values)
+
+
+def heatmap_loss(logits, target, present):
+    logp = F.log_softmax(logits.float().flatten(2), -1).reshape_as(logits)
+    probability = logp.exp()
+    nll = -(target*logp).sum((-1, -2))
+    # Hellinger and pooled allocation losses supervise forest/rock-region shape, not just individual peaks.
+    hellinger = 1-(target.sqrt()*probability.sqrt()).sum((-1, -2))
+    coarse = torch.zeros_like(nll)
+    for scale in (4, 16):
+        p = F.avg_pool2d(probability, scale)*scale**2
+        t = F.avg_pool2d(target, scale)*scale**2
+        coarse += -(t*p.clamp_min(1e-30).log()).sum((-1, -2))/2
+    score = .5*nll+2*hellinger+.5*coarse
+    counts = present.sum(0)
+    active = counts &gt; 0
+    per_role = (score*present).sum(0)/counts.clamp_min(1)
+    loss = (per_role*active).sum()/active.sum().clamp_min(1)
+    return loss, dict(nll=nll, hellinger=hellinger)
+
+
+@torch.no_grad()
+def predict(model, spatial):
+    model.eval()
+    device = next(model.parameters()).device
+    with torch.autocast(device.type, dtype=torch.bfloat16, enabled=device.type == 'cuda'):
+        logits = model(spatial)
+    return torch.softmax(logits.float().flatten(2), -1).reshape_as(logits)
+
+
+@torch.no_grad()
+def validate(model, data, batch_size=8, shuffled=False):
+    model.eval()
+    sums = {name: np.zeros(2) for name in ('nll', 'hellinger', 'top10_target_share', 'target_support_share')}
+    counts = np.zeros(2)
+    loss_sum, batches = 0., 0
+    device = next(model.parameters()).device
+    for start in range(0, len(data.rows), batch_size):
+        target, spatial, present = data.batch(range(start, min(start+batch_size, len(data.rows))), device, shuffled=shuffled)
+        p = predict(model, spatial)
+        loss, metrics = heatmap_loss(p.clamp_min(1e-30).log(), target, present)
+        indices = p.flatten(2).topk(max(1, GRID*GRID//10), dim=-1).indices
+        metrics['top10_target_share'] = target.flatten(2).gather(-1, indices).sum(-1)
+        metrics['target_support_share'] = (p*(target &gt; 0)).sum((-1, -2))
+        for name in sums:
+            sums[name] += (metrics[name]*present).sum(0).cpu().numpy()
+        counts += present.sum(0).cpu().numpy()
+        loss_sum += float(loss)
+        batches += 1
+    roles = {role: {name:float(v[i]/counts[i]) if counts[i] else None for name, v in sums.items()}
+             for i, role in enumerate(ROLES)}
+    nll = float((sums['nll']/np.maximum(counts, 1))[counts &gt; 0].mean())
+    return dict(validation_loss=loss_sum/max(1, batches), validation_nll=nll,
+        gain_over_uniform_bits=(math.log(GRID**2)-nll)/math.log(2), roles=roles)
+
+
+def train(args):
+    if not torch.cuda.is_available() or torch.cuda.mem_get_info()[0] &lt; 4*1024**3:
+        raise RuntimeError('CUDA and 4 GB free GPU memory required')
+    torch.set_num_threads(2)
+    torch.manual_seed(args.seed)
+    torch.backends.cudnn.benchmark = False
+    torch.set_float32_matmul_precision('high')
+    torch.cuda.reset_peak_memory_stats()
+    root, out = Path(__file__).parents[3], args.out.resolve()
+    files = [Path(__file__), root/'src/supmapai/tensors/reclaim_heatmaps.py',
+             root/'src/supmapai/ml/multiscale_terrain.py', root/'src/supmapai/tools/windows_io.py']
+    config = dict(schema=SCHEMA, dataset=str(args.dataset.resolve()), base=args.base, seconds=args.seconds,
+        batch_size=args.batch_size, seed=args.seed, learning_rate=args.learning_rate,
+        release_sha256=file_hash(args.dataset/'release_manifest.json'), code={str(p):file_hash(p) for p in files},
+        model='Deterministic terrain-conditioned value-allocation U-Net; no stochastic neural latent',
+        objective='0.5 spatial NLL + 2 Hellinger + 0.5 multiscale NLL; nonempty roles only',
+        amount_conditioning=False, terrain_masking=False, test_used=False)
+    out.mkdir(parents=True, exist_ok=True)
+    with lease(out/'training.lock'):
+        if (out/'config.json').exists():
+            raise ValueError('Choose a new training directory')
+        write_json(out/'config.json', config)
+        write_json(out/'progress.json', dict(status='loading', budget_seconds=args.seconds))
+        for path in files:
+            dst = out/'code_snapshot'/path.relative_to(root)
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(path, dst)
+        data, validation = HeatmapDataset(args.dataset, 'train'), HeatmapDataset(args.dataset, 'validation')
+        model = ReclaimHeatmapUNet(args.base).cuda()
+        ema = copy.deepcopy(model).eval().requires_grad_(False)
+        optimizer = torch.optim.AdamW(model.parameters(), lr=args.learning_rate, weight_decay=.01)
+        started, step, best, next_eval = time.monotonic(), 0, float('inf'), 60.
+        recent, history = deque(maxlen=100), []
+        initial = validate(ema, validation, args.batch_size)
+        write_json(out/'initial_validation.json', initial)
+        print(f'parameters={sum(p.numel() for p in model.parameters()):,} initial_nll={initial[&quot;validation_nll&quot;]:.4f}', flush=True)
+
+        def progress(status, **extra):
+            elapsed = time.monotonic()-started
+            result = dict(status=status, step=step, elapsed_seconds=elapsed, budget_seconds=args.seconds,
+                remaining_seconds=max(0., args.seconds-elapsed), training_loss=float(np.mean(recent)) if recent else None,
+                best_validation=None if not math.isfinite(best) else best,
+                peak_memory_mb=torch.cuda.max_memory_allocated()/1024**2,
+                train_maps=len(data.rows), validation_maps=len(validation.rows), **extra)
+            write_json(out/'progress.json', result)
+            return result
+
+        def checkpoint(metrics):
+            nonlocal best
+            improved = metrics['validation_loss'] &lt; best
+            best = min(best, metrics['validation_loss'])
+            history.append(dict(step=step, seconds=time.monotonic()-started, **metrics))
+            common = dict(ema=ema.state_dict(), config=config, step=step, metrics=metrics)
+            atomic_checkpoint(out/'last.pt', dict(**common, model=model.state_dict(), optimizer=optimizer.state_dict()))
+            if improved:
+                atomic_checkpoint(out/'best.pt', common)
+            write_json(out/'history.json', history)
+
+        reason = 'time_budget'
+        try:
+            while time.monotonic()-started &lt; args.seconds:
+                if (out/'pause.request').exists():
+                    reason = 'pause_request'
+                    break
+                step += 1
+                model.train()
+                rng = np.random.default_rng(np.random.SeedSequence([args.seed, step]))
+                target, spatial, present = data.batch(rng.integers(len(data.rows), size=args.batch_size), 'cuda', rng)
+                elapsed = time.monotonic()-started
+                lr = args.learning_rate*min(1., step/100)*(.2+.8*(1+math.cos(math.pi*min(elapsed/args.seconds, 1)))/2)
+                for group in optimizer.param_groups:
+                    group['lr'] = lr
+                optimizer.zero_grad(set_to_none=True)
+                with torch.autocast('cuda', dtype=torch.bfloat16):
+                    loss, _ = heatmap_loss(model(spatial), target, present)
+                if not torch.isfinite(loss):
+                    raise ValueError('Nonfinite heatmap loss')
+                loss.backward()
+                grad = nn.utils.clip_grad_norm_(model.parameters(), 1.)
+                if not torch.isfinite(grad):
+                    raise ValueError('Nonfinite gradient')
+                optimizer.step()
+                decay = min(.999, (step+1)/(step+10))
+                for a, b in zip(ema.parameters(), model.parameters(), strict=True):
+                    a.lerp_(b.detach(), 1-decay)
+                recent.append(float(loss.detach()))
+                if step % 25 == 0:
+                    progress('training')
+                if step % 200 == 0:
+                    print(f'step={step} loss={np.mean(recent):.4f} elapsed={time.monotonic()-started:.1f}', flush=True)
+                if torch.cuda.max_memory_allocated() &gt; 5*1024**3:
+                    raise RuntimeError('5 GB GPU allocation guard exceeded')
+                if time.monotonic()-started &gt;= next_eval:
+                    metrics = validate(ema, validation, args.batch_size)
+                    checkpoint(metrics)
+                    print('validation='+str(metrics), flush=True)
+                    next_eval = time.monotonic()-started+60
+            metrics = validate(ema, validation, args.batch_size)
+            checkpoint(metrics)
+            print(progress('paused' if reason == 'pause_request' else 'complete', reason=reason, **metrics), flush=True)
+        except Exception as error:
+            progress('failed', error=str(error))
+            raise
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--dataset', type=Path, required=True)
+    parser.add_argument('--out', type=Path, required=True)
+    parser.add_argument('--seconds', type=int, default=300)
+    parser.add_argument('--batch-size', type=int, default=8)
+    parser.add_argument('--base', type=int, default=32)
+    parser.add_argument('--learning-rate', type=float, default=2e-4)
+    parser.add_argument('--seed', type=int, default=20261026)
+    args = parser.parse_args()
+    if min(args.seconds, args.batch_size, args.base) &lt; 1 or args.learning_rate &lt;= 0:
+        parser.error('Positive training controls required')
+    train(args)
+
+
+if __name__ == '__main__':
+    main()
+</pre><script src="../docs/model-atlas/public-links.js" data-public-links></script></body></html>

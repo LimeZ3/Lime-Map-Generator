@@ -1,0 +1,132 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>reclaim_composer.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="heatmap-reclaim-composer-v1">Heatmap Reclaim Composer V1</h1>
+<h2 id="responsibility">Responsibility</h2>
+<p>The selected neural model supplies two allocation fields: tree energy and
+natural-rock mass. The composer turns those fields into actual <code>.scmap</code> prop
+instances. It does not invent forest/rock regions, retrain the model, choose
+spawn locations, relocate resources or change terrain.</p>
+<p>Input for this first export is the user-preferred EMA prediction at update
+20,657 on the generated 10km seed-303 terrain. Terrain, learned mex/hydro
+positions, conditioning fields and checkpoint hashes are checked against the
+review artifacts before composition. Training remains paused.</p>
+<h2 id="algorithm">Algorithm</h2>
+<ol>
+<li>Normalize the two nonnegative allocation fields without thresholds or
+sharpening. Apply the existing 180-degree average symmetry projection.</li>
+<li>Divide each role&#39;s chosen physical budget across an 8x8 grid of budget areas
+using the sum of the fine allocation field. Each area is 64 world units wide.
+This coarse grid is a value-accounting boundary, not a replacement heatmap.</li>
+<li>Each area has a seeded asset/position candidate stream. Choose assets from a
+predefined coherent stock pool, then sample positions from the original
+128-grid probabilities inside that area. There is no uniform fallback.</li>
+<li>Place matching 180-degree pairs, including asset, scale and paired yaw.
+Ground Y by bilinear sampling of the unchanged native terrain. Quantize XY
+inside the selected fine cell so rounding cannot escape learned support.</li>
+<li>Stop an area before its next complete prop pair would exceed its local
+budget. Leave the residual there and report it. Do not compensate in a
+different area or change the last asset to squeeze in a smaller one.</li>
+</ol>
+<p>Energy/mass values come from installed stock blueprints with active FAF economy
+overrides and merge handling. Five tree variants (birch, oak and pine variants)
+and seven rock/rock-pile variants are supported in this initial evergreen pool.
+Asset choice is procedural, not learned. Instance scale is one; blueprint
+<code>UniformScale</code> remains the game&#39;s responsibility, avoiding double scaling.
+Tree-group blueprints, wrecks and living civilian units are not emitted yet.</p>
+<p>The tree budget means <strong>tree energy</strong>, the rock budget means <strong>rock mass</strong>.
+Tree mass is reported independently and included in total reclaim mass. Any
+cross-resource yields are counted; do not interpret rock mass as total mass.
+Stock and FAF economies differ, so these budget values target the active FAF
+blueprints used by the existing offline FAF executable, not vanilla balance.</p>
+<h2 id="optional-constraints">Optional Constraints</h2>
+<p>Default minimum spacing is zero to expose the raw learned allocation. No dry
+land, slope, cliff, shoreline, buildability, spawn clearance or resource-marker
+mask is applied. Underwater props remain possible. Mexes, hydros and spawns
+remain at their original coordinates, without flattening or snapping.</p>
+<p><code>--min-spacing</code> optionally enforces center spacing within each role, not between
+trees and rocks. Failed attempts stop that area&#39;s stream and leave a local
+shortfall. This is not a mesh-footprint collision solver. A global entity cap
+(20,000 by default) bounds runtime and output size; cap shortfalls are reported.</p>
+<p>With default spacing and an inactive cap, increasing budgets preserves existing
+asset/XY/yaw selections and adds more. This set-inclusion property is verified
+for low -&gt; medium -&gt; high. Optional spacing can couple neighboring areas, so
+that strict nesting guarantee does not apply with spacing enabled.</p>
+<h2 id="windows-commands">Windows Commands</h2>
+<pre><code class="language-powershell">$env:PYTHONPATH = &#39;src&#39;
+$env:OPENBLAS_NUM_THREADS = &#39;1&#39;
+$env:OMP_NUM_THREADS = &#39;1&#39;
+.venv-codex/Scripts/python.exe -m supmapai.export.compose_reclaim_maps --out data/exports/heatmap_reclaim_composer_v1
+</code></pre>
+<p>For another trial choose a new output directory. Controls include <code>--presets low medium high</code>, <code>--budget-scale</code>, <code>--seed</code>, <code>--tiles</code>, <code>--min-spacing</code>,
+<code>--max-props</code>, <code>--review</code>, <code>--condition</code>, <code>--resources</code> and <code>--template</code>.
+The test driver uses the frozen seed-303 conditioning/resource example; the
+core <code>compose(fields, [tree_energy, rock_mass], vertices, assets, ...)</code> API accepts
+independent physical budgets. No GPU inference or training is required here.</p>
+<h2 id="first-export">First Export</h2>
+<table>
+<thead>
+<tr>
+<th>Setting</th>
+<th align="right">Requested tree energy</th>
+<th align="right">Placed tree energy</th>
+<th align="right">Requested rock mass</th>
+<th align="right">Placed rock mass</th>
+<th align="right">Trees</th>
+<th align="right">Rocks</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Low</td>
+<td align="right">6,000</td>
+<td align="right">5,800.1</td>
+<td align="right">2,000</td>
+<td align="right">1,780</td>
+<td align="right">1,334</td>
+<td align="right">312</td>
+</tr>
+<tr>
+<td>Medium</td>
+<td align="right">12,000</td>
+<td align="right">11,835.5</td>
+<td align="right">4,000</td>
+<td align="right">3,765</td>
+<td align="right">2,694</td>
+<td align="right">644</td>
+</tr>
+<tr>
+<td>High</td>
+<td align="right">24,000</td>
+<td align="right">23,827.7</td>
+<td align="right">8,000</td>
+<td align="right">7,770</td>
+<td align="right">5,422</td>
+<td align="right">1,290</td>
+</tr>
+</tbody></table>
+<p>These are abundance tests, not certified balance settings. At medium, tree
+mass adds 1,610.5, making total reclaim mass 5,375.5. Residual budgets are
+intentional and visible in per-area JSON reports, not silently redistributed.
+Medium includes four underwater tree centers and sixteen underwater rock
+centers; none were filtered out. All pairs have exact XY symmetry.</p>
+<p>Review: <code>data/exports/heatmap_reclaim_composer_v1/index.html</code>.
+Loadable map folders are under that export&#39;s <code>maps/</code> directory:</p>
+<ul>
+<li><code>mapgen_sym_heatmap_low.v0001</code></li>
+<li><code>mapgen_sym_heatmap_medium.v0001</code></li>
+<li><code>mapgen_sym_heatmap_high.v0001</code></li>
+</ul>
+<p>The gallery contains high-contrast actual point placements, enlarged base crops
+and the unchanged learned allocation fields. Each export contains scenario,
+save, script, preview, native map and composition metadata. The manifest is
+compatible with <code>scripts/Install-SymmetryMaps.ps1</code>; this command does not install
+or launch maps. Textures remain the existing inherited base material.</p>
+<p><code>*_composition_fields.npz</code> stores projected allocation, desired physical-value
+grids and actual composed physical-value grids. Budget JSON includes requested,
+achieved and unmet values by area, asset counts and stopping reasons. Source
+and blueprint provenance is recorded; raw datasets and model files are untouched.</p>
+<p>Native readback verifies every exported prop&#39;s asset and position and confirms
+unchanged heights. Unit tests cover value budgets, incidental tree mass, exact
+symmetry, zero support, underwater retention, seeded nesting, spacing failures,
+the safety cap and native serialization. In-game appearance and runtime reclaim
+behavior still require a playtest; they are not certified by file readback.</p>
+<p>Wreck-mass learning and runtime composition are implemented as a separate pilot
+in <code>wreck_reclaim.md</code>, preserving this approved native tree/rock composition.</p>
+<script src="model-atlas/public-links.js" data-public-links></script></body></html>

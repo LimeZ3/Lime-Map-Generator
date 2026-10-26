@@ -1,0 +1,241 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>resource_diffusion.py | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="../docs/model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1>resource_diffusion.py</h1><p class="meta">Saved public evidence snapshot: src/supmapai/ml/resource_diffusion.py</p><pre>&quot;&quot;&quot;A separate, time-bounded terrain-conditioned mex/hydro diffusion model.&quot;&quot;&quot;
+
+from __future__ import annotations
+
+import argparse
+import copy
+import math
+import time
+from collections import deque
+from pathlib import Path
+
+import numpy as np
+import torch
+from torch import nn
+
+from supmapai.ml.conditional_diffusion import schedule
+from supmapai.ml.multiscale_terrain import MultiscaleTerrainUNet
+from supmapai.ml.train_joint_terrain import atomic_checkpoint
+from supmapai.strategy.pipeline_contract import lease
+from supmapai.tensors.resources import ResourceDataset
+from supmapai.tensors.strategy_dataset import file_hash, read_json, write_json
+
+
+class ResourceUNet(MultiscaleTerrainUNet):
+    def __init__(self, base=32):
+        super().__init__(base=base, profile_dim=3, embedding=192, dropout=.1,
+                         activation_checkpointing=False)
+        self.input = nn.Conv2d(9, base, 3, padding=1)
+        self.output[-1] = nn.Conv2d(base, 2, 3, padding=1)
+
+
+def loss_terms(model, clean, spatial, profile, cumulative, generator, training=False):
+    if training:
+        profile = profile.clone()
+        drop = torch.rand((len(clean), 1), device=clean.device, generator=generator) &lt; .1
+        profile[:, :2] = torch.where(drop, 0., profile[:, :2])
+    t = torch.randint(len(cumulative), (len(clean),), device=clean.device, generator=generator)
+    alpha = cumulative[t, None, None, None]
+    noise = torch.randn(clean.shape, device=clean.device, generator=generator)
+    noisy = alpha.sqrt() * clean + (1-alpha).sqrt() * noise
+    predicted = model(noisy, t, spatial, profile).float()
+    velocity = alpha.sqrt() * noise - (1-alpha).sqrt() * clean
+    # Sparse peaks must not be overwhelmed by the blank background.
+    weights = 1 + 12 * (clean + 1) * .5
+    mse = ((predicted-velocity).square()*weights).mean((1, 2, 3)) / weights.mean((1, 2, 3))
+    estimate = alpha.sqrt()*noisy - (1-alpha).sqrt()*predicted
+    reconstruction = ((estimate-clean).square()*weights).mean((1, 2, 3)) / weights.mean((1, 2, 3))
+    return mse, reconstruction
+
+
+@torch.no_grad()
+def validate(model, data, cumulative, seed, batch_size=4):
+    model.eval()
+    device = next(model.parameters()).device
+    generator = torch.Generator(device=device).manual_seed(seed)
+    values = []
+    for start in range(0, len(data.rows), batch_size):
+        clean, spatial, profile = data.batch(range(start, min(start+batch_size, len(data.rows))), device)
+        with torch.autocast(device.type, dtype=torch.bfloat16, enabled=device.type == 'cuda'):
+            loss, reconstruction = loss_terms(model, clean, spatial, profile, cumulative, generator)
+        values.extend(torch.stack([loss, reconstruction], dim=1).cpu().tolist())
+    means = np.mean(values, axis=0)
+    return dict(validation_velocity_loss=float(means[0]), validation_reconstruction_mse=float(means[1]))
+
+
+@torch.no_grad()
+def sample(model, spatial, profile, seed, steps=100, guidance=1.5):
+    if steps &lt; 2 or steps &gt; 1000:
+        raise ValueError('Sampling steps must be between 2 and 1000')
+    model.eval()
+    device = next(model.parameters()).device
+    cumulative = schedule(1000, device)
+    rng = np.random.default_rng(seed)
+    tensor = torch.from_numpy(rng.standard_normal((1, 2, *spatial.shape[-2:]), dtype=np.float32)).to(device)
+    null = profile.clone()
+    null[:, :2] = 0
+    timesteps = np.linspace(999, 0, steps, dtype=int)
+    for i, step in enumerate(timesteps):
+        t = torch.full((1,), int(step), device=device, dtype=torch.long)
+        with torch.autocast(device.type, dtype=torch.bfloat16, enabled=device.type == 'cuda'):
+            velocity = model(tensor, t, spatial, profile).float()
+            if guidance != 1:
+                baseline = model(tensor, t, spatial, null).float()
+                velocity = baseline + guidance * (velocity-baseline)
+        alpha = cumulative[step]
+        clean = (alpha.sqrt()*tensor - (1-alpha).sqrt()*velocity).clamp(-1, 1)
+        epsilon = alpha.sqrt()*velocity + (1-alpha).sqrt()*tensor
+        previous = cumulative[timesteps[i+1]] if i+1 &lt; steps else torch.ones((), device=device)
+        tensor = previous.sqrt()*clean + (1-previous).sqrt()*epsilon
+    return tensor[0].cpu().numpy()
+
+
+def train(args):
+    if not torch.cuda.is_available():
+        raise RuntimeError('CUDA required; refusing a silent CPU training run')
+    torch.set_num_threads(2)
+    torch.manual_seed(args.seed)
+    torch.backends.cudnn.benchmark = False
+    torch.set_float32_matmul_precision('high')
+    torch.cuda.reset_peak_memory_stats()
+    out = args.out.resolve()
+    out.mkdir(parents=True, exist_ok=True)
+    code_paths = [Path(__file__), Path(__file__).with_name('multiscale_terrain.py'),
+                  Path(__file__).parents[1] / 'tensors/resources.py']
+    config = dict(schema='resource_diffusion_v1', dataset=str(args.dataset.resolve()),
+        release_sha256=file_hash(args.dataset / 'release_manifest.json'), base=args.base,
+        seed=args.seed, batch_size=args.batch_size, accumulation=args.accumulation,
+        learning_rate=args.learning_rate, seconds=args.seconds, max_steps=args.max_steps,
+        code={str(p): file_hash(p) for p in code_paths},
+        target='Learned mex/hydro heatmaps; terrain and planned spawns are fixed conditioning',
+        test_used=False)
+    with lease(out / 'training.lock'):
+        if (out / 'config.json').exists() and read_json(out / 'config.json') != config:
+            raise ValueError('Training contract changed; choose a new run directory')
+        if (out / 'last.pt').exists() and not args.resume:
+            raise ValueError('Use --resume or a new output directory')
+        write_json(out / 'config.json', config)
+        write_json(out / 'progress.json', dict(status='loading', step=0, budget_seconds=args.seconds))
+        data = ResourceDataset(args.dataset, 'train')
+        validation = ResourceDataset(args.dataset, 'validation')
+        norm = read_json(args.dataset / 'normalization.json')
+        model = ResourceUNet(args.base).cuda()
+        ema = copy.deepcopy(model).eval().requires_grad_(False)
+        optimizer = torch.optim.AdamW(model.parameters(), lr=args.learning_rate, weight_decay=.01)
+        cumulative = schedule(1000, 'cuda')
+        step, elapsed_before, best, history = 0, 0., float('inf'), []
+        if args.resume:
+            saved = torch.load(out / 'last.pt', map_location='cuda', weights_only=False)
+            if saved['config'] != config:
+                raise ValueError('Checkpoint training contract differs')
+            model.load_state_dict(saved['model'])
+            ema.load_state_dict(saved['ema'])
+            optimizer.load_state_dict(saved['optimizer'])
+            step, elapsed_before, best, history = (saved[k] for k in ('step', 'elapsed', 'best', 'history'))
+        parameters = sum(p.numel() for p in model.parameters())
+        print(f'parameters={parameters:,} train={len(data.rows)} validation={len(validation.rows)}', flush=True)
+        started = time.monotonic()
+        next_eval = elapsed_before + 120
+        recent = deque(maxlen=200)
+
+        def elapsed():
+            return elapsed_before + time.monotonic() - started
+
+        def progress(status, **extra):
+            value = dict(status=status, step=step, elapsed_seconds=elapsed(), budget_seconds=args.seconds,
+                remaining_seconds=max(0., args.seconds-elapsed()), parameters=parameters,
+                train_maps=len(data.rows), validation_maps=len(validation.rows),
+                train_loss=float(np.mean(recent)) if recent else None,
+                best_validation=None if not math.isfinite(best) else best,
+                peak_memory_mb=torch.cuda.max_memory_allocated()/1024**2, **extra)
+            write_json(out / 'progress.json', value)
+            return value
+
+        def checkpoint(metrics):
+            nonlocal best
+            improved = metrics['validation_velocity_loss'] &lt; best
+            best = min(best, metrics['validation_velocity_loss'])
+            history.append(dict(step=step, elapsed_seconds=elapsed(), **metrics))
+            atomic_checkpoint(out / 'last.pt', dict(model=model.state_dict(), ema=ema.state_dict(),
+                optimizer=optimizer.state_dict(), config=config, normalization=norm, step=step,
+                elapsed=elapsed(), best=best, history=history))
+            if improved:
+                atomic_checkpoint(out / 'best.pt', dict(ema=ema.state_dict(), config=config,
+                    normalization=norm, step=step, metrics=metrics))
+            write_json(out / 'history.json', history)
+
+        initial = validate(ema, validation, cumulative, args.seed+1, args.batch_size)
+        write_json(out / 'initial_validation.json', initial)
+        print('initial_validation=' + str(initial), flush=True)
+        reason = 'time_budget'
+        while step &lt; args.max_steps and elapsed() &lt; args.seconds:
+            if (out / 'pause.request').exists():
+                reason = 'pause_request'
+                break
+            step += 1
+            model.train()
+            rng = np.random.default_rng(np.random.SeedSequence([args.seed, step]))
+            generator = torch.Generator(device='cuda').manual_seed(args.seed*1000003 + step)
+            lr = args.learning_rate * min(1., step/100) * (.25+.75*(1+math.cos(math.pi*min(elapsed()/args.seconds, 1)))/2)
+            for group in optimizer.param_groups:
+                group['lr'] = lr
+            optimizer.zero_grad(set_to_none=True)
+            losses = []
+            for _ in range(args.accumulation):
+                indices = rng.integers(len(data.rows), size=args.batch_size)
+                clean, spatial, profile = data.batch(indices, 'cuda', rng)
+                with torch.autocast('cuda', dtype=torch.bfloat16):
+                    values, _ = loss_terms(model, clean, spatial, profile, cumulative, generator, True)
+                    loss = values.mean()/args.accumulation
+                if not torch.isfinite(loss):
+                    raise ValueError('Nonfinite resource training loss')
+                loss.backward()
+                losses.append(float(loss.detach())*args.accumulation)
+            gradient = nn.utils.clip_grad_norm_(model.parameters(), 1.)
+            if not torch.isfinite(gradient):
+                raise ValueError('Nonfinite resource gradients')
+            optimizer.step()
+            decay = min(.999, (step+1)/(step+10))
+            for a, b in zip(ema.parameters(), model.parameters(), strict=True):
+                a.lerp_(b.detach(), 1-decay)
+            recent.append(float(np.mean(losses)))
+            if step % 10 == 0:
+                progress('training')
+            if step % 50 == 0:
+                print(f'step={step} loss={np.mean(recent):.6f} seconds={elapsed():.1f}', flush=True)
+            if torch.cuda.max_memory_allocated()/1024**2 &gt; 9500:
+                raise RuntimeError('Resource training exceeded conservative GPU memory budget')
+            if elapsed() &gt;= next_eval:
+                metrics = validate(ema, validation, cumulative, args.seed+1, args.batch_size)
+                checkpoint(metrics)
+                print('validation=' + str(metrics), flush=True)
+                next_eval = elapsed()+120
+        if step &gt;= args.max_steps:
+            reason = 'max_steps'
+        metrics = validate(ema, validation, cumulative, args.seed+1, args.batch_size)
+        checkpoint(metrics)
+        result = progress('paused' if reason == 'pause_request' else 'complete', reason=reason, **metrics)
+        print(result, flush=True)
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--dataset', type=Path, required=True)
+    parser.add_argument('--out', type=Path, required=True)
+    parser.add_argument('--seconds', type=int, default=600)
+    parser.add_argument('--max-steps', type=int, default=10000)
+    parser.add_argument('--batch-size', type=int, default=4)
+    parser.add_argument('--accumulation', type=int, default=2)
+    parser.add_argument('--base', type=int, default=32)
+    parser.add_argument('--learning-rate', type=float, default=2e-4)
+    parser.add_argument('--seed', type=int, default=20261024)
+    parser.add_argument('--resume', action='store_true')
+    args = parser.parse_args()
+    if min(args.seconds, args.max_steps, args.batch_size, args.accumulation, args.base) &lt; 1:
+        parser.error('Budgets and sizes must be positive')
+    train(args)
+
+
+if __name__ == '__main__':
+    main()
+</pre><script src="../docs/model-atlas/public-links.js" data-public-links></script></body></html>
