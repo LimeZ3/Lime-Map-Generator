@@ -1,0 +1,95 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>joint_terrain_results.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="joint-terrain-results-23-october-2026">Joint Terrain Results: 23 October 2026</h1>
+<p>The longer terrain-only experiment completed all 12,000 updates. Height, water
+boundary and depth were learned simultaneously by the same network. Resources,
+props and textures did not train in this experiment.</p>
+<h2 id="run">Run</h2>
+<ul>
+<li>Run: <code>data/models/terrain_joint_10km_1v1_long_v1</code>.</li>
+<li>Training/validation: 1,688/170 map versions, preserving the source family split.</li>
+<li>Model: 2,986,739 parameters, bottleneck attention, EMA, bfloat16 CUDA training.</li>
+<li>Batch: 16. Budget: 192,000 sampled map presentations, 12 times the previous
+terrain smoke run&#39;s presentation count.</li>
+<li>Duration: 1,039 seconds (17.3 minutes), including periodic validation/previews
+but excluding data-loading startup.</li>
+<li>Peak allocated GPU memory: 1,862 MiB on the RTX 5080.</li>
+<li>EMA validation objective: 0.85116 initially, 0.01645 finally. The best checkpoint
+was at update 12,000. This loss is not comparable numerically to the old encoding.</li>
+<li>Six new focused unit tests passed. Encoding audit passed all 2,077 prepared
+versions, with physical round-trip errors below 0.0001 world units.</li>
+<li>The test split was prepared/audited but never used for model fitting/selection.</li>
+</ul>
+<h2 id="fresh-noise-generation">Fresh-Noise Generation</h2>
+<p>The final sweep uses four seeds and three water settings, with no source encoder.
+The following measurements use unmirrored outputs before any geometric cleanup:</p>
+<table>
+<thead>
+<tr>
+<th>Requested Water</th>
+<th align="right">Mean Predicted Water</th>
+<th align="right">Height/Water Agreement</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>0%</td>
+<td align="right">0.2%</td>
+<td align="right">99.9%</td>
+</tr>
+<tr>
+<td>20%</td>
+<td align="right">20.9%</td>
+<td align="right">98.4%</td>
+</tr>
+<tr>
+<td>40%</td>
+<td align="right">43.1%</td>
+<td align="right">98.2%</td>
+</tr>
+</tbody></table>
+<p>Water amount increased monotonically across the three settings for all four
+tested seeds. These are preliminary conditional-control results, not exact area
+guarantees. Dry requests can still produce a small pond; wet requests can overshoot.</p>
+<p>The two common seeds allow a checkpoint comparison without changing the sample
+cohort. At 2,000 updates, their 40%-water outputs averaged 14 water components,
+5.5 tiny components, and 93.0% height/water agreement. At 10,000 updates they
+averaged 6.5 components, one tiny component, and 97.7% agreement. Exact body counts
+are not a gameplay-quality score, but the water fields have become more coherent.</p>
+<p>Both the representation and training budget changed, so this does not isolate a
+causal benefit from extra compute alone. Height remains fairly soft and some
+details resemble generic rolling terrain; this is not a final competitive style.</p>
+<h2 id="symmetry-and-geometry">Symmetry And Geometry</h2>
+<p>The current inspection pipeline averages a map with its 180-degree rotation.
+Averaging signed shoreline distances can erase non-overlapping water bodies:
+the 20%-water final sweep shrank from 20.9% raw water to 10.7% after this step.
+This is a postprocessing problem and must not be misreported as failed raw
+water-area conditioning.</p>
+<p>Before water/height reconciliation, 11 of 12 mirrored height fields had a
+structural land connection between the requested base anchors. After the separate
+joint projection, 12 of 12 did. The projection changed model-grid heights by
+0.69 world units on average. These are approximate structural checks, not actual
+game-engine validation. Requested base anchors are inputs, not learned spawn placements.</p>
+<p>The next terrain task is symmetry handling that preserves learned water amount,
+followed by finer base/shoreline checks and optional higher-resolution refinement.
+Playable export and resource placement remain separate milestones.</p>
+<h2 id="held-out-diagnostics">Held-Out Diagnostics</h2>
+<p>One-pass denoising was evaluated on all 170 validation versions. At diffusion
+timestep 100, wet-map water IoU averaged 0.937; mean height error was 0.98 world
+units. At timestep 500, IoU averaged 0.819 and mean height error was 2.41 units.
+These reconstructions start from noised source tensors. They are not fresh maps
+and are saved separately from the generation galleries.</p>
+<p>A coarse, rotation/reflection-aware nearest-training-source comparison is saved
+for the final fresh samples. It is an inspection aid, not proof of originality or
+exhaustive clone detection.</p>
+<h2 id="artifacts">Artifacts</h2>
+<ul>
+<li><code>best.pt</code>, <code>last.pt</code>: model, EMA and optimizer checkpoints.</li>
+<li><code>terrain_report.md</code> / <code>terrain_report.json</code>: checkpoint progression and comparisons.</li>
+<li><code>samples/step_012000/unmirrored_height_water.png</code>: raw final predictions.</li>
+<li><code>samples/step_012000/raw_height_water.png</code>: symmetry-averaged inspection view.</li>
+<li><code>samples/step_012000/joint_projection.png</code>: separate reconciled geometry diagnostic.</li>
+<li><code>samples/step_012000/*.npz</code>: raw/encoded fields and projected height vertices.</li>
+<li><code>validation_diagnostics/validation_reconstruction.png</code>: held-out reconstruction.</li>
+<li><code>code_snapshot/</code>, <code>config.json</code>, <code>losses.json</code>, <code>summary.json</code>: provenance and logs.</li>
+</ul>
+<p>Training commands and representation details are in
+<a href="joint_terrain_training.md">joint_terrain_training.md</a>.</p>
+<script src="model-atlas/public-links.js" data-public-links></script></body></html>

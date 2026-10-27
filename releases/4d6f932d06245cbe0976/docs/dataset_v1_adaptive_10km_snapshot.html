@@ -1,0 +1,54 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>dataset_v1_adaptive_10km_snapshot.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="dataset-v1-adaptive-10km-snapshot">Dataset V1 Adaptive 10km Snapshot</h1>
+<p>This snapshot records the first focused training subset used for the pre-labeling terrain experiments.</p>
+<h2 id="identity">Identity</h2>
+<ul>
+<li>Dataset name: <code>dataset_v1_adaptive_10km</code></li>
+<li>Tensor manifest: <code>data\tensors\v1_adaptive_10km\tensor_manifest.csv</code></li>
+<li>Splits: <code>data\splits\v1_current\splits.csv</code></li>
+<li>Audit source: <code>data\audit\v1_current\dataset_audit_maps.csv</code></li>
+<li>Quality report JSON: <code>data\reports\dataset_v1_adaptive_10km_quality.json</code></li>
+<li>Quality report CSV: <code>data\reports\dataset_v1_adaptive_10km_quality.csv</code></li>
+<li>Quality report Markdown: <code>data\reports\dataset_v1_adaptive_10km_quality.md</code></li>
+</ul>
+<h2 id="current-counts">Current Counts</h2>
+<ul>
+<li>Maps: <code>293</code></li>
+<li>Tensor grid: <code>256x256</code></li>
+<li>Audit status: <code>ready</code> only</li>
+<li>Size class: <code>10km</code> only</li>
+<li>Filter logic: adaptive-map name filter over V1 tensors</li>
+</ul>
+<h2 id="split-counts">Split Counts</h2>
+<ul>
+<li>Train: <code>222</code></li>
+<li>Validation: <code>44</code></li>
+<li>Test: <code>27</code></li>
+</ul>
+<h2 id="quality-checks">Quality Checks</h2>
+<ul>
+<li>Missing split rows: <code>0</code></li>
+<li>Missing tensor files: <code>0</code></li>
+<li>Family split leaks: <code>0</code></li>
+<li>Family groups in subset: <code>292</code></li>
+</ul>
+<h2 id="distribution-notes">Distribution Notes</h2>
+<ul>
+<li>Player slots median: <code>12</code></li>
+<li>Water percent median: <code>12.1861</code></li>
+<li>Water percent mean: <code>21.409062</code></li>
+<li>Buildable percent median: <code>55.92</code></li>
+<li>Mex count median: <code>118</code></li>
+<li>Hydro count median: <code>14</code></li>
+</ul>
+<p>The subset is strongly skewed toward larger team-game layouts. The most common predicted team settings are <code>6v6</code>, <code>5v5</code>, and <code>8v8</code>. This is acceptable for the current adaptive 10km experiment, but it is not representative of all FAF maps or of 1v1 map design.</p>
+<h2 id="rebuild-command">Rebuild Command</h2>
+<pre><code class="language-powershell">python -m supmapai.tools.dataset_quality_report --tensor-manifest data\tensors\v1_adaptive_10km\tensor_manifest.csv --splits-csv data\splits\v1_current\splits.csv --audit-maps data\audit\v1_current\dataset_audit_maps.csv --dataset-name dataset_v1_adaptive_10km --json-out data\reports\dataset_v1_adaptive_10km_quality.json --csv-out data\reports\dataset_v1_adaptive_10km_quality.csv --md-out data\reports\dataset_v1_adaptive_10km_quality.md
+</code></pre>
+<h2 id="input-hashes">Input Hashes</h2>
+<p>From the generated quality report:</p>
+<ul>
+<li><code>tensor_manifest_sha256</code>: <code>3efd209bfaaaf63e8278adc95551dda6d7aafbf9ea73b7cee67c0a07567b688d</code></li>
+<li><code>splits_csv_sha256</code>: <code>828a62581540ed050dc6564ae18f0e706c8d53fd42938f18cc86537e862634ba</code></li>
+<li><code>audit_maps_csv_sha256</code>: <code>2acad300dc9c9d5fbffea320de955ed6954bb022090e4d41d4d13743c32b79cf</code></li>
+</ul>
+<script src="model-atlas/public-links.js" data-public-links></script></body></html>

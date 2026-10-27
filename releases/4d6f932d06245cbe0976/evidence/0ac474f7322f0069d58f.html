@@ -1,0 +1,1048 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>pipeline.json | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="../docs/model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1>pipeline.json</h1><p class="meta">Saved public evidence snapshot: data/models/joint_diagnostics_v1/pipeline.json</p><pre>{
+  &quot;state&quot;: &quot;completed&quot;,
+  &quot;stage&quot;: &quot;batch_finished&quot;,
+  &quot;supervisor_pid&quot;: 84212,
+  &quot;child_pid&quot;: null,
+  &quot;heartbeat_unix&quot;: 1792931848.5176175,
+  &quot;deadline_unix&quot;: 1792932597,
+  &quot;remaining_seconds&quot;: 748.4823825359344,
+  &quot;elapsed_seconds&quot;: 5827.140520572662,
+  &quot;stages&quot;: [
+    {
+      &quot;id&quot;: &quot;one_map_baseline&quot;,
+      &quot;status&quot;: &quot;completed&quot;,
+      &quot;exit_code&quot;: 0,
+      &quot;elapsed_seconds&quot;: 731.4095273017883,
+      &quot;folder&quot;: &quot;data/models/joint_diagnostics_v1/one_map_baseline&quot;,
+      &quot;summary&quot;: {
+        &quot;step&quot;: 2365,
+        &quot;start_step&quot;: 0,
+        &quot;initial&quot;: {
+          &quot;100&quot;: {
+            &quot;loss&quot;: 1.1038644084563622,
+            &quot;channel_loss&quot;: {
+              &quot;height&quot;: 1.335235357284546,
+              &quot;water_depth&quot;: 1.0682954788208008,
+              &quot;start_a&quot;: 1.059713363647461,
+              &quot;start_b&quot;: 1.0769771337509155,
+              &quot;mex&quot;: 1.1890103816986084,
+              &quot;hydro&quot;: 1.017564296722412,
+              &quot;natural_energy&quot;: 1.2843537330627441,
+              &quot;natural_mass&quot;: 1.05031418800354,
+              &quot;wreck_mass&quot;: 0.983321487903595,
+              &quot;civilians&quot;: 1.100501537322998,
+              &quot;red&quot;: 1.1375141143798828,
+              &quot;green&quot;: 1.0037977695465088,
+              &quot;blue&quot;: 1.0436384677886963
+            },
+            &quot;clean_mse&quot;: {
+              &quot;height&quot;: 0.03795316070318222,
+              &quot;water_depth&quot;: 0.03036557510495186,
+              &quot;start_a&quot;: 0.030133161693811417,
+              &quot;start_b&quot;: 0.030615923926234245,
+              &quot;mex&quot;: 0.034200526773929596,
+              &quot;hydro&quot;: 0.028925009071826935,
+              &quot;natural_energy&quot;: 0.04034087061882019,
+              &quot;natural_mass&quot;: 0.030617982149124146,
+              &quot;wreck_mass&quot;: 0.02797657623887062,
+              &quot;civilians&quot;: 0.03134796395897865,
+              &quot;red&quot;: 0.032333068549633026,
+              &quot;green&quot;: 0.028532272204756737,
+              &quot;blue&quot;: 0.029664717614650726
+            }
+          },
+          &quot;500&quot;: {
+            &quot;loss&quot;: 1.0236305548594549,
+            &quot;channel_loss&quot;: {
+              &quot;height&quot;: 0.7350294589996338,
+              &quot;water_depth&quot;: 1.0454678535461426,
+              &quot;start_a&quot;: 0.7868209481239319,
+              &quot;start_b&quot;: 1.256277084350586,
+              &quot;mex&quot;: 1.2965190410614014,
+              &quot;hydro&quot;: 1.1000627279281616,
+              &quot;natural_energy&quot;: 1.2167332172393799,
+              &quot;natural_mass&quot;: 1.0767120122909546,
+              &quot;wreck_mass&quot;: 1.0123034715652466,
+              &quot;civilians&quot;: 1.209490180015564,
+              &quot;red&quot;: 1.002178430557251,
+              &quot;green&quot;: 0.7524470686912537,
+              &quot;blue&quot;: 0.8171557188034058
+            },
+            &quot;clean_mse&quot;: {
+              &quot;height&quot;: 0.373185396194458,
+              &quot;water_depth&quot;: 0.5307995080947876,
+              &quot;start_a&quot;: 0.39970463514328003,
+              &quot;start_b&quot;: 0.6386123895645142,
+              &quot;mex&quot;: 0.698346734046936,
+              &quot;hydro&quot;: 0.561773955821991,
+              &quot;natural_energy&quot;: 0.873515248298645,
+              &quot;natural_mass&quot;: 0.6231141686439514,
+              &quot;wreck_mass&quot;: 0.5179409384727478,
+              &quot;civilians&quot;: 0.6202918887138367,
+              &quot;red&quot;: 0.5088208913803101,
+              &quot;green&quot;: 0.38202857971191406,
+              &quot;blue&quot;: 0.4148821234703064
+            }
+          },
+          &quot;900&quot;: {
+            &quot;loss&quot;: 0.9286488867723025,
+            &quot;channel_loss&quot;: {
+              &quot;height&quot;: 0.24482372403144836,
+              &quot;water_depth&quot;: 0.9002294540405273,
+              &quot;start_a&quot;: 0.8018631339073181,
+              &quot;start_b&quot;: 1.3050044775009155,
+              &quot;mex&quot;: 1.3378678560256958,
+              &quot;hydro&quot;: 1.1318082809448242,
+              &quot;natural_energy&quot;: 0.9565526247024536,
+              &quot;natural_mass&quot;: 1.1338731050491333,
+              &quot;wreck_mass&quot;: 1.1107910871505737,
+              &quot;civilians&quot;: 0.9531111121177673,
+              &quot;red&quot;: 0.6973265409469604,
+              &quot;green&quot;: 0.5293900966644287,
+              &quot;blue&quot;: 0.9697940349578857
+            },
+            &quot;clean_mse&quot;: {
+              &quot;height&quot;: 0.23904195427894592,
+              &quot;water_depth&quot;: 0.8789695501327515,
+              &quot;start_a&quot;: 0.7836635112762451,
+              &quot;start_b&quot;: 1.2762374877929688,
+              &quot;mex&quot;: 1.429457426071167,
+              &quot;hydro&quot;: 1.117382526397705,
+              &quot;natural_energy&quot;: 1.5825179815292358,
+              &quot;natural_mass&quot;: 1.370658278465271,
+              &quot;wreck_mass&quot;: 1.099501609802246,
+              &quot;civilians&quot;: 0.9356639981269836,
+              &quot;red&quot;: 0.6808583736419678,
+              &quot;green&quot;: 0.5168879628181458,
+              &quot;blue&quot;: 0.9468913078308105
+            }
+          }
+        },
+        &quot;final&quot;: {
+          &quot;100&quot;: {
+            &quot;loss&quot;: 0.04247275195442713,
+            &quot;channel_loss&quot;: {
+              &quot;height&quot;: 0.01582999899983406,
+              &quot;water_depth&quot;: 0.024150408804416656,
+              &quot;start_a&quot;: 0.01200013142079115,
+              &quot;start_b&quot;: 0.012224223464727402,
+              &quot;mex&quot;: 0.017595790326595306,
+              &quot;hydro&quot;: 0.013145645149052143,
+              &quot;natural_energy&quot;: 0.03923145681619644,
+              &quot;natural_mass&quot;: 0.027024896815419197,
+              &quot;wreck_mass&quot;: 0.014735523611307144,
+              &quot;civilians&quot;: 0.014032190665602684,
+              &quot;red&quot;: 0.10525506734848022,
+              &quot;green&quot;: 0.1822313368320465,
+              &quot;blue&quot;: 0.0746891051530838
+            },
+            &quot;clean_mse&quot;: {
+              &quot;height&quot;: 0.0004499570932239294,
+              &quot;water_depth&quot;: 0.0006864591268822551,
+              &quot;start_a&quot;: 0.00033913107472471893,
+              &quot;start_b&quot;: 0.00034134567249566317,
+              &quot;mex&quot;: 0.0003946833894588053,
+              &quot;hydro&quot;: 0.00034568371484056115,
+              &quot;natural_energy&quot;: 0.000855393533129245,
+              &quot;natural_mass&quot;: 0.0005775002064183354,
+              &quot;wreck_mass&quot;: 0.0003735882928594947,
+              &quot;civilians&quot;: 0.00035135020152665675,
+              &quot;red&quot;: 0.0029918039217591286,
+              &quot;green&quot;: 0.00517980195581913,
+              &quot;blue&quot;: 0.002122987527400255
+            }
+          },
+          &quot;500&quot;: {
+            &quot;loss&quot;: 0.007506891941794982,
+            &quot;channel_loss&quot;: {
+              &quot;height&quot;: 0.004567951895296574,
+              &quot;water_depth&quot;: 0.006144855171442032,
+              &quot;start_a&quot;: 0.004519961308687925,
+              &quot;start_b&quot;: 0.004464905709028244,
+              &quot;mex&quot;: 0.0049607837572693825,
+              &quot;hydro&quot;: 0.004490576684474945,
+              &quot;natural_energy&quot;: 0.007869060151278973,
+              &quot;natural_mass&quot;: 0.006575398612767458,
+              &quot;wreck_mass&quot;: 0.0048838090151548386,
+              &quot;civilians&quot;: 0.0045444052666425705,
+              &quot;red&quot;: 0.013298282399773598,
+              &quot;green&quot;: 0.021080568432807922,
+              &quot;blue&quot;: 0.010189036838710308
+            },
+            &quot;clean_mse&quot;: {
+              &quot;height&quot;: 0.0023192171938717365,
+              &quot;water_depth&quot;: 0.003119833767414093,
+              &quot;start_a&quot;: 0.0022876423317939043,
+              &quot;start_b&quot;: 0.002261909656226635,
+              &quot;mex&quot;: 0.0024539686273783445,
+              &quot;hydro&quot;: 0.002225555945187807,
+              &quot;natural_energy&quot;: 0.0036486051976680756,
+              &quot;natural_mass&quot;: 0.003003771649673581,
+              &quot;wreck_mass&quot;: 0.0023957646917551756,
+              &quot;civilians&quot;: 0.0022774613462388515,
+              &quot;red&quot;: 0.006751736626029015,
+              &quot;green&quot;: 0.010702917352318764,
+              &quot;blue&quot;: 0.005173125304281712
+            }
+          },
+          &quot;900&quot;: {
+            &quot;loss&quot;: 0.0021215590822976083,
+            &quot;channel_loss&quot;: {
+              &quot;height&quot;: 0.0006496125133708119,
+              &quot;water_depth&quot;: 0.0013585035922005773,
+              &quot;start_a&quot;: 0.00037162177613936365,
+              &quot;start_b&quot;: 0.000419478805270046,
+              &quot;mex&quot;: 0.0006047519273124635,
+              &quot;hydro&quot;: 0.00041850886191241443,
+              &quot;natural_energy&quot;: 0.0024456370156258345,
+              &quot;natural_mass&quot;: 0.0015091880923137069,
+              &quot;wreck_mass&quot;: 0.00048086317838169634,
+              &quot;civilians&quot;: 0.0005057397065684199,
+              &quot;red&quot;: 0.005396617576479912,
+              &quot;green&quot;: 0.009812365286052227,
+              &quot;blue&quot;: 0.003607379738241434
+            },
+            &quot;clean_mse&quot;: {
+              &quot;height&quot;: 0.0006342711858451366,
+              &quot;water_depth&quot;: 0.0013264210429042578,
+              &quot;start_a&quot;: 0.0003570717526599765,
+              &quot;start_b&quot;: 0.00040602334775030613,
+              &quot;mex&quot;: 0.0004599567619152367,
+              &quot;hydro&quot;: 0.0003871736116707325,
+              &quot;natural_energy&quot;: 0.0016240521799772978,
+              &quot;natural_mass&quot;: 0.0010279393754899502,
+              &quot;wreck_mass&quot;: 0.00041658105328679085,
+              &quot;civilians&quot;: 0.00041972286999225616,
+              &quot;red&quot;: 0.005269170738756657,
+              &quot;green&quot;: 0.009580636397004128,
+              &quot;blue&quot;: 0.0035221874713897705
+            }
+          }
+        },
+        &quot;session_seconds&quot;: 726.4380000000019,
+        &quot;config&quot;: {
+          &quot;schema&quot;: &quot;joint_source_diagnostic_v1&quot;,
+          &quot;dataset&quot;: &quot;data/tensors/joint_sources_curated_256_v1&quot;,
+          &quot;release_sha256&quot;: &quot;a1abde6646e65c8f4a89f8d066f564eecc64265f9942b7f93040fede71b5f5b4&quot;,
+          &quot;target_channels&quot;: [
+            &quot;height&quot;,
+            &quot;water_depth&quot;,
+            &quot;start_a&quot;,
+            &quot;start_b&quot;,
+            &quot;mex&quot;,
+            &quot;hydro&quot;,
+            &quot;natural_energy&quot;,
+            &quot;natural_mass&quot;,
+            &quot;wreck_mass&quot;,
+            &quot;civilians&quot;,
+            &quot;red&quot;,
+            &quot;green&quot;,
+            &quot;blue&quot;
+          ],
+          &quot;spatial_channels&quot;: 0,
+          &quot;profile_dim&quot;: 12,
+          &quot;base&quot;: 128,
+          &quot;parameters&quot;: 73323149,
+          &quot;train_maps&quot;: 1,
+          &quot;validation_maps&quot;: 1,
+          &quot;learning_rate&quot;: 0.0002,
+          &quot;loss&quot;: &quot;baseline&quot;,
+          &quot;micro_batch&quot;: 6,
+          &quot;effective_batch&quot;: 6,
+          &quot;map&quot;: &quot;4375_6603&quot;,
+          &quot;seed&quot;: 20261025,
+          &quot;fresh_initialization&quot;: true,
+          &quot;lineage&quot;: null,
+          &quot;augmentation&quot;: &quot;disabled for memorization&quot;,
+          &quot;validation_meaning&quot;: &quot;training-map denoising, not held-out&quot;,
+          &quot;code&quot;: {
+            &quot;src/supmapai/ml/joint_diagnostics.py&quot;: &quot;4a4da3e991aa72fae83020db48254a02e910a03494ee2c18e9e8875493a898de&quot;,
+            &quot;src/supmapai/ml/joint_diffusion.py&quot;: &quot;49cf5e60cc245c88dc90f29b9ed0b3fc33fc20902fc446cee3d2dfcf3ff72110&quot;,
+            &quot;src/supmapai/ml/multiscale_terrain.py&quot;: &quot;aa7e28f963c8c3d3f00726cc4f2fbadefc451b7556f09bc51f844424c2135a33&quot;
+          },
+          &quot;test_used&quot;: false
+        }
+      }
+    },
+    {
+      &quot;id&quot;: &quot;one_map_lower_lr&quot;,
+      &quot;status&quot;: &quot;completed&quot;,
+      &quot;exit_code&quot;: 0,
+      &quot;elapsed_seconds&quot;: 731.5700252056122,
+      &quot;folder&quot;: &quot;data/models/joint_diagnostics_v1/one_map_lower_lr&quot;,
+      &quot;summary&quot;: {
+        &quot;step&quot;: 2340,
+        &quot;start_step&quot;: 0,
+        &quot;initial&quot;: {
+          &quot;100&quot;: {
+            &quot;loss&quot;: 1.1038644084563622,
+            &quot;channel_loss&quot;: {
+              &quot;height&quot;: 1.335235357284546,
+              &quot;water_depth&quot;: 1.0682954788208008,
+              &quot;start_a&quot;: 1.059713363647461,
+              &quot;start_b&quot;: 1.0769771337509155,
+              &quot;mex&quot;: 1.1890103816986084,
+              &quot;hydro&quot;: 1.017564296722412,
+              &quot;natural_energy&quot;: 1.2843537330627441,
+              &quot;natural_mass&quot;: 1.05031418800354,
+              &quot;wreck_mass&quot;: 0.983321487903595,
+              &quot;civilians&quot;: 1.100501537322998,
+              &quot;red&quot;: 1.1375141143798828,
+              &quot;green&quot;: 1.0037977695465088,
+              &quot;blue&quot;: 1.0436384677886963
+            },
+            &quot;clean_mse&quot;: {
+              &quot;height&quot;: 0.03795316070318222,
+              &quot;water_depth&quot;: 0.03036557510495186,
+              &quot;start_a&quot;: 0.030133161693811417,
+              &quot;start_b&quot;: 0.030615923926234245,
+              &quot;mex&quot;: 0.034200526773929596,
+              &quot;hydro&quot;: 0.028925009071826935,
+              &quot;natural_energy&quot;: 0.04034087061882019,
+              &quot;natural_mass&quot;: 0.030617982149124146,
+              &quot;wreck_mass&quot;: 0.02797657623887062,
+              &quot;civilians&quot;: 0.03134796395897865,
+              &quot;red&quot;: 0.032333068549633026,
+              &quot;green&quot;: 0.028532272204756737,
+              &quot;blue&quot;: 0.029664717614650726
+            }
+          },
+          &quot;500&quot;: {
+            &quot;loss&quot;: 1.0236305548594549,
+            &quot;channel_loss&quot;: {
+              &quot;height&quot;: 0.7350294589996338,
+              &quot;water_depth&quot;: 1.0454678535461426,
+              &quot;start_a&quot;: 0.7868209481239319,
+              &quot;start_b&quot;: 1.256277084350586,
+              &quot;mex&quot;: 1.2965190410614014,
+              &quot;hydro&quot;: 1.1000627279281616,
+              &quot;natural_energy&quot;: 1.2167332172393799,
+              &quot;natural_mass&quot;: 1.0767120122909546,
+              &quot;wreck_mass&quot;: 1.0123034715652466,
+              &quot;civilians&quot;: 1.209490180015564,
+              &quot;red&quot;: 1.002178430557251,
+              &quot;green&quot;: 0.7524470686912537,
+              &quot;blue&quot;: 0.8171557188034058
+            },
+            &quot;clean_mse&quot;: {
+              &quot;height&quot;: 0.373185396194458,
+              &quot;water_depth&quot;: 0.5307995080947876,
+              &quot;start_a&quot;: 0.39970463514328003,
+              &quot;start_b&quot;: 0.6386123895645142,
+              &quot;mex&quot;: 0.698346734046936,
+              &quot;hydro&quot;: 0.561773955821991,
+              &quot;natural_energy&quot;: 0.873515248298645,
+              &quot;natural_mass&quot;: 0.6231141686439514,
+              &quot;wreck_mass&quot;: 0.5179409384727478,
+              &quot;civilians&quot;: 0.6202918887138367,
+              &quot;red&quot;: 0.5088208913803101,
+              &quot;green&quot;: 0.38202857971191406,
+              &quot;blue&quot;: 0.4148821234703064
+            }
+          },
+          &quot;900&quot;: {
+            &quot;loss&quot;: 0.9286488867723025,
+            &quot;channel_loss&quot;: {
+              &quot;height&quot;: 0.24482372403144836,
+              &quot;water_depth&quot;: 0.9002294540405273,
+              &quot;start_a&quot;: 0.8018631339073181,
+              &quot;start_b&quot;: 1.3050044775009155,
+              &quot;mex&quot;: 1.3378678560256958,
+              &quot;hydro&quot;: 1.1318082809448242,
+              &quot;natural_energy&quot;: 0.9565526247024536,
+              &quot;natural_mass&quot;: 1.1338731050491333,
+              &quot;wreck_mass&quot;: 1.1107910871505737,
+              &quot;civilians&quot;: 0.9531111121177673,
+              &quot;red&quot;: 0.6973265409469604,
+              &quot;green&quot;: 0.5293900966644287,
+              &quot;blue&quot;: 0.9697940349578857
+            },
+            &quot;clean_mse&quot;: {
+              &quot;height&quot;: 0.23904195427894592,
+              &quot;water_depth&quot;: 0.8789695501327515,
+              &quot;start_a&quot;: 0.7836635112762451,
+              &quot;start_b&quot;: 1.2762374877929688,
+              &quot;mex&quot;: 1.429457426071167,
+              &quot;hydro&quot;: 1.117382526397705,
+              &quot;natural_energy&quot;: 1.5825179815292358,
+              &quot;natural_mass&quot;: 1.370658278465271,
+              &quot;wreck_mass&quot;: 1.099501609802246,
+              &quot;civilians&quot;: 0.9356639981269836,
+              &quot;red&quot;: 0.6808583736419678,
+              &quot;green&quot;: 0.5168879628181458,
+              &quot;blue&quot;: 0.9468913078308105
+            }
+          }
+        },
+        &quot;final&quot;: {
+          &quot;100&quot;: {
+            &quot;loss&quot;: 0.07203708660717194,
+            &quot;channel_loss&quot;: {
+              &quot;height&quot;: 0.03432537987828255,
+              &quot;water_depth&quot;: 0.05286778509616852,
+              &quot;start_a&quot;: 0.02673819661140442,
+              &quot;start_b&quot;: 0.026836775243282318,
+              &quot;mex&quot;: 0.03428807854652405,
+              &quot;hydro&quot;: 0.027786709368228912,
+              &quot;natural_energy&quot;: 0.1337052583694458,
+              &quot;natural_mass&quot;: 0.07161670923233032,
+              &quot;wreck_mass&quot;: 0.03012680634856224,
+              &quot;civilians&quot;: 0.028105290606617928,
+              &quot;red&quot;: 0.13849329948425293,
+              &quot;green&quot;: 0.23019686341285706,
+              &quot;blue&quot;: 0.10139497369527817
+            },
+            &quot;clean_mse&quot;: {
+              &quot;height&quot;: 0.0009756757644936442,
+              &quot;water_depth&quot;: 0.0015027312329038978,
+              &quot;start_a&quot;: 0.0007558074430562556,
+              &quot;start_b&quot;: 0.0007601578836329281,
+              &quot;mex&quot;: 0.0008530488703399897,
+              &quot;hydro&quot;: 0.0007643024437129498,
+              &quot;natural_energy&quot;: 0.003045594785362482,
+              &quot;natural_mass&quot;: 0.0016007866943255067,
+              &quot;wreck_mass&quot;: 0.0008038810919970274,
+              &quot;civilians&quot;: 0.0007561120437458158,
+              &quot;red&quot;: 0.003936578519642353,
+              &quot;green&quot;: 0.006543189287185669,
+              &quot;blue&quot;: 0.002882083412259817
+            }
+          },
+          &quot;500&quot;: {
+            &quot;loss&quot;: 0.01567842080616034,
+            &quot;channel_loss&quot;: {
+              &quot;height&quot;: 0.011604574508965015,
+              &quot;water_depth&quot;: 0.014140693470835686,
+              &quot;start_a&quot;: 0.01150541752576828,
+              &quot;start_b&quot;: 0.011127767153084278,
+              &quot;mex&quot;: 0.012688572518527508,
+              &quot;hydro&quot;: 0.011612165719270706,
+              &quot;natural_energy&quot;: 0.023730343207716942,
+              &quot;natural_mass&quot;: 0.016614165157079697,
+              &quot;wreck_mass&quot;: 0.01179575826972723,
+              &quot;civilians&quot;: 0.011724542826414108,
+              &quot;red&quot;: 0.02080213464796543,
+              &quot;green&quot;: 0.028924454003572464,
+              &quot;blue&quot;: 0.017548881471157074
+            },
+            &quot;clean_mse&quot;: {
+              &quot;height&quot;: 0.005891815293580294,
+              &quot;water_depth&quot;: 0.007179440930485725,
+              &quot;start_a&quot;: 0.005807746201753616,
+              &quot;start_b&quot;: 0.005649755708873272,
+              &quot;mex&quot;: 0.006233998108655214,
+              &quot;hydro&quot;: 0.005828232038766146,
+              &quot;natural_energy&quot;: 0.00978918932378292,
+              &quot;natural_mass&quot;: 0.007567976601421833,
+              &quot;wreck_mass&quot;: 0.005919678136706352,
+              &quot;civilians&quot;: 0.005804282147437334,
+              &quot;red&quot;: 0.01056155376136303,
+              &quot;green&quot;: 0.014685375615954399,
+              &quot;blue&quot;: 0.008909827098250389
+            }
+          },
+          &quot;900&quot;: {
+            &quot;loss&quot;: 0.003958533867262304,
+            &quot;channel_loss&quot;: {
+              &quot;height&quot;: 0.0016681649722158909,
+              &quot;water_depth&quot;: 0.003414909588173032,
+              &quot;start_a&quot;: 0.0011851993622258306,
+              &quot;start_b&quot;: 0.0012040161527693272,
+              &quot;mex&quot;: 0.0016897025052458048,
+              &quot;hydro&quot;: 0.001344847958534956,
+              &quot;natural_energy&quot;: 0.010027498938143253,
+              &quot;natural_mass&quot;: 0.004969521891325712,
+              &quot;wreck_mass&quot;: 0.0014889570884406567,
+              &quot;civilians&quot;: 0.0014861829113215208,
+              &quot;red&quot;: 0.006683935411274433,
+              &quot;green&quot;: 0.011504950001835823,
+              &quot;blue&quot;: 0.004793053492903709
+            },
+            &quot;clean_mse&quot;: {
+              &quot;height&quot;: 0.0016287693288177252,
+              &quot;water_depth&quot;: 0.0033342624083161354,
+              &quot;start_a&quot;: 0.001090657664462924,
+              &quot;start_b&quot;: 0.001115055987611413,
+              &quot;mex&quot;: 0.0014622421003878117,
+              &quot;hydro&quot;: 0.0012147868983447552,
+              &quot;natural_energy&quot;: 0.006037162151187658,
+              &quot;natural_mass&quot;: 0.0033226169180125,
+              &quot;wreck_mass&quot;: 0.0012705819681286812,
+              &quot;civilians&quot;: 0.001294448971748352,
+              &quot;red&quot;: 0.006526086945086718,
+              &quot;green&quot;: 0.011233247816562653,
+              &quot;blue&quot;: 0.004679860547184944
+            }
+          }
+        },
+        &quot;session_seconds&quot;: 726.5459999999985,
+        &quot;config&quot;: {
+          &quot;schema&quot;: &quot;joint_source_diagnostic_v1&quot;,
+          &quot;dataset&quot;: &quot;data/tensors/joint_sources_curated_256_v1&quot;,
+          &quot;release_sha256&quot;: &quot;a1abde6646e65c8f4a89f8d066f564eecc64265f9942b7f93040fede71b5f5b4&quot;,
+          &quot;target_channels&quot;: [
+            &quot;height&quot;,
+            &quot;water_depth&quot;,
+            &quot;start_a&quot;,
+            &quot;start_b&quot;,
+            &quot;mex&quot;,
+            &quot;hydro&quot;,
+            &quot;natural_energy&quot;,
+            &quot;natural_mass&quot;,
+            &quot;wreck_mass&quot;,
+            &quot;civilians&quot;,
+            &quot;red&quot;,
+            &quot;green&quot;,
+            &quot;blue&quot;
+          ],
+          &quot;spatial_channels&quot;: 0,
+          &quot;profile_dim&quot;: 12,
+          &quot;base&quot;: 128,
+          &quot;parameters&quot;: 73323149,
+          &quot;train_maps&quot;: 1,
+          &quot;validation_maps&quot;: 1,
+          &quot;learning_rate&quot;: 0.00005,
+          &quot;loss&quot;: &quot;baseline&quot;,
+          &quot;micro_batch&quot;: 6,
+          &quot;effective_batch&quot;: 6,
+          &quot;map&quot;: &quot;4375_6603&quot;,
+          &quot;seed&quot;: 20261025,
+          &quot;fresh_initialization&quot;: true,
+          &quot;lineage&quot;: null,
+          &quot;augmentation&quot;: &quot;disabled for memorization&quot;,
+          &quot;validation_meaning&quot;: &quot;training-map denoising, not held-out&quot;,
+          &quot;code&quot;: {
+            &quot;src/supmapai/ml/joint_diagnostics.py&quot;: &quot;4a4da3e991aa72fae83020db48254a02e910a03494ee2c18e9e8875493a898de&quot;,
+            &quot;src/supmapai/ml/joint_diffusion.py&quot;: &quot;49cf5e60cc245c88dc90f29b9ed0b3fc33fc20902fc446cee3d2dfcf3ff72110&quot;,
+            &quot;src/supmapai/ml/multiscale_terrain.py&quot;: &quot;aa7e28f963c8c3d3f00726cc4f2fbadefc451b7556f09bc51f844424c2135a33&quot;
+          },
+          &quot;test_used&quot;: false
+        }
+      }
+    },
+    {
+      &quot;id&quot;: &quot;one_map_balanced&quot;,
+      &quot;status&quot;: &quot;completed&quot;,
+      &quot;exit_code&quot;: 0,
+      &quot;elapsed_seconds&quot;: 731.5747742652893,
+      &quot;folder&quot;: &quot;data/models/joint_diagnostics_v1/one_map_balanced&quot;,
+      &quot;summary&quot;: {
+        &quot;step&quot;: 2367,
+        &quot;start_step&quot;: 0,
+        &quot;initial&quot;: {
+          &quot;100&quot;: {
+            &quot;loss&quot;: 1.1038644084563622,
+            &quot;channel_loss&quot;: {
+              &quot;height&quot;: 1.335235357284546,
+              &quot;water_depth&quot;: 1.0682954788208008,
+              &quot;start_a&quot;: 1.059713363647461,
+              &quot;start_b&quot;: 1.0769771337509155,
+              &quot;mex&quot;: 1.1890103816986084,
+              &quot;hydro&quot;: 1.017564296722412,
+              &quot;natural_energy&quot;: 1.2843537330627441,
+              &quot;natural_mass&quot;: 1.05031418800354,
+              &quot;wreck_mass&quot;: 0.983321487903595,
+              &quot;civilians&quot;: 1.100501537322998,
+              &quot;red&quot;: 1.1375141143798828,
+              &quot;green&quot;: 1.0037977695465088,
+              &quot;blue&quot;: 1.0436384677886963
+            },
+            &quot;clean_mse&quot;: {
+              &quot;height&quot;: 0.03795316070318222,
+              &quot;water_depth&quot;: 0.03036557510495186,
+              &quot;start_a&quot;: 0.030133161693811417,
+              &quot;start_b&quot;: 0.030615923926234245,
+              &quot;mex&quot;: 0.034200526773929596,
+              &quot;hydro&quot;: 0.028925009071826935,
+              &quot;natural_energy&quot;: 0.04034087061882019,
+              &quot;natural_mass&quot;: 0.030617982149124146,
+              &quot;wreck_mass&quot;: 0.02797657623887062,
+              &quot;civilians&quot;: 0.03134796395897865,
+              &quot;red&quot;: 0.032333068549633026,
+              &quot;green&quot;: 0.028532272204756737,
+              &quot;blue&quot;: 0.029664717614650726
+            }
+          },
+          &quot;500&quot;: {
+            &quot;loss&quot;: 1.0236305548594549,
+            &quot;channel_loss&quot;: {
+              &quot;height&quot;: 0.7350294589996338,
+              &quot;water_depth&quot;: 1.0454678535461426,
+              &quot;start_a&quot;: 0.7868209481239319,
+              &quot;start_b&quot;: 1.256277084350586,
+              &quot;mex&quot;: 1.2965190410614014,
+              &quot;hydro&quot;: 1.1000627279281616,
+              &quot;natural_energy&quot;: 1.2167332172393799,
+              &quot;natural_mass&quot;: 1.0767120122909546,
+              &quot;wreck_mass&quot;: 1.0123034715652466,
+              &quot;civilians&quot;: 1.209490180015564,
+              &quot;red&quot;: 1.002178430557251,
+              &quot;green&quot;: 0.7524470686912537,
+              &quot;blue&quot;: 0.8171557188034058
+            },
+            &quot;clean_mse&quot;: {
+              &quot;height&quot;: 0.373185396194458,
+              &quot;water_depth&quot;: 0.5307995080947876,
+              &quot;start_a&quot;: 0.39970463514328003,
+              &quot;start_b&quot;: 0.6386123895645142,
+              &quot;mex&quot;: 0.698346734046936,
+              &quot;hydro&quot;: 0.561773955821991,
+              &quot;natural_energy&quot;: 0.873515248298645,
+              &quot;natural_mass&quot;: 0.6231141686439514,
+              &quot;wreck_mass&quot;: 0.5179409384727478,
+              &quot;civilians&quot;: 0.6202918887138367,
+              &quot;red&quot;: 0.5088208913803101,
+              &quot;green&quot;: 0.38202857971191406,
+              &quot;blue&quot;: 0.4148821234703064
+            }
+          },
+          &quot;900&quot;: {
+            &quot;loss&quot;: 0.9286488867723025,
+            &quot;channel_loss&quot;: {
+              &quot;height&quot;: 0.24482372403144836,
+              &quot;water_depth&quot;: 0.9002294540405273,
+              &quot;start_a&quot;: 0.8018631339073181,
+              &quot;start_b&quot;: 1.3050044775009155,
+              &quot;mex&quot;: 1.3378678560256958,
+              &quot;hydro&quot;: 1.1318082809448242,
+              &quot;natural_energy&quot;: 0.9565526247024536,
+              &quot;natural_mass&quot;: 1.1338731050491333,
+              &quot;wreck_mass&quot;: 1.1107910871505737,
+              &quot;civilians&quot;: 0.9531111121177673,
+              &quot;red&quot;: 0.6973265409469604,
+              &quot;green&quot;: 0.5293900966644287,
+              &quot;blue&quot;: 0.9697940349578857
+            },
+            &quot;clean_mse&quot;: {
+              &quot;height&quot;: 0.23904195427894592,
+              &quot;water_depth&quot;: 0.8789695501327515,
+              &quot;start_a&quot;: 0.7836635112762451,
+              &quot;start_b&quot;: 1.2762374877929688,
+              &quot;mex&quot;: 1.429457426071167,
+              &quot;hydro&quot;: 1.117382526397705,
+              &quot;natural_energy&quot;: 1.5825179815292358,
+              &quot;natural_mass&quot;: 1.370658278465271,
+              &quot;wreck_mass&quot;: 1.099501609802246,
+              &quot;civilians&quot;: 0.9356639981269836,
+              &quot;red&quot;: 0.6808583736419678,
+              &quot;green&quot;: 0.5168879628181458,
+              &quot;blue&quot;: 0.9468913078308105
+            }
+          }
+        },
+        &quot;final&quot;: {
+          &quot;100&quot;: {
+            &quot;loss&quot;: 0.08559697178693917,
+            &quot;channel_loss&quot;: {
+              &quot;height&quot;: 0.04105875641107559,
+              &quot;water_depth&quot;: 0.06491778790950775,
+              &quot;start_a&quot;: 0.044555023312568665,
+              &quot;start_b&quot;: 0.04348376765847206,
+              &quot;mex&quot;: 0.043330155313014984,
+              &quot;hydro&quot;: 0.04048459604382515,
+              &quot;natural_energy&quot;: 0.16268891096115112,
+              &quot;natural_mass&quot;: 0.08995647728443146,
+              &quot;wreck_mass&quot;: 0.047316715121269226,
+              &quot;civilians&quot;: 0.04285304993391037,
+              &quot;red&quot;: 0.14521680772304535,
+              &quot;green&quot;: 0.23898817598819733,
+              &quot;blue&quot;: 0.1079104095697403
+            },
+            &quot;clean_mse&quot;: {
+              &quot;height&quot;: 0.0011670675594359636,
+              &quot;water_depth&quot;: 0.0018452443182468414,
+              &quot;start_a&quot;: 0.0012675189645960927,
+              &quot;start_b&quot;: 0.001237816410139203,
+              &quot;mex&quot;: 0.0012001644354313612,
+              &quot;hydro&quot;: 0.0011555764358490705,
+              &quot;natural_energy&quot;: 0.0036218343302607536,
+              &quot;natural_mass&quot;: 0.0021315671037882566,
+              &quot;wreck_mass&quot;: 0.001345267635770142,
+              &quot;civilians&quot;: 0.0012237286427989602,
+              &quot;red&quot;: 0.00412768917158246,
+              &quot;green&quot;: 0.006793076638132334,
+              &quot;blue&quot;: 0.0030672806315124035
+            }
+          },
+          &quot;500&quot;: {
+            &quot;loss&quot;: 0.01854399419747866,
+            &quot;channel_loss&quot;: {
+              &quot;height&quot;: 0.013355476781725883,
+              &quot;water_depth&quot;: 0.016623442992568016,
+              &quot;start_a&quot;: 0.01442572008818388,
+              &quot;start_b&quot;: 0.013795128092169762,
+              &quot;mex&quot;: 0.014227325096726418,
+              &quot;hydro&quot;: 0.013821236789226532,
+              &quot;natural_energy&quot;: 0.033609893172979355,
+              &quot;natural_mass&quot;: 0.020729895681142807,
+              &quot;wreck_mass&quot;: 0.014304650947451591,
+              &quot;civilians&quot;: 0.013906083069741726,
+              &quot;red&quot;: 0.022252783179283142,
+              &quot;green&quot;: 0.030794356018304825,
+              &quot;blue&quot;: 0.01922593265771866
+            },
+            &quot;clean_mse&quot;: {
+              &quot;height&quot;: 0.006780774332582951,
+              &quot;water_depth&quot;: 0.008439969271421432,
+              &quot;start_a&quot;: 0.0073259249329566956,
+              &quot;start_b&quot;: 0.007012495305389166,
+              &quot;mex&quot;: 0.0072848801501095295,
+              &quot;hydro&quot;: 0.007050875574350357,
+              &quot;natural_energy&quot;: 0.013033906929194927,
+              &quot;natural_mass&quot;: 0.009487512521445751,
+              &quot;wreck_mass&quot;: 0.007297144737094641,
+              &quot;civilians&quot;: 0.007106496952474117,
+              &quot;red&quot;: 0.011298069730401039,
+              &quot;green&quot;: 0.015634752810001373,
+              &quot;blue&quot;: 0.009761291556060314
+            }
+          },
+          &quot;900&quot;: {
+            &quot;loss&quot;: 0.0050385888630094435,
+            &quot;channel_loss&quot;: {
+              &quot;height&quot;: 0.0020288408268243074,
+              &quot;water_depth&quot;: 0.004216139204800129,
+              &quot;start_a&quot;: 0.0020260477904230356,
+              &quot;start_b&quot;: 0.0023091824259608984,
+              &quot;mex&quot;: 0.0022508041001856327,
+              &quot;hydro&quot;: 0.002011609496548772,
+              &quot;natural_energy&quot;: 0.015158871188759804,
+              &quot;natural_mass&quot;: 0.0066866641864180565,
+              &quot;wreck_mass&quot;: 0.002324344590306282,
+              &quot;civilians&quot;: 0.002481312258169055,
+              &quot;red&quot;: 0.007005402818322182,
+              &quot;green&quot;: 0.01185695081949234,
+              &quot;blue&quot;: 0.005145485512912273
+            },
+            &quot;clean_mse&quot;: {
+              &quot;height&quot;: 0.0019809273071587086,
+              &quot;water_depth&quot;: 0.0041165705770254135,
+              &quot;start_a&quot;: 0.0019813673570752144,
+              &quot;start_b&quot;: 0.002258673310279846,
+              &quot;mex&quot;: 0.002208807971328497,
+              &quot;hydro&quot;: 0.001971412682905793,
+              &quot;natural_energy&quot;: 0.008727312088012695,
+              &quot;natural_mass&quot;: 0.004878551699221134,
+              &quot;wreck_mass&quot;: 0.0022766380570828915,
+              &quot;civilians&quot;: 0.00244953203946352,
+              &quot;red&quot;: 0.006839963141828775,
+              &quot;green&quot;: 0.011576935648918152,
+              &quot;blue&quot;: 0.00502396933734417
+            }
+          }
+        },
+        &quot;session_seconds&quot;: 726.344000000001,
+        &quot;config&quot;: {
+          &quot;schema&quot;: &quot;joint_source_diagnostic_v1&quot;,
+          &quot;dataset&quot;: &quot;data/tensors/joint_sources_curated_256_v1&quot;,
+          &quot;release_sha256&quot;: &quot;a1abde6646e65c8f4a89f8d066f564eecc64265f9942b7f93040fede71b5f5b4&quot;,
+          &quot;target_channels&quot;: [
+            &quot;height&quot;,
+            &quot;water_depth&quot;,
+            &quot;start_a&quot;,
+            &quot;start_b&quot;,
+            &quot;mex&quot;,
+            &quot;hydro&quot;,
+            &quot;natural_energy&quot;,
+            &quot;natural_mass&quot;,
+            &quot;wreck_mass&quot;,
+            &quot;civilians&quot;,
+            &quot;red&quot;,
+            &quot;green&quot;,
+            &quot;blue&quot;
+          ],
+          &quot;spatial_channels&quot;: 0,
+          &quot;profile_dim&quot;: 12,
+          &quot;base&quot;: 128,
+          &quot;parameters&quot;: 73323149,
+          &quot;train_maps&quot;: 1,
+          &quot;validation_maps&quot;: 1,
+          &quot;learning_rate&quot;: 0.00005,
+          &quot;loss&quot;: &quot;balanced&quot;,
+          &quot;micro_batch&quot;: 6,
+          &quot;effective_batch&quot;: 6,
+          &quot;map&quot;: &quot;4375_6603&quot;,
+          &quot;seed&quot;: 20261025,
+          &quot;fresh_initialization&quot;: true,
+          &quot;lineage&quot;: null,
+          &quot;augmentation&quot;: &quot;disabled for memorization&quot;,
+          &quot;validation_meaning&quot;: &quot;training-map denoising, not held-out&quot;,
+          &quot;code&quot;: {
+            &quot;src/supmapai/ml/joint_diagnostics.py&quot;: &quot;4a4da3e991aa72fae83020db48254a02e910a03494ee2c18e9e8875493a898de&quot;,
+            &quot;src/supmapai/ml/joint_diffusion.py&quot;: &quot;49cf5e60cc245c88dc90f29b9ed0b3fc33fc20902fc446cee3d2dfcf3ff72110&quot;,
+            &quot;src/supmapai/ml/multiscale_terrain.py&quot;: &quot;aa7e28f963c8c3d3f00726cc4f2fbadefc451b7556f09bc51f844424c2135a33&quot;
+          },
+          &quot;test_used&quot;: false
+        }
+      }
+    },
+    {
+      &quot;id&quot;: &quot;full_lower_lr&quot;,
+      &quot;status&quot;: &quot;completed&quot;,
+      &quot;exit_code&quot;: 0,
+      &quot;elapsed_seconds&quot;: 3627.5492889881134,
+      &quot;folder&quot;: &quot;data/models/joint_diagnostics_v1/full_lower_lr&quot;,
+      &quot;summary&quot;: {
+        &quot;step&quot;: 4971,
+        &quot;start_step&quot;: 2074,
+        &quot;initial&quot;: {
+          &quot;100&quot;: {
+            &quot;loss&quot;: 0.07585163579354584,
+            &quot;channel_loss&quot;: {
+              &quot;height&quot;: 0.04279638408426789,
+              &quot;water_depth&quot;: 0.027568095822589123,
+              &quot;start_a&quot;: 0.015319910183872866,
+              &quot;start_b&quot;: 0.015168654664918997,
+              &quot;mex&quot;: 0.03660007134295892,
+              &quot;hydro&quot;: 0.018998010340484157,
+              &quot;natural_energy&quot;: 0.1440334617011789,
+              &quot;natural_mass&quot;: 0.1203712761618089,
+              &quot;wreck_mass&quot;: 0.0198964468486931,
+              &quot;civilians&quot;: 0.015508390463672686,
+              &quot;red&quot;: 0.21498608189648477,
+              &quot;green&quot;: 0.16634908318519592,
+              &quot;blue&quot;: 0.1484753986199697
+            },
+            &quot;clean_mse&quot;: {
+              &quot;height&quot;: 0.001216458181168992,
+              &quot;water_depth&quot;: 0.0007836043352153206,
+              &quot;start_a&quot;: 0.00041626682260370666,
+              &quot;start_b&quot;: 0.00041394366332721234,
+              &quot;mex&quot;: 0.000550974442191638,
+              &quot;hydro&quot;: 0.00043006794631778115,
+              &quot;natural_energy&quot;: 0.0023330374016844926,
+              &quot;natural_mass&quot;: 0.001912604705295593,
+              &quot;wreck_mass&quot;: 0.00045131170865742194,
+              &quot;civilians&quot;: 0.000420758889168096,
+              &quot;red&quot;: 0.006110833492130041,
+              &quot;green&quot;: 0.004728359841755119,
+              &quot;blue&quot;: 0.0042203125894825525
+            }
+          },
+          &quot;500&quot;: {
+            &quot;loss&quot;: 0.027445650239004745,
+            &quot;channel_loss&quot;: {
+              &quot;height&quot;: 0.014119929863490921,
+              &quot;water_depth&quot;: 0.009946280165804901,
+              &quot;start_a&quot;: 0.007513874034950699,
+              &quot;start_b&quot;: 0.0074291227763329725,
+              &quot;mex&quot;: 0.049233203753829,
+              &quot;hydro&quot;: 0.013991777285717535,
+              &quot;natural_energy&quot;: 0.08282844267407621,
+              &quot;natural_mass&quot;: 0.06953198702978915,
+              &quot;wreck_mass&quot;: 0.009811501241410557,
+              &quot;civilians&quot;: 0.005592682101912256,
+              &quot;red&quot;: 0.03426410284811172,
+              &quot;green&quot;: 0.02738758734008972,
+              &quot;blue&quot;: 0.025142961991545948
+            },
+            &quot;clean_mse&quot;: {
+              &quot;height&quot;: 0.007168897866284934,
+              &quot;water_depth&quot;: 0.005049873875670027,
+              &quot;start_a&quot;: 0.003057438893702583,
+              &quot;start_b&quot;: 0.003000254186032259,
+              &quot;mex&quot;: 0.010717639287906712,
+              &quot;hydro&quot;: 0.004011727690669722,
+              &quot;natural_energy&quot;: 0.026464948909816103,
+              &quot;natural_mass&quot;: 0.020345694466453533,
+              &quot;wreck_mass&quot;: 0.0035263231003899937,
+              &quot;civilians&quot;: 0.0026982956721136966,
+              &quot;red&quot;: 0.017396393535739702,
+              &quot;green&quot;: 0.01390508467844431,
+              &quot;blue&quot;: 0.012765455012466165
+            }
+          },
+          &quot;900&quot;: {
+            &quot;loss&quot;: 0.05431893716966386,
+            &quot;channel_loss&quot;: {
+              &quot;height&quot;: 0.026690174555540947,
+              &quot;water_depth&quot;: 0.019428612855836695,
+              &quot;start_a&quot;: 0.004797013361762831,
+              &quot;start_b&quot;: 0.004736130470005067,
+              &quot;mex&quot;: 0.1724625355631545,
+              &quot;hydro&quot;: 0.03431736280723219,
+              &quot;natural_energy&quot;: 0.19159142673015594,
+              &quot;natural_mass&quot;: 0.15753478697244672,
+              &quot;wreck_mass&quot;: 0.013121057287418702,
+              &quot;civilians&quot;: 0.0008705087504653341,
+              &quot;red&quot;: 0.03443883030094962,
+              &quot;green&quot;: 0.02396502521266972,
+              &quot;blue&quot;: 0.022192718337991857
+            },
+            &quot;clean_mse&quot;: {
+              &quot;height&quot;: 0.026059856665307198,
+              &quot;water_depth&quot;: 0.018969784795299875,
+              &quot;start_a&quot;: 0.0009464309019360529,
+              &quot;start_b&quot;: 0.0009157129215832422,
+              &quot;mex&quot;: 0.053838662911152496,
+              &quot;hydro&quot;: 0.005303370223070185,
+              &quot;natural_energy&quot;: 0.1421532947840034,
+              &quot;natural_mass&quot;: 0.09546156168199968,
+              &quot;wreck_mass&quot;: 0.002369825016670064,
+              &quot;civilians&quot;: 0.0006278798239730785,
+              &quot;red&quot;: 0.03362552007741254,
+              &quot;green&quot;: 0.023399064769509478,
+              &quot;blue&quot;: 0.02166861319658009
+            }
+          }
+        },
+        &quot;final&quot;: {
+          &quot;100&quot;: {
+            &quot;loss&quot;: 0.06428423110362447,
+            &quot;channel_loss&quot;: {
+              &quot;height&quot;: 0.029332609347783138,
+              &quot;water_depth&quot;: 0.01919350018589825,
+              &quot;start_a&quot;: 0.008879011989557657,
+              &quot;start_b&quot;: 0.008716681627961605,
+              &quot;mex&quot;: 0.02737119586031506,
+              &quot;hydro&quot;: 0.011915908869949804,
+              &quot;natural_energy&quot;: 0.1277584722130627,
+              &quot;natural_mass&quot;: 0.10894879966002444,
+              &quot;wreck_mass&quot;: 0.012797783344876076,
+              &quot;civilians&quot;: 0.009123469770386599,
+              &quot;red&quot;: 0.19770545836376108,
+              &quot;green&quot;: 0.1473994636233302,
+              &quot;blue&quot;: 0.12655264949021133
+            },
+            &quot;clean_mse&quot;: {
+              &quot;height&quot;: 0.0008337595310244385,
+              &quot;water_depth&quot;: 0.0005455621481498541,
+              &quot;start_a&quot;: 0.00023762687118690246,
+              &quot;start_b&quot;: 0.00023454609976582014,
+              &quot;mex&quot;: 0.00035740418209478366,
+              &quot;hydro&quot;: 0.0002520199250547971,
+              &quot;natural_energy&quot;: 0.0018589928779123431,
+              &quot;natural_mass&quot;: 0.0016179624286925664,
+              &quot;wreck_mass&quot;: 0.00027320838758580226,
+              &quot;civilians&quot;: 0.00024615733317382956,
+              &quot;red&quot;: 0.005619643620498802,
+              &quot;green&quot;: 0.004189729857582437,
+              &quot;blue&quot;: 0.003597173218925794
+            }
+          },
+          &quot;500&quot;: {
+            &quot;loss&quot;: 0.023347073816564538,
+            &quot;channel_loss&quot;: {
+              &quot;height&quot;: 0.010324650207885366,
+              &quot;water_depth&quot;: 0.006977747214715118,
+              &quot;start_a&quot;: 0.004221096037603591,
+              &quot;start_b&quot;: 0.004238240856110402,
+              &quot;mex&quot;: 0.04459437009864959,
+              &quot;hydro&quot;: 0.010100901234841001,
+              &quot;natural_energy&quot;: 0.07568807989709835,
+              &quot;natural_mass&quot;: 0.06482237460685597,
+              &quot;wreck_mass&quot;: 0.006835945834662171,
+              &quot;civilians&quot;: 0.0033607850445137506,
+              &quot;red&quot;: 0.029368950202521206,
+              &quot;green&quot;: 0.0226231518579458,
+              &quot;blue&quot;: 0.020355666521936655
+            },
+            &quot;clean_mse&quot;: {
+              &quot;height&quot;: 0.005241978238674177,
+              &quot;water_depth&quot;: 0.0035427056128105178,
+              &quot;start_a&quot;: 0.001795372083796647,
+              &quot;start_b&quot;: 0.0017588892361095202,
+              &quot;mex&quot;: 0.009059980511665344,
+              &quot;hydro&quot;: 0.0025606948605644097,
+              &quot;natural_energy&quot;: 0.023032050657396514,
+              &quot;natural_mass&quot;: 0.018151124959568613,
+              &quot;wreck_mass&quot;: 0.002205998761633384,
+              &quot;civilians&quot;: 0.0015749753135647895,
+              &quot;red&quot;: 0.014911051964441287,
+              &quot;green&quot;: 0.011486109967033068,
+              &quot;blue&quot;: 0.01033487388243278
+            }
+          },
+          &quot;900&quot;: {
+            &quot;loss&quot;: 0.04979336180308835,
+            &quot;channel_loss&quot;: {
+              &quot;height&quot;: 0.021158945746719837,
+              &quot;water_depth&quot;: 0.016269946371734925,
+              &quot;start_a&quot;: 0.004591603972611652,
+              &quot;start_b&quot;: 0.004528224758425917,
+              &quot;mex&quot;: 0.16967960684627725,
+              &quot;hydro&quot;: 0.033746475318406265,
+              &quot;natural_energy&quot;: 0.1700152074378254,
+              &quot;natural_mass&quot;: 0.15133963932917602,
+              &quot;wreck_mass&quot;: 0.011102316569135375,
+              &quot;civilians&quot;: 0.0007286483286525649,
+              &quot;red&quot;: 0.026101058153300615,
+              &quot;green&quot;: 0.019672626069328493,
+              &quot;blue&quot;: 0.01837940453855402
+            },
+            &quot;clean_mse&quot;: {
+              &quot;height&quot;: 0.020659254000022793,
+              &quot;water_depth&quot;: 0.015885713587825496,
+              &quot;start_a&quot;: 0.000759433339977556,
+              &quot;start_b&quot;: 0.0007194580942176391,
+              &quot;mex&quot;: 0.05319458832019481,
+              &quot;hydro&quot;: 0.0052229820403094955,
+              &quot;natural_energy&quot;: 0.14315959105295115,
+              &quot;natural_mass&quot;: 0.09857036323165116,
+              &quot;wreck_mass&quot;: 0.0022192153357563243,
+              &quot;civilians&quot;: 0.0004889984499997175,
+              &quot;red&quot;: 0.0254846536014499,
+              &quot;green&quot;: 0.019208035384561273,
+              &quot;blue&quot;: 0.01794535447033527
+            }
+          }
+        },
+        &quot;session_seconds&quot;: 3611.515999999996,
+        &quot;config&quot;: {
+          &quot;schema&quot;: &quot;joint_source_diagnostic_v1&quot;,
+          &quot;dataset&quot;: &quot;data/tensors/joint_sources_curated_256_v1&quot;,
+          &quot;release_sha256&quot;: &quot;a1abde6646e65c8f4a89f8d066f564eecc64265f9942b7f93040fede71b5f5b4&quot;,
+          &quot;target_channels&quot;: [
+            &quot;height&quot;,
+            &quot;water_depth&quot;,
+            &quot;start_a&quot;,
+            &quot;start_b&quot;,
+            &quot;mex&quot;,
+            &quot;hydro&quot;,
+            &quot;natural_energy&quot;,
+            &quot;natural_mass&quot;,
+            &quot;wreck_mass&quot;,
+            &quot;civilians&quot;,
+            &quot;red&quot;,
+            &quot;green&quot;,
+            &quot;blue&quot;
+          ],
+          &quot;spatial_channels&quot;: 0,
+          &quot;profile_dim&quot;: 12,
+          &quot;base&quot;: 128,
+          &quot;parameters&quot;: 73323149,
+          &quot;train_maps&quot;: 782,
+          &quot;validation_maps&quot;: 69,
+          &quot;learning_rate&quot;: 0.00005,
+          &quot;loss&quot;: &quot;baseline&quot;,
+          &quot;micro_batch&quot;: 6,
+          &quot;effective_batch&quot;: 24,
+          &quot;map&quot;: null,
+          &quot;seed&quot;: 20261025,
+          &quot;fresh_initialization&quot;: false,
+          &quot;lineage&quot;: {
+            &quot;parent&quot;: &quot;data/models/joint_sources_pilot_v1/pilot/last.pt&quot;,
+            &quot;sha256&quot;: &quot;3ef78a2b12c7b71d7ba8592df30ec7e669070903613376e656a69b1064b416ed&quot;,
+            &quot;step&quot;: 2074
+          },
+          &quot;augmentation&quot;: &quot;same aligned rotations/reflections/start swap&quot;,
+          &quot;validation_meaning&quot;: &quot;69 held-out source families&quot;,
+          &quot;code&quot;: {
+            &quot;src/supmapai/ml/joint_diagnostics.py&quot;: &quot;4a4da3e991aa72fae83020db48254a02e910a03494ee2c18e9e8875493a898de&quot;,
+            &quot;src/supmapai/ml/joint_diffusion.py&quot;: &quot;49cf5e60cc245c88dc90f29b9ed0b3fc33fc20902fc446cee3d2dfcf3ff72110&quot;,
+            &quot;src/supmapai/ml/multiscale_terrain.py&quot;: &quot;aa7e28f963c8c3d3f00726cc4f2fbadefc451b7556f09bc51f844424c2135a33&quot;
+          },
+          &quot;test_used&quot;: false
+        }
+      }
+    }
+  ],
+  &quot;gpu_latest&quot;: {
+    &quot;unix&quot;: 1792931827.4213243,
+    &quot;stage&quot;: &quot;full_lower_lr&quot;,
+    &quot;utilization_percent&quot;: 98,
+    &quot;used_memory_mb&quot;: 15732,
+    &quot;power_watts&quot;: 251.95,
+    &quot;temperature_c&quot;: 70
+  }
+}</pre><script src="../docs/model-atlas/public-links.js" data-public-links></script></body></html>

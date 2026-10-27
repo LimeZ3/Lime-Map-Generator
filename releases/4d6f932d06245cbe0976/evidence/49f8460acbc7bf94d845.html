@@ -1,0 +1,65 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>probe_map_effects.py | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="../docs/model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1>probe_map_effects.py</h1><p class="meta">Saved public evidence snapshot: src/supmapai/tools/probe_map_effects.py</p><pre>&quot;&quot;&quot;Bounded, static effects feasibility probe; never executes map Lua.&quot;&quot;&quot;
+import json
+from pathlib import Path
+from collections import Counter
+from supmapai.extract.scmap_props import BinaryReader, _skip_raw_image, _skip_lighting, _skip_water
+from supmapai.extract.lua_entities import _master_markers_block, _named_blocks, MARKER_START_RE, TYPE_RE, _position_from_block
+
+ROOT = Path(__file__).resolve().parents[3]
+OUT = ROOT/'data/processed/map_effects_feasibility_v1'
+
+
+def waves(path):
+    r = BinaryReader(path.read_bytes())
+    assert r.data[:4] == b'Map\x1a'
+    r.skip(30)
+    _skip_raw_image(r)
+    version = r.read_i32()
+    if version not in (52,53,56,60):
+        raise ValueError(f'Unsupported SCMAP {version}')
+    w,h = r.read_i32(),r.read_i32()
+    r.read_f32();r.skip((w+1)*(h+1)*2)
+    if version&gt;=56:r.read_u8()
+    for _ in range(3):r.read_string_null()
+    if version&gt;=56:
+        n=r.read_i32()
+        if not 0&lt;=n&lt;=1024:raise ValueError('cube count')
+        for _ in range(n):r.read_string_null();r.read_string_null()
+    else:r.read_string_null()
+    _skip_lighting(r);_skip_water(r)
+    count=r.read_i32()
+    if not 0&lt;=count&lt;=500000:raise ValueError('wave count')
+    result=[]
+    for _ in range(count):
+        result.append(dict(texture=r.read_string_null(),ramp=r.read_string_null(),position=r.read_vec3(),
+                           rotation=r.read_f32(),velocity=r.read_vec3(),parameters=[r.read_f32() for _ in range(10)]))
+    return result
+
+
+def main():
+    rows=json.loads((OUT/'script_scan.json').read_text(encoding='utf-8'))
+    results=[];failures=[]
+    for row in rows:
+        path=Path(row['source_scmap']);markers=[]
+        try:
+            for f in path.parent.glob('*.lua'):
+                if not f.name.lower().endswith('_save.lua'):continue
+                text=f.read_text(encoding='utf-8',errors='replace')
+                for name,block in _named_blocks(_master_markers_block(text),MARKER_START_RE):
+                    t=TYPE_RE.search(block)
+                    if t and t[1] in ('Effect','Weather Generator','Weather Definition'):
+                        pos=_position_from_block(block)
+                        markers.append(dict(name=name,type=t[1],position=vars(pos) if pos else None,source=f.name,raw=block))
+            ws=waves(path)
+            results.append(dict(key=row['key'],folder=row['folder'],markers=markers,waves=ws))
+        except Exception as e:failures.append(dict(key=row['key'],error=str(e)))
+    (OUT/'static_inventory.json').write_text(json.dumps(dict(maps=results,failures=failures),indent=2),encoding='utf-8')
+    print('scanned',len(results),'failed',len(failures),'maps with waves',sum(bool(r['waves']) for r in results),
+          'waves',sum(len(r['waves']) for r in results),'marker maps',sum(bool(r['markers']) for r in results))
+    for r in results:
+        if r['markers']:print(r['folder'],dict(Counter(m['type'] for m in r['markers'])))
+    if failures:print(failures[:3])
+
+
+if __name__=='__main__':main()
+</pre><script src="../docs/model-atlas/public-links.js" data-public-links></script></body></html>

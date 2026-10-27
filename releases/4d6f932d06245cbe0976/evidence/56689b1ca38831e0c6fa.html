@@ -1,0 +1,200 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>reclaim_composer.py | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="../docs/model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1>reclaim_composer.py</h1><p class="meta">Saved public evidence snapshot: src/supmapai/export/reclaim_composer.py</p><pre>&quot;&quot;&quot;Compose native tree/rock props from physical-value allocation heatmaps.&quot;&quot;&quot;
+
+from collections import Counter
+from pathlib import Path
+import zipfile
+
+import numpy as np
+
+from supmapai.export.symmetry_geometry import bilinear_height
+from supmapai.extract.blueprint_values import build_index
+from supmapai.ml.terrain_symmetry import average
+
+KINDS = ('trees', 'rocks')
+PRIMARY = ('energy', 'mass')
+POOL = {
+    'trees': ['trees/brch01', 'trees/oak01_s1', 'trees/pine06', 'trees/pine06_big', 'trees/pine07'],
+    'rocks': ['rocks/rock01', 'rocks/rock02', 'rocks/rock03', 'rocks/rock04',
+              'rocks/rock05', 'rocks/rockpile01', 'rocks/rockpile02'],
+}
+
+
+def load_assets(game_data, faf_env):
+    &quot;&quot;&quot;Use installed stock meshes, with active FAF economy overrides/merge rules.&quot;&quot;&quot;
+    game_data, faf_env = Path(game_data), Path(faf_env)
+    index = build_index(game_data, faf_env)
+    with zipfile.ZipFile(game_data/'env.scd') as archive:
+        stock = {name.lower() for name in archive.namelist()}
+    result = {}
+    for kind, names in POOL.items():
+        result[kind] = []
+        for name in names:
+            key = 'env/evergreen/props/'+name+'_prop.bp'
+            if key not in stock or key not in index:
+                raise ValueError('Missing stock composer asset: '+key)
+            bp = index[key]
+            if ('RECLAIMABLE' not in bp['categories'] or bp['blueprint_kind'] != 'prop'
+                    or any(bp.get('reclaim_field_status', {}).get('Reclaim'+r+'Max') == 'unparsed'
+                           for r in ('Mass', 'Energy'))):
+                raise ValueError('Unresolved or non-reclaimable composer asset: '+key)
+            result[kind].append(dict(path='/'+key, mass=bp['ReclaimMassMax'], energy=bp['ReclaimEnergyMax'],
+                scale=[1., 1., 1.], sources=bp['sources'],
+                blueprint_uniform_scale=bp.get('UniformScale'),
+                note='Instance scale is one; the game applies blueprint UniformScale'))
+    return result
+
+
+def validate_assets(assets):
+    for kind, primary in zip(KINDS, PRIMARY, strict=True):
+        if not assets.get(kind):
+            raise ValueError('Empty asset pool: '+kind)
+        for asset in assets[kind]:
+            if (not asset['path'].startswith('/env/') or not asset['path'].endswith('_prop.bp')
+                    or not np.isfinite([asset['mass'], asset['energy']]).all()
+                    or min(asset['mass'], asset['energy']) &lt; 0 or asset[primary] &lt;= 0
+                    or list(asset['scale']) != [1., 1., 1.]):
+                raise ValueError('Invalid composer blueprint or reclaim value')
+
+
+def normalized_fields(fields, symmetry):
+    fields = np.asarray(fields, dtype=np.float64)
+    if (fields.ndim != 3 or fields.shape[0] != 2 or fields.shape[1] != fields.shape[2]
+            or not np.isfinite(fields).all() or (fields &lt; 0).any()):
+        raise ValueError('Expected two finite nonnegative allocation fields')
+    if symmetry:
+        fields = average(fields, 'rotate180')
+    totals = fields.sum((1, 2), dtype=np.float64)
+    return np.divide(fields, totals[:, None, None], out=np.zeros_like(fields),
+                     where=totals[:, None, None] &gt; 0)
+
+
+class Spacing:
+    def __init__(self, distance):
+        self.distance, self.buckets = distance, {}
+
+    def accept(self, positions):
+        if self.distance == 0:
+            return True
+        distance = self.distance
+        for x, z in positions:
+            ix, iz = int(x//distance), int(z//distance)
+            for dx in (-1, 0, 1):
+                for dz in (-1, 0, 1):
+                    for px, pz in self.buckets.get((ix+dx, iz+dz), ()):
+                        if (px-x)**2+(pz-z)**2 &lt; distance**2:
+                            return False
+        if len(positions) == 2 and np.sum((np.array(positions[0])-positions[1])**2) &lt; distance**2:
+            return False
+        return True
+
+    def add(self, positions):
+        if self.distance:
+            for x, z in positions:
+                key = int(x//self.distance), int(z//self.distance)
+                self.buckets.setdefault(key, []).append((x, z))
+
+
+def compose(fields, budgets, vertices, assets, *, seed=11, symmetry=True, tiles=8,
+            min_spacing=0., max_props=20000, attempts=32, sea_level=128.):
+    &quot;&quot;&quot;Local value caps; no redistribution of quantization/crowding deficits.
+
+    Each budget tile has an independent seeded candidate stream. With spacing
+    disabled and the safety cap inactive, raising budgets preserves existing
+    assets/positions and adds more. Optional same-role spacing can couple tiles.
+    &quot;&quot;&quot;
+    fields = normalized_fields(fields, symmetry)
+    budgets = np.asarray(budgets, dtype=float)
+    vertices = np.asarray(vertices)
+    grid = fields.shape[-1]
+    if budgets.shape != (2,) or not np.isfinite(budgets).all() or (budgets &lt; 0).any():
+        raise ValueError('Two finite nonnegative physical budgets required')
+    if (vertices.ndim != 2 or vertices.shape[0] != vertices.shape[1] or vertices.shape[0] &lt; 2
+            or not np.isfinite(vertices).all() or not np.isfinite(sea_level)):
+        raise ValueError('Expected finite square terrain vertices')
+    if (not isinstance(tiles, int) or tiles &lt; 1 or grid % tiles or (symmetry and tiles % 2)
+            or not isinstance(max_props, int) or max_props &lt; 1 or not isinstance(attempts, int) or attempts &lt; 1
+            or not np.isfinite(min_spacing) or min_spacing &lt; 0 or not isinstance(seed, int) or seed &lt; 0):
+        raise ValueError('Invalid composer grid, spacing or safety limits')
+    validate_assets(assets)
+    extent, width = vertices.shape[0]-1, grid//tiles
+    projected = fields.copy()
+    desired = fields*budgets[:, None, None]
+    actual = np.zeros_like(fields)
+    props, points, reports = [], {}, {}
+    for role, (kind, primary) in enumerate(zip(KINDS, PRIMARY, strict=True)):
+        if budgets[role] &gt; 0 and fields[role].sum() == 0:
+            raise ValueError('Positive budget has no learned support: '+kind)
+        wanted = desired[role].reshape(tiles, width, tiles, width).sum((1, 3))
+        placed = np.zeros((tiles, tiles), float)
+        reasons, group_points, asset_counts = Counter(), [], Counter()
+        spacing = Spacing(min_spacing)
+        group_size = 2 if symmetry else 1
+        for tile in range(tiles*tiles//group_size):
+            tz, tx = divmod(tile, tiles)
+            partner = (tiles-1-tz, tiles-1-tx)
+            local_budget = wanted[tz, tx]*(2 if symmetry else 1)
+            if local_budget &lt;= 0:
+                continue
+            rng = np.random.default_rng(np.random.SeedSequence([seed, role, tile]))
+            weight = fields[role, tz*width:(tz+1)*width, tx*width:(tx+1)*width].ravel()
+            weight = weight/weight.sum()
+            spent, ordinal = 0., 0
+            while True:
+                asset = assets[kind][int(rng.integers(len(assets[kind])))]
+                cost = group_size*asset[primary]
+                if spent+cost &gt; local_budget+1e-9:
+                    reasons['indivisible_next_asset'] += 1
+                    break
+                if len(props)+group_size &gt; max_props:
+                    reasons['entity_cap'] += 1
+                    break
+                positions = None
+                for _ in range(attempts):
+                    cell = int(rng.choice(len(weight), p=weight))
+                    origin = np.array([tx*width+cell % width, tz*width+cell//width])*extent/grid
+                    xy = origin+rng.random(2)*extent/grid
+                    x, z = np.clip(np.rint(xy*1024)/1024, origin+1/1024, origin+extent/grid-1/1024)
+                    candidate = [(float(x), float(z))]
+                    if symmetry:
+                        candidate.append((float(extent-x), float(extent-z)))
+                    if spacing.accept(candidate):
+                        positions = candidate
+                        break
+                if positions is None:
+                    reasons['spacing_exhausted'] += 1
+                    break
+                spacing.add(positions)
+                yaw = float(rng.uniform(-np.pi, np.pi))
+                pair_id = f'{role}:{tile}:{ordinal}' if symmetry else None
+                for side, (x, z) in enumerate(positions):
+                    prop = dict(kind=kind, path=asset['path'], x=x, z=z,
+                        y=float(sea_level+bilinear_height(vertices, x, z)),
+                        rotation=yaw+side*np.pi, scale=list(asset['scale']),
+                        mass=float(asset['mass']), energy=float(asset['energy']), pair_id=pair_id)
+                    props.append(prop)
+                    group_points.append(dict(x=x, z=z, pair_id=pair_id, path=asset['path']))
+                    actual[role, min(grid-1, int(z*grid/extent)), min(grid-1, int(x*grid/extent))] += asset[primary]
+                    asset_counts[asset['path']] += 1
+                spent += cost
+                placed[tz, tx] += asset[primary]
+                if symmetry:
+                    placed[partner] += asset[primary]
+                ordinal += 1
+        achieved = float(placed.sum())
+        selected = [p for p in props if p['kind'] == kind]
+        reports[kind] = dict(primary=primary, requested=float(budgets[role]), achieved=achieved,
+            unmet=max(0., float(budgets[role])-achieved), entities=len(selected),
+            mass=sum(p['mass'] for p in selected), energy=sum(p['energy'] for p in selected),
+            target_by_area=wanted.tolist(), achieved_by_area=placed.tolist(),
+            unmet_by_area=np.maximum(wanted-placed, 0).tolist(), stopping_reasons=dict(reasons),
+            assets=dict(asset_counts), no_redistribution=True)
+        points[kind] = group_points
+    report = dict(schema='physical_reclaim_composer_v1', seed=seed, symmetry='rotate180' if symmetry else 'none',
+        budget_tiles=tiles, tile_width_world=extent/tiles, min_spacing=min_spacing, spacing_scope='within_each_role',
+        prefix_stable_across_budgets=min_spacing == 0 and not any(r['stopping_reasons'].get('entity_cap') for r in reports.values()),
+        max_props=max_props, terrain_masking=False, terrain_modified=False, resource_clearance=False,
+        roles=reports, entity_count=len(props), total_mass=sum(p['mass'] for p in props),
+        total_energy=sum(p['energy'] for p in props),
+        note='Tree energy and rock mass are separate budgets; total mass includes tree mass. No terrain filtering.')
+    return props, points, report, dict(allocation=projected, desired_primary=desired, actual_primary=actual)
+</pre><script src="../docs/model-atlas/public-links.js" data-public-links></script></body></html>

@@ -1,0 +1,87 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>curated_terrain_results.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="curated-terrain-experiment-results">Curated Terrain Experiment Results</h1>
+<p>Both overnight runs completed. Total supervisor runtime: 7 h 55 min 46 s.
+No held-out test set was read, and no game was launched during evaluation.</p>
+<table>
+<thead>
+<tr>
+<th>Model</th>
+<th align="right">Parameters</th>
+<th align="right">Updates</th>
+<th align="right">Time</th>
+<th align="right">Best Validation Loss</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Small</td>
+<td align="right">2,988,787</td>
+<td align="right">20,864</td>
+<td align="right">1.01 h</td>
+<td align="right">0.011700</td>
+</tr>
+<tr>
+<td>Multiscale</td>
+<td align="right">28,812,291</td>
+<td align="right">51,269</td>
+<td align="right">6.88 h</td>
+<td align="right">0.009677</td>
+</tr>
+</tbody></table>
+<p>The larger run&#39;s best held-out denoising loss is <strong>17.3% lower</strong>. This is not a
+17.3% improvement in gameplay quality. Architecture, regularization and compute
+budget differ, so this does not isolate parameter count as the cause.</p>
+<p>The multiscale checkpoint selected by validation is step <strong>36,509</strong>, at 4.89 h.
+The final checkpoint scored 0.010175, about 5.1% worse than the best. This is a
+reason to keep the best checkpoint, not proof of memorization by itself.</p>
+<h2 id="fresh-evaluation">Fresh Evaluation</h2>
+<p>Best EMA checkpoints from both runs were sampled at identical seeds, requests,
+1v1 base positions, 100 DDIM steps and CFG 1.5. Both use the same deterministic
+rotation-symmetry/water-preserving/light-smoothing decoder, without resource pads
+or passage carving. Each model produced 12 water-sweep maps and 32 control maps:
+<strong>88 samples total</strong>. Raw and final geometry were measured separately.</p>
+<p>An evaluation-only CUDA allocation error interrupted the first sampling process.
+The saved samples were verified and only the missing 22 were generated in a fresh
+process with per-sample CUDA-cache cleanup. Training/checkpoints were unaffected.
+The generation timing in <code>generation.json</code> covers the resumed invocation only,
+not all earlier sampling work.</p>
+<h2 id="findings">Findings</h2>
+<ul>
+<li>Visually, the multiscale samples have smoother, broader terrain formations and
+less fine noisy relief. This is a visual judgment, not a measured quality score.</li>
+<li>Water fraction is reasonably steerable, not exact. Mean absolute coverage error
+across requests of 5%, 20% and 45%: small <strong>2.23 percentage points</strong>, multiscale
+<strong>2.18 percentage points</strong>. Maximum raw/final area drift is below 0.12 points.</li>
+<li>In the four-seed front-width comparison, the requested wider front gives a wider
+final front in <strong>4/4 small</strong> and <strong>3/4 multiscale</strong> cases. Mean measured changes
+are +46.8 and +30.6 map units, respectively. These are modest effects, not accurate
+reproduction of the requested absolute widths.</li>
+<li>Fragmentation moves in the expected direction in 4/4 small cases and 3/3
+comparable multiscale cases. The fourth multiscale comparison is invalid because
+a supposedly larger-span terrain has disconnected bases; it is not a success.
+This fragmentation metric is not a count of independent military lanes.</li>
+<li>Bottleneck contraction has mixed, generally small effects. Stronger/longer
+bottlenecks are not reliably controlled; requested sustained restriction duration
+increases in only 1/4 cases for each model, and the multiscale mean change is in
+the wrong direction.</li>
+<li>Disconnection requests fail in <strong>all four seeds for both models</strong>, before and
+after postprocessing: the requested-disconnected bases remain connected.</li>
+<li>Neither model triggers the coarse copy-warning heuristic in its 12 water samples.
+The eight-orientation nearest-training-map comparison is not proof against
+memorization, local reuse or near-copies under other transformations.</li>
+</ul>
+<p>These are exploratory four-seed comparisons, not statistical guarantees. The
+larger model is a promising visual terrain baseline, but has not demonstrated
+better strategic steering. More parameters and hours did not fix every control.
+The next work should target conditioning/data support and gameplay-level checks,
+rather than merely extending the same training run.</p>
+<h2 id="artifacts">Artifacts</h2>
+<p><code>data/models/terrain_curated_overnight_results_v1/index.html</code> is a static local
+gallery with the same four seeds side by side, plus control and neighbor sheets.</p>
+<ul>
+<li><code>comparison.png</code>: small left / multiscale right, four seeds, 20% water.</li>
+<li><code>validation.png</code>: held-out loss versus training wall time, best checkpoints marked.</li>
+<li><code>summary.json</code>: machine-readable aggregate metrics.</li>
+<li>Per-model <code>controls/</code>: PNG panels, raw/final measurements and request definitions.</li>
+<li>Per-model <code>training_neighbors.png</code>: generated terrain beside its nearest training map.</li>
+</ul>
+<p>No maps have been exported to the game or certified playable by this evaluation.</p>
+<script src="model-atlas/public-links.js" data-public-links></script></body></html>
