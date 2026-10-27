@@ -1,0 +1,133 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>navigation.py | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="../docs/model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1>navigation.py</h1><p class="meta">Saved public evidence snapshot: src/supmapai/strategy/navigation.py</p><pre>&quot;&quot;&quot;Raw terrain movement rules and conservative naval factory feasibility.
+
+Mirrors the corner/depth rules in the pinned MIT community NavGenerator. Raw
+grids stay separate from its compressed/culled AI labels. These masks do not
+include engine unit collisions, props, factory roll-off or projectile behavior.
+&quot;&quot;&quot;
+import numpy as np
+from scipy import ndimage
+
+
+def raw_layers(vertices, terrain_types, water_elevation, area=None):
+    h,w=terrain_types.shape
+    if vertices.shape!=(h+1,w+1):
+        raise ValueError('Height vertices and terrain grid differ')
+    tl,tr,bl,br=vertices[:-1,:-1],vertices[:-1,1:],vertices[1:,:-1],vertices[1:,1:]
+    flat=(abs(tl-tr)&lt;.75)&amp;(abs(bl-br)&lt;.75)&amp;(abs(tl-bl)&lt;.75)&amp;(abs(tr-br)&lt;.75)
+    depth=np.maximum(water_elevation-vertices,0) if water_elevation is not None else np.zeros_like(vertices)
+    average=(depth[:-1,:-1]+depth[:-1,1:]+depth[1:,:-1]+depth[1:,1:])*.25
+    # Upstream and FAF sample blocking terrain at the far corner. Out-of-map
+    # far corners are Default terrain; preserve that boundary behavior.
+    blocked=np.zeros((h,w),bool)
+    blocked[:-1,:-1]=np.isin(terrain_types[1:,1:],[9,230])
+    opened=~blocked
+    if area:
+        z,x=np.indices((h,w));opened&amp;=(x+1&gt;=area['x0'])&amp;(x+1&lt;=area['x1'])&amp;(z+1&gt;=area['z0'])&amp;(z+1&lt;=area['z1'])
+    masks=dict(land=opened&amp;flat&amp;(average&lt;=0),water=opened&amp;(average&gt;=1.5),
+        amphibious=opened&amp;flat&amp;(average&lt;=25),hover=opened&amp;((average&gt;=1)|flat))
+    labels={key:ndimage.label(mask)[0].astype('&lt;i4') for key,mask in masks.items()}
+    return dict(masks=masks,labels=labels,depth=average,flat=flat)
+
+
+def spawn_region(labels, spawn):
+    x,z=int(np.floor(spawn['x'])),int(np.floor(spawn['z']))
+    if 0&lt;=z&lt;labels.shape[0] and 0&lt;=x&lt;labels.shape[1]:
+        return int(labels[z,x])
+    return 0
+
+
+def trace_distance_route(labels,distances,origin,target):
+    &quot;&quot;&quot;Recover one shortest cell route from a cached upstream Dijkstra field.
+
+    Uses the upstream eight-neighbor rule, including no diagonal corner cuts.
+    No new grid search is performed. A field must belong to the supplied origin.
+    Unreachable targets return None; inconsistent fields raise rather than draw
+    a misleading route. Points are cell centres in x,z order.
+    &quot;&quot;&quot;
+    if labels.shape!=distances.shape:raise ValueError('Distance and navigation grid shapes differ')
+    h,w=labels.shape
+    start=(int(np.floor(origin['x'])),int(np.floor(origin['z'])))
+    goal=(int(np.floor(target['x'])),int(np.floor(target['z'])))
+    if any(not (0&lt;=x&lt;w and 0&lt;=z&lt;h) for x,z in [start,goal]):raise ValueError('Route endpoint outside map')
+    sx,sz=start;gx,gz=goal
+    if labels[sz,sx]&lt;=0 or labels[gz,gx]&lt;=0 or not np.isfinite(distances[gz,gx]):return None
+    if distances[sz,sx]!=0:raise ValueError('Distance field does not originate at requested spawn')
+    points=[goal];x,z=goal
+    while (x,z)!=start:
+        current=distances[z,x];candidates=[]
+        for dx,dz in [(1,0),(-1,0),(0,1),(0,-1),(1,1),(1,-1),(-1,1),(-1,-1)]:
+            nx,nz=x+dx,z+dz
+            if not (0&lt;=nx&lt;w and 0&lt;=nz&lt;h) or labels[nz,nx]&lt;=0:continue
+            if dx and dz and (labels[z,nx]&lt;=0 or labels[nz,x]&lt;=0):continue
+            previous=distances[nz,nx]
+            if not np.isfinite(previous) or previous&gt;=current:continue
+            step=np.float32(1.41421356 if dx and dz else 1)
+            residual=abs(float(np.float32(previous+step))-float(current))
+            candidates.append((residual,nx,nz))
+        if not candidates:raise ValueError('Distance field has no legal predecessor')
+        error,x,z=min(candidates)
+        if error&gt;max(1e-5,4*float(np.spacing(current))):raise ValueError('Distance field violates shortest-path recurrence')
+        points.append((x,z))
+    points.reverse()
+    return dict(distance=float(distances[gz,gx]),points=[[x+.5,z+.5] for x,z in points],
+        method='backtrace_cached_upstream_dijkstra',layer_rule='eight_neighbors_no_diagonal_corner_cuts')
+
+
+def rectangle_fits(mask,sx,sz):
+    &quot;&quot;&quot;Axis-aligned placement centres; outside the playable grid never fits.&quot;&quot;&quot;
+    sx,sz=int(np.ceil(sx)),int(np.ceil(sz))
+    if sx&lt;1 or sz&lt;1:
+        raise ValueError('Factory skirt must be positive')
+    return ndimage.minimum_filter(mask.astype(np.uint8),size=(sz,sx),mode='constant',cval=0).astype(bool)
+
+
+def launch_candidates(layers,spawn,engineer,factory):
+    region=spawn_region(layers['labels'][engineer['navigation_layer']],spawn)
+    shape=layers['depth'].shape
+    if region&lt;=0:
+        return np.zeros(shape,bool),[],dict(status='spawn_not_on_engineer_grid')
+    reachable=layers['labels'][engineer['navigation_layer']]==region
+    p=factory['physics'];f=factory['footprint']
+    sx,sz=p.get('SkirtSizeX'),p.get('SkirtSizeZ')
+    if sx is None or sz is None or f.get('MinWaterDepth') is None:
+        return np.zeros(shape,bool),[],dict(status='factory_fields_unresolved')
+    deep=(layers['depth']&gt;=f['MinWaterDepth'])&amp;(layers['labels']['water']&gt;0)
+    fits=rectangle_fits(deep,sx,sz)|rectangle_fits(deep,sz,sx)
+    # Building distance includes builder footprint and target skirt, according
+    # to the pinned FAF postprocessor. Treat skirt as centred here and record
+    # actual offsets/rolloff as unresolved, not as confirmed game placement.
+    build_radius=engineer['build_distance']+max(engineer['footprint'].get('SizeX',1),engineer['footprint'].get('SizeZ',1))+max(sx,sz)
+    distance=ndimage.distance_transform_edt(~reachable)
+    candidate=fits&amp;(distance&lt;=build_radius)&amp;(layers['labels']['water']&gt;0)
+    basins=sorted(int(v) for v in np.unique(layers['labels']['water'][candidate]) if v&gt;0)
+    return candidate,basins,dict(status='terrain_and_build_reach_candidate_not_engine_placement_verified',
+        build_radius=build_radius,skirt=[sx,sz],skirt_offsets=[p.get('SkirtOffsetX'),p.get('SkirtOffsetZ')],
+        unresolved=['exact_skirt_origin','rolloff_clearance','prop_and_unit_collision','engine_placement'])
+
+
+def range_witnesses(labels,basins,targets,weapons):
+    &quot;&quot;&quot;Unique resource reach plus a same-basin witness. No LOS/trajectory claim.&quot;&quot;&quot;
+    result=[];h,w=labels.shape
+    weapons=[weapon for weapon in weapons if 'Land' in weapon.get('FireTargetLayerCapsTable',{}).get('Water','').split('|')
+        and weapon.get('MaxRadius') is not None and not weapon.get('DummyWeapon',False)
+        and not weapon.get('EnabledByEnhancement') and not weapon.get('TargetRestrictOnlyAllow')]
+    for target in targets:
+        hits=[]
+        for weapon in weapons:
+            radius=weapon['MaxRadius'];minradius=weapon.get('MinRadius') or 0
+            x0=max(0,int(np.floor(target['x']-radius-1)));x1=min(w,int(np.ceil(target['x']+radius+1)))
+            z0=max(0,int(np.floor(target['z']-radius-1)));z1=min(h,int(np.ceil(target['z']+radius+1)))
+            z,x=np.mgrid[z0:z1,x0:x1]
+            d=np.hypot(x+.5-target['x'],z+.5-target['z'])
+            valid=np.isin(labels[z0:z1,x0:x1],basins)&amp;(d&gt;=minradius)&amp;(d&lt;=radius)
+            for basin in np.unique(labels[z0:z1,x0:x1][valid]):
+                eligible=valid&amp;(labels[z0:z1,x0:x1]==basin)
+                indices=np.where(eligible,d,np.inf)
+                local_z,local_x=np.unravel_index(np.argmin(indices),indices.shape)
+                hits.append(dict(weapon=weapon.get('Label'),region=int(basin),
+                    firing_x=x0+local_x+.5,firing_z=z0+local_z+.5,distance=float(indices[local_z,local_x]),
+                    max_radius=radius,min_radius=minradius,can_hit_in_game=None,
+                    validation='range_only_terrain_collision_and_ballistics_not_evaluated'))
+        result.append(dict(**target,range_reachable=bool(hits),witnesses=hits))
+    return result
+</pre><script src="../docs/model-atlas/public-links.js" data-public-links></script></body></html>

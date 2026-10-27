@@ -1,0 +1,1350 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>report.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="../../../docs/model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="community-ratings-versus-map-strategy-estimates">Community ratings versus map-strategy estimates</h1>
+<p>Snapshot: 2026-10-15T14:50:40.426Z (UTC). 279 historical submissions reduce to 267 current participant/map reviews across 186 maps and 23 contributors. Latest review wins across phases; unknown/N/A are never zero. All stored numeric answers in this snapshot use the literal 1–5 scale.</p>
+<p>Exact map/version matches: <strong>44 maps, 97 reviews</strong>, including 14 marked 1v1. Other versions are not silently merged.</p>
+<h2 id="interpretation">Interpretation</h2>
+<p>This checks agreement between two sources, not whether community opinions are correct. Pipeline predictions are hypotheses. Offensive drops directly resemble the survey drops question; generic air-raid exposure is only one component of air importance. Front width is only one component of frontline openness. Expansion importance is not expansion-drop importance, so those labels are not equated. Gameplay quality, visual appeal, tech importance, economy safety and navy importance are not validated by these three outputs.</p>
+<p>Primary comparisons use ratings marked 1v1, with experienced and no-suggestion sensitivity views. Opponent slots and default adaptive settings are not verified by that label. One Setons reviewer explicitly assessed the middle slots, which can differ from slot 1 versus mirror. Most review setups are unspecified. All-setup results are context checks; team-game disagreement is not a direct model error.</p>
+<p>Directional screening uses human median 1–2 = low, 3 = middle, 4–5 = high. Model mex share ≤10% = low, ≥40% = high; between is middle. These are transparent descriptive bands, not calibrated rating conversions or newly tuned model thresholds. Front bands reuse existing closed/mixed/open categories. Disconnected land has no scalar openness comparison; it does not mean a closed map. At least three independent ratings per question are needed before calling a result a repeated pattern; fewer are explicitly tentative. Raw distributions are retained.</p>
+<p>No absolute prediction-versus-rating MAE is reported: the model 1–5 scale and collection percentile scale are not equivalent to the survey scale. No thresholds or algorithms were changed to fit annotations.</p>
+<h2 id="matched-1v1-observations">Matched 1v1 observations</h2>
+<table>
+<thead>
+<tr>
+<th>Map</th>
+<th>Question</th>
+<th>Community mean (n; experienced n; range)</th>
+<th>Pipeline</th>
+<th>Screening</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Setons Clutch - FAF version</td>
+<td>drops</td>
+<td>4.50/5 (n=2; experienced=1; 4–5)</td>
+<td>48.1% (52/108 mex; 10 destinations)</td>
+<td>Directional agreement; tentative</td>
+</tr>
+<tr>
+<td>Setons Clutch - FAF version</td>
+<td>air</td>
+<td>4.50/5 (n=2; experienced=1; 4–5)</td>
+<td>48.1% (52/108 mex; 10 destinations)</td>
+<td>Directional agreement; tentative</td>
+</tr>
+<tr>
+<td>Setons Clutch - FAF version</td>
+<td>open</td>
+<td>2.00/5 (n=2; experienced=1; 2–2)</td>
+<td>47.5 units; mixed</td>
+<td>Adjacent signals; tentative</td>
+</tr>
+<tr>
+<td>Point of Reach v4</td>
+<td>drops</td>
+<td>5.00/5 (n=2; experienced=1; 5–5)</td>
+<td>46.5% (40/86 mex; 12 destinations)</td>
+<td>Directional agreement; tentative</td>
+</tr>
+<tr>
+<td>Point of Reach v4</td>
+<td>air</td>
+<td>5.00/5 (n=2; experienced=1; 5–5)</td>
+<td>46.5% (40/86 mex; 12 destinations)</td>
+<td>Directional agreement; tentative</td>
+</tr>
+<tr>
+<td>Point of Reach v4</td>
+<td>open</td>
+<td>5.00/5 (n=2; experienced=1; 5–5)</td>
+<td>Land disconnected; openness not comparable</td>
+<td>Not comparable: disconnected land; tentative</td>
+</tr>
+<tr>
+<td>Seraphim Glaciers - FAF version</td>
+<td>drops</td>
+<td>4.50/5 (n=2; experienced=1; 4–5)</td>
+<td>75.0% (57/76 mex; 9 destinations)</td>
+<td>Directional agreement; tentative</td>
+</tr>
+<tr>
+<td>Seraphim Glaciers - FAF version</td>
+<td>air</td>
+<td>5.00/5 (n=2; experienced=1; 5–5)</td>
+<td>75.0% (57/76 mex; 9 destinations)</td>
+<td>Directional agreement; tentative</td>
+</tr>
+<tr>
+<td>Seraphim Glaciers - FAF version</td>
+<td>open</td>
+<td>4.50/5 (n=2; experienced=1; 4–5)</td>
+<td>Land disconnected; openness not comparable</td>
+<td>Not comparable: disconnected land; tentative</td>
+</tr>
+<tr>
+<td>Adaptive Gornyak</td>
+<td>drops</td>
+<td>2.00/5 (n=1; experienced=0; 2–2)</td>
+<td>0.0% (0/50 mex; 0 destinations)</td>
+<td>Directional agreement; tentative</td>
+</tr>
+<tr>
+<td>Adaptive Gornyak</td>
+<td>air</td>
+<td>4.00/5 (n=1; experienced=0; 4–4)</td>
+<td>0.0% (0/50 mex; 0 destinations)</td>
+<td>Opposite signals; tentative</td>
+</tr>
+<tr>
+<td>Adaptive Gornyak</td>
+<td>open</td>
+<td>3.00/5 (n=1; experienced=0; 3–3)</td>
+<td>54.2 units; mixed</td>
+<td>Directional agreement; tentative</td>
+</tr>
+<tr>
+<td>Adaptive Hardshield Oasis</td>
+<td>air</td>
+<td>4.00/5 (n=1; experienced=1; 4–4)</td>
+<td>0.0% (0/30 mex; 0 destinations)</td>
+<td>Opposite signals; tentative</td>
+</tr>
+<tr>
+<td>Adaptive Hardshield Oasis</td>
+<td>open</td>
+<td>3.00/5 (n=1; experienced=1; 3–3)</td>
+<td>20.0 units; closed</td>
+<td>Adjacent signals; tentative</td>
+</tr>
+<tr>
+<td>Adaptive Rainy day</td>
+<td>drops</td>
+<td>4.00/5 (n=1; experienced=1; 4–4)</td>
+<td>32.3% (20/62 mex; 12 destinations)</td>
+<td>Adjacent signals; tentative</td>
+</tr>
+<tr>
+<td>Adaptive Rainy day</td>
+<td>air</td>
+<td>4.00/5 (n=1; experienced=1; 4–4)</td>
+<td>32.3% (20/62 mex; 12 destinations)</td>
+<td>Adjacent signals; tentative</td>
+</tr>
+<tr>
+<td>Adaptive Rainy day</td>
+<td>open</td>
+<td>4.00/5 (n=1; experienced=1; 4–4)</td>
+<td>25.1 units; mixed</td>
+<td>Adjacent signals; tentative</td>
+</tr>
+<tr>
+<td>Arcane</td>
+<td>drops</td>
+<td>4.00/5 (n=1; experienced=1; 4–4)</td>
+<td>25.9% (14/54 mex; 4 destinations)</td>
+<td>Adjacent signals; tentative</td>
+</tr>
+<tr>
+<td>Arcane</td>
+<td>air</td>
+<td>4.00/5 (n=1; experienced=1; 4–4)</td>
+<td>25.9% (14/54 mex; 4 destinations)</td>
+<td>Adjacent signals; tentative</td>
+</tr>
+<tr>
+<td>Arcane</td>
+<td>open</td>
+<td>4.00/5 (n=1; experienced=1; 4–4)</td>
+<td>28.3 units; mixed</td>
+<td>Adjacent signals; tentative</td>
+</tr>
+<tr>
+<td>Cobalt Valley</td>
+<td>drops</td>
+<td>2.00/5 (n=1; experienced=0; 2–2)</td>
+<td>0.0% (0/28 mex; 0 destinations)</td>
+<td>Directional agreement; tentative</td>
+</tr>
+<tr>
+<td>Cobalt Valley</td>
+<td>air</td>
+<td>3.00/5 (n=1; experienced=0; 3–3)</td>
+<td>0.0% (0/28 mex; 0 destinations)</td>
+<td>Adjacent signals; tentative</td>
+</tr>
+<tr>
+<td>Cobalt Valley</td>
+<td>open</td>
+<td>3.00/5 (n=1; experienced=0; 3–3)</td>
+<td>80.5 units; open</td>
+<td>Adjacent signals; tentative</td>
+</tr>
+<tr>
+<td>Festea VII</td>
+<td>drops</td>
+<td>4.00/5 (n=1; experienced=1; 4–4)</td>
+<td>28.0% (14/50 mex; 6 destinations)</td>
+<td>Adjacent signals; tentative</td>
+</tr>
+<tr>
+<td>Festea VII</td>
+<td>air</td>
+<td>4.00/5 (n=1; experienced=1; 4–4)</td>
+<td>36.0% (18/50 mex; 8 destinations)</td>
+<td>Adjacent signals; tentative</td>
+</tr>
+<tr>
+<td>Festea VII</td>
+<td>open</td>
+<td>3.00/5 (n=1; experienced=1; 3–3)</td>
+<td>51.2 units; mixed</td>
+<td>Directional agreement; tentative</td>
+</tr>
+<tr>
+<td>Forgotten Facilities 10x10</td>
+<td>drops</td>
+<td>5.00/5 (n=1; experienced=1; 5–5)</td>
+<td>6.5% (4/62 mex; 2 destinations)</td>
+<td>Opposite signals; tentative</td>
+</tr>
+<tr>
+<td>Forgotten Facilities 10x10</td>
+<td>air</td>
+<td>4.00/5 (n=1; experienced=1; 4–4)</td>
+<td>12.9% (8/62 mex; 6 destinations)</td>
+<td>Adjacent signals; tentative</td>
+</tr>
+<tr>
+<td>Forgotten Facilities 10x10</td>
+<td>open</td>
+<td>3.00/5 (n=1; experienced=1; 3–3)</td>
+<td>67.9 units; open</td>
+<td>Adjacent signals; tentative</td>
+</tr>
+</tbody></table>
+<h2 id="all-reviewed-setups-context-and-repeated-patterns">All reviewed setups: context and repeated patterns</h2>
+<p><strong>Team configurations are mixed here.</strong> Use the distributions and configuration counts before interpreting agreement.</p>
+<table>
+<thead>
+<tr>
+<th>Map</th>
+<th>Reviewed configurations</th>
+<th>Drops: community / pipeline</th>
+<th>Air: community / pipeline</th>
+<th>Openness: community / pipeline</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>DualGap Adaptive</td>
+<td>6v6: 23</td>
+<td>2.43/5 (n=21; experienced=18; 1–4) / 62.3% (43/69 mex; 4 destinations); Opposite signals</td>
+<td>3.76/5 (n=21; experienced=18; 2–5) / 76.8% (53/69 mex; 6 destinations); Directional agreement</td>
+<td>2.33/5 (n=21; experienced=18; 1–4) / Land disconnected; openness not comparable; Not comparable: disconnected land</td>
+</tr>
+<tr>
+<td>Setons Clutch - FAF version</td>
+<td>4v4: 21, 1v1: 2</td>
+<td>3.85/5 (n=20; experienced=9; 2–5) / 48.1% (52/108 mex; 10 destinations); Directional agreement</td>
+<td>4.27/5 (n=22; experienced=11; 2–5) / 48.1% (52/108 mex; 10 destinations); Directional agreement</td>
+<td>3.05/5 (n=21; experienced=11; 1–5) / 47.5 units; mixed; Directional agreement</td>
+</tr>
+<tr>
+<td>A_cinder_5v5_Adaptive</td>
+<td>5v5: 3</td>
+<td>2.50/5 (n=2; experienced=1; 2–3) / 2.2% (2/92 mex; 2 destinations); Adjacent signals</td>
+<td>4.50/5 (n=2; experienced=1; 4–5) / 2.2% (2/92 mex; 2 destinations); Opposite signals</td>
+<td>3.00/5 (n=2; experienced=1; 2–4) / 21.7 units; closed; Adjacent signals</td>
+</tr>
+<tr>
+<td>Abrogation</td>
+<td>4v4: 2</td>
+<td>4.50/5 (n=2; experienced=2; 4–5) / 14.3% (20/140 mex; 8 destinations); Adjacent signals</td>
+<td>3.50/5 (n=2; experienced=2; 3–4) / 11.4% (16/140 mex; 6 destinations); Directional agreement</td>
+<td>3.50/5 (n=2; experienced=2; 3–4) / 89.4 units; open; Adjacent signals</td>
+</tr>
+<tr>
+<td>canis 4v4 spezial edition</td>
+<td>4v4: 2</td>
+<td>2.00/5 (n=2; experienced=2; 1–3) / 0.0% (0/64 mex; 0 destinations); Directional agreement</td>
+<td>4.00/5 (n=2; experienced=2; 4–4) / 0.0% (0/64 mex; 0 destinations); Opposite signals</td>
+<td>2.50/5 (n=2; experienced=2; 1–4) / 28.4 units; mixed; Directional agreement</td>
+</tr>
+<tr>
+<td>Point of Reach v4</td>
+<td>1v1: 2</td>
+<td>5.00/5 (n=2; experienced=1; 5–5) / 46.5% (40/86 mex; 12 destinations); Directional agreement</td>
+<td>5.00/5 (n=2; experienced=1; 5–5) / 46.5% (40/86 mex; 12 destinations); Directional agreement</td>
+<td>5.00/5 (n=2; experienced=1; 5–5) / Land disconnected; openness not comparable; Not comparable: disconnected land</td>
+</tr>
+<tr>
+<td>Selkie Isle</td>
+<td>4v4: 2</td>
+<td>4.00/5 (n=1; experienced=1; 4–4) / 66.0% (70/106 mex; 14 destinations); Directional agreement</td>
+<td>5.00/5 (n=1; experienced=1; 5–5) / 66.0% (70/106 mex; 14 destinations); Directional agreement</td>
+<td>5.00/5 (n=1; experienced=1; 5–5) / Land disconnected; openness not comparable; Not comparable: disconnected land</td>
+</tr>
+<tr>
+<td>Seraphim Glaciers - FAF version</td>
+<td>1v1: 2</td>
+<td>4.50/5 (n=2; experienced=1; 4–5) / 75.0% (57/76 mex; 9 destinations); Directional agreement</td>
+<td>5.00/5 (n=2; experienced=1; 5–5) / 75.0% (57/76 mex; 9 destinations); Directional agreement</td>
+<td>4.50/5 (n=2; experienced=1; 4–5) / Land disconnected; openness not comparable; Not comparable: disconnected land</td>
+</tr>
+<tr>
+<td>The Drunken Beetles Dance</td>
+<td>2v2: 1, 4v4: 1</td>
+<td>3.50/5 (n=2; experienced=1; 3–4) / 44.8% (52/116 mex; 11 destinations); Adjacent signals</td>
+<td>4.50/5 (n=2; experienced=1; 4–5) / 69.0% (80/116 mex; 25 destinations); Directional agreement</td>
+<td>3.00/5 (n=2; experienced=1; 2–4) / 15.2 units; closed; Adjacent signals</td>
+</tr>
+<tr>
+<td>Twin Rivers</td>
+<td>3v3: 2</td>
+<td>3.50/5 (n=2; experienced=1; 3–4) / 20.7% (12/58 mex; 4 destinations); Directional agreement</td>
+<td>3.00/5 (n=2; experienced=1; 3–3) / 20.7% (12/58 mex; 4 destinations); Directional agreement</td>
+<td>1.50/5 (n=2; experienced=1; 1–2) / 101.6 units; open; Opposite signals</td>
+</tr>
+<tr>
+<td>A_Xander6_Adaptive</td>
+<td>5v5: 1</td>
+<td>3.00/5 (n=1; experienced=0; 3–3) / 12.9% (8/62 mex; 2 destinations); Directional agreement</td>
+<td>4.00/5 (n=1; experienced=0; 4–4) / 6.5% (4/62 mex; 2 destinations); Opposite signals</td>
+<td>4.00/5 (n=1; experienced=0; 4–4) / 115.3 units; open; Directional agreement</td>
+</tr>
+<tr>
+<td>adaptiadaptive War of the Gods</td>
+<td>8v8: 1</td>
+<td>No numeric answer / 36.4% (16/44 mex; 2 destinations); No numeric rating</td>
+<td>No numeric answer / 36.4% (16/44 mex; 2 destinations); No numeric rating</td>
+<td>No numeric answer / 18.8 units; closed; No numeric rating</td>
+</tr>
+<tr>
+<td>Adaptive Adrastea</td>
+<td>8v8: 1</td>
+<td>4.00/5 (n=1; experienced=1; 4–4) / 20.0% (16/80 mex; 7 destinations); Adjacent signals</td>
+<td>5.00/5 (n=1; experienced=1; 5–5) / 40.0% (32/80 mex; 11 destinations); Directional agreement</td>
+<td>3.00/5 (n=1; experienced=1; 3–3) / 25.4 units; mixed; Directional agreement</td>
+</tr>
+<tr>
+<td>adaptive alien planet Z92</td>
+<td>6v6: 1</td>
+<td>4.00/5 (n=1; experienced=0; 4–4) / 24.0% (36/150 mex; 13 destinations); Adjacent signals</td>
+<td>5.00/5 (n=1; experienced=0; 5–5) / 42.7% (64/150 mex; 25 destinations); Directional agreement</td>
+<td>5.00/5 (n=1; experienced=0; 5–5) / 4.4 units; closed; Opposite signals</td>
+</tr>
+<tr>
+<td>Adaptive Alpine Valley</td>
+<td>2v2: 1</td>
+<td>5.00/5 (n=1; experienced=0; 5–5) / 8.7% (4/46 mex; 2 destinations); Opposite signals</td>
+<td>3.00/5 (n=1; experienced=0; 3–3) / 8.7% (4/46 mex; 2 destinations); Adjacent signals</td>
+<td>4.00/5 (n=1; experienced=0; 4–4) / 333.1 units; open; Directional agreement</td>
+</tr>
+<tr>
+<td>Adaptive Azurean Isles</td>
+<td>8v8: 1</td>
+<td>4.00/5 (n=1; experienced=1; 4–4) / 46.5% (60/129 mex; 13 destinations); Directional agreement</td>
+<td>4.00/5 (n=1; experienced=1; 4–4) / 61.2% (79/129 mex; 26 destinations); Directional agreement</td>
+<td>5.00/5 (n=1; experienced=1; 5–5) / Land disconnected; openness not comparable; Not comparable: disconnected land</td>
+</tr>
+<tr>
+<td>Adaptive bones II</td>
+<td>5v5: 1</td>
+<td>No numeric answer / 43.6% (51/117 mex; 10 destinations); No numeric rating</td>
+<td>No numeric answer / 43.6% (51/117 mex; 10 destinations); No numeric rating</td>
+<td>No numeric answer / 6.1 units; closed; No numeric rating</td>
+</tr>
+<tr>
+<td>Adaptive Flooded Tabula Rasa</td>
+<td>6v6: 1</td>
+<td>4.00/5 (n=1; experienced=1; 4–4) / 47.6% (30/63 mex; 4 destinations); Directional agreement</td>
+<td>4.00/5 (n=1; experienced=1; 4–4) / 66.7% (42/63 mex; 8 destinations); Directional agreement</td>
+<td>3.00/5 (n=1; experienced=1; 3–3) / Land disconnected; openness not comparable; Not comparable: disconnected land</td>
+</tr>
+<tr>
+<td>Adaptive Gornyak</td>
+<td>1v1: 1</td>
+<td>2.00/5 (n=1; experienced=0; 2–2) / 0.0% (0/50 mex; 0 destinations); Directional agreement</td>
+<td>4.00/5 (n=1; experienced=0; 4–4) / 0.0% (0/50 mex; 0 destinations); Opposite signals</td>
+<td>3.00/5 (n=1; experienced=0; 3–3) / 54.2 units; mixed; Directional agreement</td>
+</tr>
+<tr>
+<td>Adaptive Hardshield Oasis</td>
+<td>1v1: 1</td>
+<td>No numeric answer / 0.0% (0/30 mex; 0 destinations); No numeric rating</td>
+<td>4.00/5 (n=1; experienced=1; 4–4) / 0.0% (0/30 mex; 0 destinations); Opposite signals</td>
+<td>3.00/5 (n=1; experienced=1; 3–3) / 20.0 units; closed; Adjacent signals</td>
+</tr>
+<tr>
+<td>Adaptive Hozaichi</td>
+<td>5v5: 1</td>
+<td>4.00/5 (n=1; experienced=0; 4–4) / 41.3% (38/92 mex; 10 destinations); Directional agreement</td>
+<td>5.00/5 (n=1; experienced=0; 5–5) / 47.8% (44/92 mex; 12 destinations); Directional agreement</td>
+<td>3.00/5 (n=1; experienced=0; 3–3) / 2.9 units; closed; Adjacent signals</td>
+</tr>
+<tr>
+<td>Adaptive Ishaah Nhaiv</td>
+<td>5v5: 1</td>
+<td>4.00/5 (n=1; experienced=0; 4–4) / 11.4% (8/70 mex; 2 destinations); Adjacent signals</td>
+<td>5.00/5 (n=1; experienced=0; 5–5) / 28.6% (20/70 mex; 6 destinations); Adjacent signals</td>
+<td>3.00/5 (n=1; experienced=0; 3–3) / 38.7 units; mixed; Directional agreement</td>
+</tr>
+<tr>
+<td>Adaptive Metir</td>
+<td>5v5: 1</td>
+<td>5.00/5 (n=1; experienced=1; 5–5) / 44.9% (44/98 mex; 12 destinations); Directional agreement</td>
+<td>3.00/5 (n=1; experienced=1; 3–3) / 69.4% (68/98 mex; 24 destinations); Adjacent signals</td>
+<td>3.00/5 (n=1; experienced=1; 3–3) / Land disconnected; openness not comparable; Not comparable: disconnected land</td>
+</tr>
+<tr>
+<td>adaptive millennium</td>
+<td>6v6: 1</td>
+<td>3.00/5 (n=1; experienced=1; 3–3) / 37.0% (20/54 mex; 10 destinations); Directional agreement</td>
+<td>4.00/5 (n=1; experienced=1; 4–4) / 40.7% (22/54 mex; 12 destinations); Directional agreement</td>
+<td>4.00/5 (n=1; experienced=1; 4–4) / Land disconnected; openness not comparable; Not comparable: disconnected land</td>
+</tr>
+<tr>
+<td>Adaptive Monument Valley</td>
+<td>6v6: 1</td>
+<td>3.00/5 (n=1; experienced=1; 3–3) / 12.9% (8/62 mex; 4 destinations); Directional agreement</td>
+<td>5.00/5 (n=1; experienced=1; 5–5) / 12.9% (8/62 mex; 4 destinations); Adjacent signals</td>
+<td>4.00/5 (n=1; experienced=1; 4–4) / 73.0 units; open; Directional agreement</td>
+</tr>
+<tr>
+<td>Adaptive pass lev</td>
+<td>6v6: 1</td>
+<td>1.00/5 (n=1; experienced=0; 1–1) / 0.0% (0/40 mex; 0 destinations); Directional agreement</td>
+<td>2.00/5 (n=1; experienced=0; 2–2) / 0.0% (0/40 mex; 0 destinations); Directional agreement</td>
+<td>1.00/5 (n=1; experienced=0; 1–1) / 71.8 units; open; Opposite signals</td>
+</tr>
+<tr>
+<td>Adaptive Rainy day</td>
+<td>1v1: 1</td>
+<td>4.00/5 (n=1; experienced=1; 4–4) / 32.3% (20/62 mex; 12 destinations); Adjacent signals</td>
+<td>4.00/5 (n=1; experienced=1; 4–4) / 32.3% (20/62 mex; 12 destinations); Adjacent signals</td>
+<td>4.00/5 (n=1; experienced=1; 4–4) / 25.1 units; mixed; Adjacent signals</td>
+</tr>
+<tr>
+<td>Adaptive sandy valley</td>
+<td>6v6: 1</td>
+<td>4.00/5 (n=1; experienced=0; 4–4) / 0.0% (0/71 mex; 0 destinations); Opposite signals</td>
+<td>4.00/5 (n=1; experienced=0; 4–4) / 0.0% (0/71 mex; 0 destinations); Opposite signals</td>
+<td>5.00/5 (n=1; experienced=0; 5–5) / 29.8 units; mixed; Adjacent signals</td>
+</tr>
+<tr>
+<td>Adaptive Waterhshed L</td>
+<td>6v6: 1</td>
+<td>1.00/5 (n=1; experienced=0; 1–1) / 12.0% (6/50 mex; 2 destinations); Adjacent signals</td>
+<td>5.00/5 (n=1; experienced=0; 5–5) / 36.0% (18/50 mex; 6 destinations); Adjacent signals</td>
+<td>4.00/5 (n=1; experienced=0; 4–4) / 65.1 units; open; Directional agreement</td>
+</tr>
+<tr>
+<td>Adaptive Wonder Open</td>
+<td>6v6: 1</td>
+<td>4.00/5 (n=1; experienced=0; 4–4) / 2.7% (2/74 mex; 1 destinations); Opposite signals</td>
+<td>4.00/5 (n=1; experienced=0; 4–4) / 2.7% (2/74 mex; 1 destinations); Opposite signals</td>
+<td>5.00/5 (n=1; experienced=0; 5–5) / 150.8 units; open; Directional agreement</td>
+</tr>
+<tr>
+<td>Adaptive_Lacrite</td>
+<td>5v5: 1</td>
+<td>5.00/5 (n=1; experienced=0; 5–5) / 75.0% (51/68 mex; 13 destinations); Directional agreement</td>
+<td>5.00/5 (n=1; experienced=0; 5–5) / 75.0% (51/68 mex; 13 destinations); Directional agreement</td>
+<td>4.00/5 (n=1; experienced=0; 4–4) / Land disconnected; openness not comparable; Not comparable: disconnected land</td>
+</tr>
+<tr>
+<td>Arcane</td>
+<td>1v1: 1</td>
+<td>4.00/5 (n=1; experienced=1; 4–4) / 25.9% (14/54 mex; 4 destinations); Adjacent signals</td>
+<td>4.00/5 (n=1; experienced=1; 4–4) / 25.9% (14/54 mex; 4 destinations); Adjacent signals</td>
+<td>4.00/5 (n=1; experienced=1; 4–4) / 28.3 units; mixed; Adjacent signals</td>
+</tr>
+<tr>
+<td>Cobalt Valley</td>
+<td>1v1: 1</td>
+<td>2.00/5 (n=1; experienced=0; 2–2) / 0.0% (0/28 mex; 0 destinations); Directional agreement</td>
+<td>3.00/5 (n=1; experienced=0; 3–3) / 0.0% (0/28 mex; 0 destinations); Adjacent signals</td>
+<td>3.00/5 (n=1; experienced=0; 3–3) / 80.5 units; open; Adjacent signals</td>
+</tr>
+<tr>
+<td>Corona</td>
+<td>4v4: 1</td>
+<td>4.00/5 (n=1; experienced=1; 4–4) / 9.6% (9/94 mex; 6 destinations); Opposite signals</td>
+<td>4.00/5 (n=1; experienced=1; 4–4) / 7.4% (7/94 mex; 5 destinations); Opposite signals</td>
+<td>4.00/5 (n=1; experienced=1; 4–4) / 45.2 units; mixed; Adjacent signals</td>
+</tr>
+<tr>
+<td>Disturbed adaptive</td>
+<td>5v5: 1</td>
+<td>2.00/5 (n=1; experienced=0; 2–2) / 0.0% (0/47 mex; 0 destinations); Directional agreement</td>
+<td>3.00/5 (n=1; experienced=0; 3–3) / 0.0% (0/47 mex; 0 destinations); Adjacent signals</td>
+<td>1.00/5 (n=1; experienced=0; 1–1) / 20.3 units; closed; Directional agreement</td>
+</tr>
+<tr>
+<td>Festea VII</td>
+<td>1v1: 1</td>
+<td>4.00/5 (n=1; experienced=1; 4–4) / 28.0% (14/50 mex; 6 destinations); Adjacent signals</td>
+<td>4.00/5 (n=1; experienced=1; 4–4) / 36.0% (18/50 mex; 8 destinations); Adjacent signals</td>
+<td>3.00/5 (n=1; experienced=1; 3–3) / 51.2 units; mixed; Directional agreement</td>
+</tr>
+<tr>
+<td>Forgotten Facilities 10x10</td>
+<td>1v1: 1</td>
+<td>5.00/5 (n=1; experienced=1; 5–5) / 6.5% (4/62 mex; 2 destinations); Opposite signals</td>
+<td>4.00/5 (n=1; experienced=1; 4–4) / 12.9% (8/62 mex; 6 destinations); Adjacent signals</td>
+<td>3.00/5 (n=1; experienced=1; 3–3) / 67.9 units; open; Adjacent signals</td>
+</tr>
+<tr>
+<td>Kappa</td>
+<td>5v5: 1</td>
+<td>5.00/5 (n=1; experienced=1; 5–5) / 22.7% (29/128 mex; 10 destinations); Adjacent signals</td>
+<td>5.00/5 (n=1; experienced=1; 5–5) / 21.1% (27/128 mex; 12 destinations); Adjacent signals</td>
+<td>4.00/5 (n=1; experienced=1; 4–4) / 33.4 units; mixed; Adjacent signals</td>
+</tr>
+<tr>
+<td>Monaki</td>
+<td>1v1: 1</td>
+<td>No numeric answer / 0.0% (0/30 mex; 0 destinations); No numeric rating</td>
+<td>No numeric answer / 0.0% (0/30 mex; 0 destinations); No numeric rating</td>
+<td>No numeric answer / 16.1 units; closed; No numeric rating</td>
+</tr>
+<tr>
+<td>Phenom Spartiate v2</td>
+<td>5v5: 1</td>
+<td>2.00/5 (n=1; experienced=1; 2–2) / 9.2% (9/98 mex; 3 destinations); Directional agreement</td>
+<td>4.00/5 (n=1; experienced=1; 4–4) / 7.1% (7/98 mex; 2 destinations); Opposite signals</td>
+<td>5.00/5 (n=1; experienced=1; 5–5) / 79.4 units; open; Directional agreement</td>
+</tr>
+<tr>
+<td>Project Tabula</td>
+<td>4v4: 1</td>
+<td>5.00/5 (n=1; experienced=1; 5–5) / 12.1% (16/132 mex; 4 destinations); Adjacent signals</td>
+<td>4.00/5 (n=1; experienced=1; 4–4) / 12.1% (16/132 mex; 4 destinations); Adjacent signals</td>
+<td>5.00/5 (n=1; experienced=1; 5–5) / 37.6 units; mixed; Adjacent signals</td>
+</tr>
+<tr>
+<td>The Requisite</td>
+<td>5v5: 1</td>
+<td>5.00/5 (n=1; experienced=0; 5–5) / 33.0% (37/112 mex; 10 destinations); Adjacent signals</td>
+<td>4.00/5 (n=1; experienced=0; 4–4) / 33.0% (37/112 mex; 10 destinations); Adjacent signals</td>
+<td>3.00/5 (n=1; experienced=0; 3–3) / 58.9 units; mixed; Directional agreement</td>
+</tr>
+<tr>
+<td>Wonder 4v4 v3c</td>
+<td>4v4: 1</td>
+<td>4.00/5 (n=1; experienced=0; 4–4) / 2.4% (2/82 mex; 1 destinations); Opposite signals</td>
+<td>5.00/5 (n=1; experienced=0; 5–5) / 2.4% (2/82 mex; 1 destinations); Opposite signals</td>
+<td>4.00/5 (n=1; experienced=0; 4–4) / 83.4 units; open; Directional agreement</td>
+</tr>
+<tr>
+<td>Wonder open 5v5 v3b</td>
+<td>5v5: 1</td>
+<td>4.00/5 (n=1; experienced=1; 4–4) / 14.5% (18/124 mex; 3 destinations); Adjacent signals</td>
+<td>3.00/5 (n=1; experienced=1; 3–3) / 11.3% (14/124 mex; 2 destinations); Directional agreement</td>
+<td>5.00/5 (n=1; experienced=1; 5–5) / 150.8 units; open; Directional agreement</td>
+</tr>
+</tbody></table>
+<h2 id="exploratory-rank-agreement">Exploratory rank agreement</h2>
+<p>Map means receive equal weight; repeated reviews do not make one map dominate. These correlations are descriptive, with small and selected samples; no causal interpretation or fitted conversion. The 1v1 sample and experienced-only sample are particularly small.</p>
+<table>
+<thead>
+<tr>
+<th>Scope</th>
+<th>Dimension</th>
+<th align="right">Maps</th>
+<th align="right">Spearman rho</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>all_setups</td>
+<td>drops</td>
+<td align="right">40</td>
+<td align="right">0.403</td>
+</tr>
+<tr>
+<td>all_setups</td>
+<td>air</td>
+<td align="right">41</td>
+<td align="right">0.393</td>
+</tr>
+<tr>
+<td>all_setups</td>
+<td>open</td>
+<td align="right">32</td>
+<td align="right">0.231</td>
+</tr>
+<tr>
+<td>one_v_one</td>
+<td>drops</td>
+<td align="right">9</td>
+<td align="right">0.604</td>
+</tr>
+<tr>
+<td>one_v_one</td>
+<td>air</td>
+<td align="right">10</td>
+<td align="right">0.826</td>
+</tr>
+<tr>
+<td>one_v_one</td>
+<td>open</td>
+<td align="right">8</td>
+<td align="right">-0.344</td>
+</tr>
+<tr>
+<td>experienced_one_v_one</td>
+<td>drops</td>
+<td align="right">7</td>
+<td align="right">0.000</td>
+</tr>
+<tr>
+<td>experienced_one_v_one</td>
+<td>air</td>
+<td align="right">8</td>
+<td align="right">0.845</td>
+</tr>
+<tr>
+<td>experienced_one_v_one</td>
+<td>open</td>
+<td align="right">6</td>
+<td align="right">-0.370</td>
+</tr>
+<tr>
+<td>one_v_one_no_hints</td>
+<td>drops</td>
+<td align="right">8</td>
+<td align="right">0.501</td>
+</tr>
+<tr>
+<td>one_v_one_no_hints</td>
+<td>air</td>
+<td align="right">9</td>
+<td align="right">0.870</td>
+</tr>
+<tr>
+<td>one_v_one_no_hints</td>
+<td>open</td>
+<td align="right">7</td>
+<td align="right">-0.359</td>
+</tr>
+</tbody></table>
+<h2 id="unmatched-reviewed-maps">Unmatched reviewed maps</h2>
+<p>Astro Crater Battles has many ratings but is outside the completed 630-map cohort; its earlier calibration run is not silently substituted into this comparison. Adaptive Project Dust has an older reviewed version than the analysed version. Remaining maps need a future targeted strategy run if a broader comparison is wanted.</p>
+<table>
+<thead>
+<tr>
+<th>Map</th>
+<th align="right">Reviews</th>
+<th>Reason</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Astro Crater Battles (astro_crater_battles)</td>
+<td align="right">22</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Broken_Vows (Broken_Vows.v0008)</td>
+<td align="right">3</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Aqua World (Aqua World.v0001)</td>
+<td align="right">2</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Battle of Thermopylae OFFICIAL (battle of thermopylae official.v0002)</td>
+<td align="right">2</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>DDDX RPG survival (dddx_rpg_survival.v0179)</td>
+<td align="right">2</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Serenity Reef 5v5 (serenity_reef_5v5.v0008)</td>
+<td align="right">2</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Tag Craftious Maximus (tag_craftious maximus.v0001)</td>
+<td align="right">2</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>1 Uef (1 UEF.v0001)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>20x20 White Fire 8v8 (20x20_white_fire_8v8.v0001)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>4A4 A Good Place To Die (4a4 a good place to die.v0001)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>4v4 Isis (4v4isis.v0001)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>4v4massif (4v4massif)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>5vs5 Tabula Rasa v2 (5vs5 Tabula Rasa v2.v0002)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>7 Winged Arena (7 winged arena.v0001)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>8-Citadel TeamPlay_AI (8-Citadel TeamPlay_AI)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Aalhaven (aalhaven.v0002)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Adaptive Project Dust (adaptive_project_dust.v0002)</td>
+<td align="right">1</td>
+<td>Different version</td>
+</tr>
+<tr>
+<td>Additional Pylons (additional_pylons.v0001)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Alpha 7 Quarantine 20X20 (Alpha 7 Quarantine 20x20.v0001)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Ambush The Enemy  2V2 (ambush the enemy  2v2.v0001)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Ancients Valley (ancients_valley.v0002)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Anvers (anvers.v0001)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>AquaTrecute (aquatrecute.v0003)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Arrakis (Arrakis.v0001)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Askin 5x5 (askin_5x5.v0002)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Astro plateau (astro_plateau.v0001)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Atol Dunes (Atol Dunes.v0001)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Auburn Canyon (auburn_canyon.v0001)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Autumn (autumn.v0001)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Baja (Baja.v0001)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Balmy (Balmy.v0001)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Barrier Islands (Barrier_Islands.v0004)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Battle Grounds (battle_grounds.v0003)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Beton Arena (beton_arena.v0005)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Big Bang Lake 3v3 (big_bang_lake_3v3.v0003)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Cadmium Green (cadmium_green.v0001)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Cobalt Canyon v3 (Cobalt_Canyon_v3)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Combat in the Ranges (combat_in_the_ranges.v0006)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Cordova Prime Area 11.2 (Cordova Prime Area 11.2.v0001)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Coreprimecanyonfort12P (coreprimecanyonfort12P.v0006)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Crazyrush (crazyrush.v0003)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Crimson Crags (crimson_crags.v0001)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Crimson Feud (crimson_feud)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Crossfire Canal - FAF version (crossfire_canal_-_faf_version.v0002)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Crystal Triplet (crystal_triplet.v0002)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Darkfall (Darkfall.v0003)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Desert Isles (Desert Isles.v0003)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Desert Joust (desert joust.v0001)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Diezle Zero Point v4 (Diezle Zero Point v4)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Dragons Tooth Mountains (dragons_tooth_mountains.v0001)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>DualGap Reborn 8v8 (dualgap_reborn_8v8.v0004)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Duel in the Ranges (duel_in_the_ranges.v0009)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Farce in tha Forest (farce_in_tha_forest.v0002)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Fast rush (fast_rush.v0002)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Fields Of Great Phoenix 2v2 (Fields Of Great Phoenix 2v2.v0002)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Final Rush Pro3 4v4 (final rush pro3 4v4.v0012)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Fiords_at_sunset (fiords_at_sunset.v0001)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Fire Ground (fire_ground.v0001)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Flat (flat)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Forbidden Pass v4 (forbidden passv4)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>GGAPotatoePotatoe (ggapotatoepotatoe.v0001)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Grand Barrens Survival (grand_barrens_survival.v0004)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Green Island v1d (green_island_v1d)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Hargreven (hargreven.v0012)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Hiloe (hiloe.v0002)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Iso Metrix (iso_metrix.v0003)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>It doesnt matter (it_doesnt_matter.v0003)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Jehutyz Battle (Jehutyz Battle.v0001)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Killamjo (Killamjo.v0002)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>LandOuille 4v4 (landouille_4v4.v0001)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Last Oasis (last oasis.v0002)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Lush (lush.v0001)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Lush NA (lush_na.v0002)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Many islands (many_islands.v0001)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Moonlight Mesas (moonlight mesas.v0001)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Moors of Murder (moors_of_murder.v0021)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Namalsk (namalsk.v0002)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>NinoX (ninox.v0005)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Open Palms - FAF version (open_palms_-_faf_version.v0002)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Oracle (oracle.v0005)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Osiris (osiris.v0006)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Ozone Seas (ozone_seas.v0001)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Painted Desert 4v4 (Painted Desert 4v4)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Palaneum (palaneum.v0002)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Paradise Survival (paradise_survival.v0004)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Passing Oak (passing_oak.v0026)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Pelagial (Pelagial.v0004)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Phantom 12 Player Bugged Moves (phantom_12_player_bugged_moves.v0001)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Phantom Friends (phantom_friends.v0006)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Planet X (Planet X.v0001)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Quantum Sea (quantumsea.v0003)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Regor VI Highlands (regor_vi_highlands.v0006)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Resonance (resonance.v0003)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>SBG Battlegrounds1 (sbg_battlegrounds1.v0002)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>SandRiver (sandriver.v0002)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Satellite Island (satellite_island.v0001)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Scmp Haz09Fa (SCMP_haz09fa.v0001)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Scull islands 3x3 hard (scull_islands_3x3_hard.v0001)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Sentina Iii (Sentina III.v0001)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Setons 10x10 (setons 10x10)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Setons Isle (setons_isle.v0002)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Sick sands (sick_sands.v0004)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Sinai v3 (sinai v3.v0001)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Six Leaf Clover3 (six leaf clover3.v0001)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Snow path (snow_path.v0001)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Standing Stones (standing stones.v0002)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Starcraft (starcraft.v0007)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Summer Duel (Summer Duel.v0002)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Supreme DNA (supreme_dna.v0001)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Survival 5Thdimension (survival_5thdimension.v0001)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Survival Cybran Wrath (survival_cybran_wrath.v0007)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Survival DDay Horde (survival_dday_horde.v0002)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Survival Horde EE (survival_horde_ee.v0021)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Survival Versus (survival_versus.v0030)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Sweat Factory (sweat_factory.v0001)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Syrtis Major - FAF version (syrtis_major_-_faf_version.v0002)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>TAG Craftious Maximus - FAF version (tag_craftious_maximus_-_faf_version.v0004)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Tabula Snowy (TabulaSnowy)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Tesla island (tesla_island.v0004)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>The Bermuda Locket - FAF version (the_bermuda_locket_-_faf_version.v0001)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>The Old Battle Zone 1.0 (The Old Battle Zone 1.0.v0003)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>The land wilderness V3 (the_land_wilderness_v3.v0001)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Theta Passage - FAF version (theta_passage_-_faf_version.v0001)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Traveller (traveller.v0001)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>TriadaTu (triadatu.v0010)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Triple T V8 (Triple T v8.v0001)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Tropic Thunder Dome (tropic_thunder_dome.v0005)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Twin Rivers Ep (twin rivers ep)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>UEF-City (uef-city)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Undying (undying.v0002)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Volcano beach (volcano_beach.v0002)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>WadeRilon (waderilon.v0004)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Wedgeds Coastal (wedgeds_coastal.v0001)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>White Fire v2 (White Firev2)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>Windy Swamp (windy_swamp.v0021)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>canis3v3 (canis3v3.v0001)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>destracteon (destracteon.v0001)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>dzen (dzen.v0008)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>faxilon 5 (faxilon_5.v0004)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>hell fang (hell_fang.v0026)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>loki 3v3 (loki 3v3.v0002)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+<tr>
+<td>oslka (oslka.v0002)</td>
+<td align="right">1</td>
+<td>No completed exact-version result in 630-map cohort</td>
+</tr>
+</tbody></table>
+<script src="../../../docs/model-atlas/public-links.js" data-public-links></script></body></html>

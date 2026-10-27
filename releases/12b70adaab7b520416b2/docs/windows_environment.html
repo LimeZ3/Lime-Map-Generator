@@ -1,0 +1,24 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>windows_environment.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="windows-environment-notes">Windows Environment Notes</h1>
+<p>MapGen is a Windows-first project. Do not assume Linux or WSL.</p>
+<h2 id="current-python-state">Current Python State</h2>
+<p>The checked local <code>.venv</code> currently points at:</p>
+<pre><code class="language-text">C:\Users\YOUR_USERNAME\AppData\Local\Programs\Python\Python312\python.exe
+</code></pre>
+<p>That interpreter was not available during the latest export work, so the <code>.venv</code> launcher could not start. For non-training scripts, the Codex bundled Python 3.12 runtime was used successfully:</p>
+<pre><code class="language-text">C:\Users\YOUR_USERNAME\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe
+</code></pre>
+<p>That bundled runtime has NumPy and Pillow and is good enough for inventory, reports, tensor inspection, and FAF export tooling. It should not be treated as the long-term ML training environment.</p>
+<h2 id="recommended-repair">Recommended Repair</h2>
+<p>Install or restore Python <code>3.12.x</code>, then recreate the project venv:</p>
+<pre><code class="language-powershell">Remove-Item -Recurse -Force .venv
+py -3.12 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install --upgrade pip
+.\.venv\Scripts\python.exe -m pip install -e &quot;.[dev,ml]&quot;
+</code></pre>
+<p>Then install PyTorch with the CUDA wheel appropriate for the local NVIDIA setup. Keep this as an explicit command in your local notes because the right PyTorch CUDA index may change over time.</p>
+<h2 id="temporary-script-runner">Temporary Script Runner</h2>
+<p>Until the venv is repaired, this project can run pure NumPy/Pillow tools with:</p>
+<pre><code class="language-powershell">$env:PYTHONPATH=&#39;src&#39;
+C:\Users\YOUR_USERNAME\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe -m supmapai.tools.dataset_quality_report --help
+</code></pre>
+<script src="model-atlas/public-links.js" data-public-links></script></body></html>

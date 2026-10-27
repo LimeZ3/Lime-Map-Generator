@@ -1,0 +1,53 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>netlify-release-log.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="netlify-releases-and-usage">Netlify releases and usage</h1>
+<h2 id="release-preference">Release preference</h2>
+<p>User instruction, 14 October 2026: accumulate routine changes locally, maintain
+the pending list, review/test the batch, and publish in one release when asked.
+Do not push each small feedback iteration. Check usage before releasing.</p>
+<h2 id="credit-snapshot-before-the-final-skip-release">Credit snapshot before the final skip release</h2>
+<p>Source: authenticated Netlify team usage dashboard, 14 October 2026.
+<a href="https://app.netlify.com/teams/poae10970/billing/usage#credits">https://app.netlify.com/teams/poae10970/billing/usage#credits</a></p>
+<ul>
+<li>September 14–October 13 displayed period: 229 credits.</li>
+<li>October 14–November 13 displayed period: 103 credits.</li>
+<li>Combined displayed total: 332 credits (rounded by Netlify).</li>
+<li>October 7–14 chart: production deployments 195 credits (13 deployments at
+15 credits each); database compute approximately 133.5 credits; bandwidth
+approximately 2.819 credits; web requests and function/database bandwidth
+less than 1 credit combined. Chart labels are rounded.</li>
+<li>Personal plan active following the user&#39;s upgrade; the dashboard displayed
+1,000 credits available before this release. This balance is a separate
+account signal; do not subtract historic usage from it to invent a balance.</li>
+<li>Budget one additional production deployment of 15 credits for this release.
+Recheck actual usage at the next release; reporting can lag.</li>
+</ul>
+<h2 id="final-skip-batch">Final skip batch</h2>
+<ul>
+<li>Persist skipped map IDs by participant in browser storage.</li>
+<li>Retain skips across submission, category changes and reloads.</li>
+<li>Prefer all eligible unskipped maps before deferred maps, including when
+alternating popular and coverage invitations.</li>
+<li>Rotate deferred maps by skip order after exhaustion.</li>
+<li>Move skipped maps to the bottom of the Suggested maps collection.</li>
+<li>Survey/EN/RU tests, TypeScript build and browser reload/category checks passed.</li>
+<li>Published once on 14 October 2026: <code>6acf9f736d23f8e38be66964</code>.
+Live bundle <code>index-B7yDo-jr.js</code> matches the tested build; API health passed.</li>
+</ul>
+<h2 id="pending-changes">Pending changes</h2>
+<p>None. Add future requests here and
+keep them local until the user requests the next combined release.</p>
+<h2 id="research-after-the-final-skip-release">Research after the final skip release</h2>
+<p>14 October 2026: reviewed the community vault and pinned extraction/navigation
+source. Comparison and proposed annotation/MVP scope are recorded in
+<code>community_vault_comparison.md</code>. These are proposals; no website code or
+questionnaire changes were made in this research task. No deployment, credit
+purchase or production annotation API tests were performed.</p>
+<p>The user subsequently selected all 33 current featured maps as the strategic
+extraction scope. The frozen cohort and staged gameplay-feature plan are local
+artifacts (<code>strategic_map_features_plan.md</code>); no website change or release was
+made. This replaces the earlier proposed 10×10/1v1 research scope.</p>
+<p>The first strategic implementation now exports navigation and T1 frigate
+range-potential review data for all 33 featured maps, with a local three-map
+pilot gallery. Extraction tests and artifact audit passed. These are offline
+analysis assets, not a questionnaire release; no hosted deployment or database
+traffic was introduced.</p>
+<script src="model-atlas/public-links.js" data-public-links></script></body></html>

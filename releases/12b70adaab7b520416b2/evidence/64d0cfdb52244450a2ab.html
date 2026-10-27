@@ -1,0 +1,280 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>joint_sources.py | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="../docs/model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1>joint_sources.py</h1><p class="meta">Saved public evidence snapshot: src/supmapai/tensors/joint_sources.py</p><pre>&quot;&quot;&quot;Source-only full-map joint targets; no analysis layers or model execution.&quot;&quot;&quot;
+
+from __future__ import annotations
+
+import argparse
+from collections import Counter
+import gzip
+import json
+from pathlib import Path
+import time
+
+import numpy as np
+
+from supmapai.strategy.pipeline_contract import lease
+from supmapai.tensors.strategy_dataset import file_hash, point_field, pool, read_json, read_rows
+from supmapai.tools.windows_io import write_json
+
+SCHEMA = &quot;joint_source_layers_v1&quot;
+CHANNELS = [&quot;height&quot;, &quot;water_depth&quot;, &quot;start_a&quot;, &quot;start_b&quot;, &quot;mex&quot;, &quot;hydro&quot;,
+            &quot;natural_energy&quot;, &quot;natural_mass&quot;, &quot;wreck_mass&quot;, &quot;civilians&quot;, &quot;red&quot;, &quot;green&quot;, &quot;blue&quot;]
+RATINGS = [&quot;expansion_drop_rating&quot;, &quot;offensive_drop_rating&quot;, &quot;air_raid_rating&quot;,
+           &quot;drop_impact_rating&quot;, &quot;air_mobility_relevance&quot;, &quot;land_attack_relevance&quot;,
+           &quot;naval_attack_relevance&quot;, &quot;mex_supply_rating&quot;, &quot;reclaim_abundance_rating&quot;,
+           &quot;early_economy_rating&quot;, &quot;front_openness_rating&quot;, &quot;army_control_demand_rating&quot;]
+NATURAL = {&quot;tree&quot;, &quot;rock&quot;, &quot;boulder&quot;, &quot;reclaim&quot;}
+GRID = 256
+
+
+def joined_rows(folder):
+    return {r[&quot;key&quot;]: r for s in (&quot;train&quot;, &quot;validation&quot;) for r in read_rows(folder/(s+&quot;.jsonl&quot;))}
+
+
+def verify(path, expected):
+    if file_hash(path) != expected:
+        raise ValueError(&quot;Changed source: &quot; + str(path))
+
+
+def verify_release(folder):
+    release = read_json(folder/&quot;release_manifest.json&quot;)
+    if release[&quot;status&quot;] != &quot;ready&quot;:
+        raise ValueError(&quot;Unpublished source: &quot; + str(folder))
+    for name, expected in release[&quot;artifacts&quot;].items():
+        verify(folder/name, expected)
+    return file_hash(folder/&quot;release_manifest.json&quot;)
+
+
+def entity_fields(entities, grid=GRID):
+    &quot;&quot;&quot;Absolute per-cell values and source civilian counts, conserving in-canvas sums.&quot;&quot;&quot;
+    from scipy.ndimage import gaussian_filter
+    fields = np.zeros((4, grid, grid), np.float64)
+    unknown, outside = Counter(), Counter()
+    for e in entities:
+        if e.get(&quot;active_in_configuration&quot;) is False:
+            continue
+        kind = e.get(&quot;kind&quot;)
+        civilian = kind in (&quot;civilian_unit&quot;, &quot;civilian_building&quot;)
+        natural = kind in NATURAL and e.get(&quot;source_type&quot;) == &quot;prop&quot;
+        wreck = kind == &quot;wreckage&quot;
+        if not (civilian or natural or wreck):
+            continue
+        x, z = float(e[&quot;x&quot;]), float(e[&quot;z&quot;])
+        if not (np.isfinite(x) and np.isfinite(z) and 0 &lt;= x &lt; 512 and 0 &lt;= z &lt; 512):
+            outside[kind] += 1
+            continue
+        ix, iz = int(x*grid/512), int(z*grid/512)
+        if civilian:
+            fields[3, iz, ix] += 1
+        for index, name in ([(0, &quot;energy&quot;), (1, &quot;mass&quot;)] if natural else [(2, &quot;mass&quot;)] if wreck else []):
+            value = e.get(name)
+            if value is None:
+                unknown[CHANNELS[index+6]] += 1
+                continue
+            value = float(value)
+            if not np.isfinite(value) or value &lt; 0:
+                raise ValueError(&quot;Invalid source entity value&quot;)
+            fields[index, iz, ix] += value
+    before = fields.sum((1, 2))
+    for i in range(4):
+        fields[i] = gaussian_filter(fields[i], 1.5 if i == 3 else 1., mode=&quot;reflect&quot;, truncate=3.)
+    if not np.allclose(fields.sum((1, 2)), before, rtol=1e-8, atol=1e-7):
+        raise ValueError(&quot;Entity raster lost quantity&quot;)
+    return fields.astype(np.float32), dict(unknown), dict(outside), before.tolist()
+
+
+def transform(physical):
+    result = np.asarray(physical, np.float32).copy()
+    result[0] = np.arcsinh(result[0]/4.)
+    result[1:10] = np.log1p(result[1:10])
+    return result
+
+
+def encode(physical, norm):
+    result = transform(physical)
+    scales = np.asarray(norm[&quot;scales&quot;], np.float32)[:, None, None]
+    result[:10] /= scales[:10]
+    result[1:] = result[1:]*2-1
+    return result.astype(np.float32)
+
+
+def decode(encoded, norm):
+    result = np.asarray(encoded, np.float32).copy()
+    scales = np.asarray(norm[&quot;scales&quot;], np.float32)[:, None, None]
+    result[1:] = (result[1:]+1)*.5
+    result[:10] *= scales[:10]
+    result[0] = np.sinh(result[0])*4.
+    result[1:10] = np.expm1(result[1:10])
+    return result
+
+
+def write_rows(path, rows):
+    path.write_text(&quot;&quot;.join(json.dumps(r, allow_nan=False)+&quot;\n&quot; for r in rows), encoding=&quot;utf-8&quot;)
+
+
+def seal(folder, schema, names, **facts):
+    write_json(folder/&quot;release_manifest.json&quot;, dict(schema=schema, status=&quot;ready&quot;,
+        artifacts={n:file_hash(folder/n) for n in names}, **facts))
+
+
+def build(root, out, civilians):
+    root, out, civilians = map(lambda p: Path(p).resolve(), (root, out, civilians))
+    if (out/&quot;release_manifest.json&quot;).exists():
+        verify_release(out)
+        verify_release(civilians)
+        print(&quot;Existing sealed datasets verified&quot;, flush=True)
+        return
+    if out.exists() or civilians.exists():
+        raise ValueError(&quot;Choose fresh dataset paths; do not overwrite partial or published releases&quot;)
+    cohort_path = root/&quot;data/tensors/terrain_curated_20261024_v1&quot;
+    props_path = root/&quot;data/tensors/reclaim_props_curated_256_v1&quot;
+    texture_path = root/&quot;data/tensors/map_textures_curated_256_v2&quot;
+    source_hashes = {str(p.relative_to(root)):verify_release(p) for p in (cohort_path, props_path, texture_path)}
+    cohort, props, textures = (joined_rows(p) for p in (cohort_path, props_path, texture_path))
+    for other in (props, textures):
+        if set(other) != set(cohort) or any((r[&quot;split&quot;], r[&quot;family&quot;]) !=
+            (other[k][&quot;split&quot;], other[k][&quot;family&quot;]) for k,r in cohort.items()):
+            raise ValueError(&quot;Cohort join or corrected family split differs&quot;)
+    out.mkdir(parents=True)
+    civilians.mkdir(parents=True)
+    (out/&quot;maps&quot;).mkdir()
+    (civilians/&quot;maps&quot;).mkdir()
+    contract = dict(schema=SCHEMA, source_releases=source_hashes, builder_sha256=file_hash(__file__),
+        channels=CHANNELS, ratings=RATINGS, shape=[13, GRID, GRID], spatial_conditions=0,
+        generation_inputs=&quot;Gaussian noise, diffusion timestep and 12 requested ratings only&quot;,
+        quantities=&quot;Absolute values; reversible asinh/log scaling fitted on training maps; no clipping or per-map normalization&quot;,
+        excluded_layers=&quot;No SDF, passability, front/access/economy layers, supplied anchors or validity-mask model inputs&quot;,
+        civilian_definition=&quot;Source-recorded civilian_unit/building count; runtime activation unresolved&quot;,
+        natural_definition=&quot;Source prop kinds tree/rock/boulder/reclaim, all their known energy and mass&quot;,
+        water_definition=&quot;Saved physical water depth; no shoreline-distance or added water mask&quot;,
+        source_rgb=&quot;Unlit diagnostic albedo RGB, excluding lighting, decals, water rendering and props&quot;,
+        postprocessing=&quot;None; no symmetry, placement repair, count caps or gameplay masks&quot;, test_used=False)
+    write_json(out/&quot;contract.json&quot;, contract)
+    packed, civil_rows, excluded = [], [], []
+    samples = [[] for _ in CHANNELS]
+    started = time.monotonic()
+    for index, (key, row) in enumerate(cohort.items(), 1):
+        pr, tx = props[key], textures[key]
+        source_entities = Path(pr[&quot;source_entities&quot;])
+        verify(source_entities, pr[&quot;source_entities_sha256&quot;])
+        with gzip.open(source_entities, &quot;rt&quot;, encoding=&quot;utf-8&quot;) as stream:
+            entities = json.load(stream)
+        fields, unknown, outside, totals = entity_fields(entities)
+        civil_file = civilians/&quot;maps&quot;/(key+&quot;.npz&quot;)
+        np.savez_compressed(civil_file, target=fields[3:4])
+        civil_rows.append(dict(key=key, family=row[&quot;family&quot;], split=row[&quot;split&quot;],
+            archive=&quot;maps/&quot;+civil_file.name, sha256=file_hash(civil_file), count=totals[3],
+            source_entities=str(source_entities), source_entities_sha256=pr[&quot;source_entities_sha256&quot;]))
+        reasons = []
+        if not tx[&quot;semantic_weights_valid&quot;] or tx[&quot;rgb_valid_fraction&quot;] &lt; 1-1e-6:
+            reasons.append(&quot;incomplete_or_unsupported_rgb&quot;)
+        if unknown:
+            reasons.extend(&quot;unknown_&quot;+name for name in unknown)
+        metadata = Path(pr[&quot;metadata&quot;])
+        verify(metadata, pr[&quot;source_metadata_sha256&quot;])
+        meta = read_json(metadata)
+        if meta[&quot;key&quot;] != key or meta[&quot;spawns&quot;] != row[&quot;spawns&quot;]:
+            raise ValueError(&quot;Source scenario mismatch: &quot;+key)
+        if any(meta[&quot;ratings&quot;].get(n) is None or not meta[&quot;loss_mask&quot;].get(n) for n in RATINGS):
+            reasons.append(&quot;incomplete_ratings&quot;)
+        if reasons:
+            excluded.append(dict(key=key, split=row[&quot;split&quot;], reasons=reasons, unknown=unknown))
+        else:
+            native = Path(row[&quot;native_source&quot;])
+            verify(native, row[&quot;native_source_sha256&quot;])
+            with np.load(native, allow_pickle=False) as data:
+                vertices = data[&quot;height_vertices&quot;]
+                depth = data[&quot;depth_native&quot;]
+            if vertices.shape != (513,513) or depth.shape != (512,512):
+                raise ValueError(&quot;Unexpected native geometry&quot;)
+            cells = (vertices[:-1,:-1]+vertices[1:,:-1]+vertices[:-1,1:]+vertices[1:,1:])*.25-meta[&quot;height_reference&quot;]
+            texture = texture_path/tx[&quot;archive&quot;]
+            verify(texture, tx[&quot;sha256&quot;])
+            with np.load(texture, allow_pickle=False) as data:
+                rgb = data[&quot;albedo_rgb&quot;]
+                if not bool(data[&quot;paint_weights_valid&quot;]) or data[&quot;albedo_validity&quot;].min() &lt; 1-1e-6:
+                    raise ValueError(&quot;RGB metadata disagrees with source array&quot;)
+            starts = [point_field([p], GRID, sigma=1.5) for p in meta[&quot;spawns&quot;]]
+            markers = [point_field(meta[n], GRID, sigma=1.5) for n in (&quot;mexes&quot;,&quot;hydros&quot;)]
+            physical = np.concatenate([np.stack([pool(cells,GRID),pool(depth,GRID),*starts,*markers]), fields, rgb])
+            if physical.shape != (13,GRID,GRID) or not np.isfinite(physical).all() or (physical[1:] &lt; 0).any():
+                raise ValueError(&quot;Invalid full joint source stack: &quot;+key)
+            physical_file = out/&quot;maps&quot;/(key+&quot;_physical.npz&quot;)
+            np.savez_compressed(physical_file, physical=physical)
+            transformed = transform(physical)
+            if row[&quot;split&quot;] == &quot;train&quot;:
+                rng = np.random.default_rng(index)
+                for i in range(10):
+                    values = np.abs(transformed[i]) if i == 0 else transformed[i]
+                    positive = values[values&gt;0]
+                    if len(positive):
+                        samples[i].append(rng.choice(positive, min(512,len(positive)), replace=False))
+            packed.append(dict(key=key, family=row[&quot;family&quot;], split=row[&quot;split&quot;],
+                physical_archive=&quot;maps/&quot;+physical_file.name, physical_sha256=file_hash(physical_file),
+                ratings=[meta[&quot;ratings&quot;][n] for n in RATINGS], source_metadata=str(metadata),
+                source_metadata_sha256=pr[&quot;source_metadata_sha256&quot;],
+                native_source=str(native), native_source_sha256=row[&quot;native_source_sha256&quot;],
+                source_entities=str(source_entities), source_entities_sha256=pr[&quot;source_entities_sha256&quot;],
+                rgb_source=str(texture), rgb_source_sha256=tx[&quot;sha256&quot;],
+                totals={&quot;start_a&quot;:1.,&quot;start_b&quot;:1.,&quot;mex&quot;:len(meta[&quot;mexes&quot;]),&quot;hydro&quot;:len(meta[&quot;hydros&quot;]),
+                        **dict(zip(CHANNELS[6:10],totals,strict=True))}, outside=outside))
+        if index % 50 == 0 or index == len(cohort):
+            progress = dict(status=&quot;packing_sources&quot;, processed=index, total=len(cohort),
+                included=len(packed), excluded=len(excluded), elapsed_seconds=time.monotonic()-started)
+            write_json(out/&quot;progress.json&quot;, progress)
+            print(progress, flush=True)
+    scales = [max(float(np.quantile(np.concatenate(v), .995)),1e-4) if v else 1. for v in samples[:10]]+[1.]*3
+    norm = dict(schema=SCHEMA, channels=CHANNELS, ratings=RATINGS, scales=scales,
+        rating_transform=&quot;(score - 3) / 2&quot;, fitted_on=&quot;train_only&quot;, clipping=False,
+        sampling_min=[float(&quot;inf&quot;)]*13, sampling_max=[-float(&quot;inf&quot;)]*13)
+    max_error = 0.
+    for row in packed:
+        with np.load(out/row[&quot;physical_archive&quot;],allow_pickle=False) as data:
+            physical=data[&quot;physical&quot;]
+        target=encode(physical,norm)
+        restored=decode(target,norm)
+        max_error=max(max_error,float(np.max(np.abs(restored-physical)/(1+np.abs(physical)))))
+        if not np.allclose(restored,physical,rtol=3e-5,atol=2e-4):
+            raise ValueError(&quot;Joint normalization roundtrip failed&quot;)
+        if row[&quot;split&quot;]==&quot;train&quot;:
+            norm[&quot;sampling_min&quot;]=np.minimum(norm[&quot;sampling_min&quot;],target.min((1,2))).tolist()
+            norm[&quot;sampling_max&quot;]=np.maximum(norm[&quot;sampling_max&quot;],target.max((1,2))).tolist()
+        file=out/&quot;maps&quot;/(row[&quot;key&quot;]+&quot;.npz&quot;)
+        profile=(np.asarray(row[&quot;ratings&quot;],np.float32)-3)/2
+        np.savez_compressed(file,target=target,ratings=profile)
+        row.update(archive=&quot;maps/&quot;+file.name,sha256=file_hash(file))
+    for folder, records in ((out,packed),(civilians,civil_rows)):
+        for split in (&quot;train&quot;,&quot;validation&quot;):
+            write_rows(folder/(split+&quot;.jsonl&quot;),[r for r in records if r[&quot;split&quot;]==split])
+    write_json(out/&quot;normalization.json&quot;,norm)
+    write_json(out/&quot;excluded.json&quot;,excluded)
+    audit=dict(status=&quot;passed&quot;,maps=len(packed),splits=dict(Counter(r[&quot;split&quot;] for r in packed)),
+        families=len({r[&quot;family&quot;] for r in packed}),shape=[13,GRID,GRID],ratings=RATINGS,
+        positive_maps={name:sum(r[&quot;totals&quot;].get(name,0)&gt;0 for r in packed) for name in CHANNELS[2:10]},
+        exclusion_reasons=dict(Counter(reason for r in excluded for reason in r[&quot;reasons&quot;])),
+        max_relative_roundtrip_error=max_error,source_hashes_verified=True,test_used=False,
+        elapsed_seconds=time.monotonic()-started)
+    if len({r[&quot;family&quot;] for r in packed})!=len(packed) or not all(audit[&quot;splits&quot;].get(s,0)&gt;0 for s in (&quot;train&quot;,&quot;validation&quot;)):
+        raise ValueError(&quot;Family independence or split coverage failed&quot;)
+    write_json(out/&quot;audit.json&quot;,audit)
+    write_json(out/&quot;progress.json&quot;,dict(status=&quot;ready&quot;,**{k:v for k,v in audit.items() if k!=&quot;status&quot;}))
+    seal(out,SCHEMA,[&quot;contract.json&quot;,&quot;normalization.json&quot;,&quot;train.jsonl&quot;,&quot;validation.jsonl&quot;,&quot;excluded.json&quot;,&quot;audit.json&quot;],maps=len(packed))
+    write_json(civilians/&quot;contract.json&quot;,dict(schema=&quot;source_civilian_density_v1&quot;,shape=[1,GRID,GRID],
+        units=&quot;Source-recorded entities per cell; Gaussian sigma 1.5 model cells; sum equals count&quot;,
+        source_releases=source_hashes,definition=contract[&quot;civilian_definition&quot;],builder_sha256=file_hash(__file__)))
+    write_json(civilians/&quot;audit.json&quot;,dict(status=&quot;passed&quot;,maps=len(civil_rows),
+        splits=dict(Counter(r[&quot;split&quot;] for r in civil_rows)),
+        positive_maps=dict(Counter(r[&quot;split&quot;] for r in civil_rows if r[&quot;count&quot;]&gt;0)),
+        count=sum(r[&quot;count&quot;] for r in civil_rows),no_per_map_normalization=True))
+    seal(civilians,&quot;source_civilian_density_v1&quot;,[&quot;contract.json&quot;,&quot;audit.json&quot;,&quot;train.jsonl&quot;,&quot;validation.jsonl&quot;],maps=len(civil_rows))
+    print(json.dumps(audit,indent=2),flush=True)
+
+
+if __name__==&quot;__main__&quot;:
+    parser=argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(&quot;--root&quot;,type=Path,default=Path.cwd())
+    parser.add_argument(&quot;--out&quot;,type=Path,required=True)
+    parser.add_argument(&quot;--civilians&quot;,type=Path,required=True)
+    args=parser.parse_args()
+    with lease(args.root/&quot;.local-tools/joint-source-build.lock&quot;):
+        build(args.root,args.out,args.civilians)
+</pre><script src="../docs/model-atlas/public-links.js" data-public-links></script></body></html>

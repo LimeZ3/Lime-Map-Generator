@@ -1,0 +1,40 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>symmetry-standing-stones.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="standing-stones-a-valid-alternative-mirror-was-skipped">Standing Stones: a valid alternative mirror was skipped</h1>
+<p>27 October 2026. Map <code>54_56</code>, Standing Stones. The source selected pair is ARMY_1 <code>(86.5,255.5)</code> and ARMY_2 <code>(424.5,257.5)</code>. The existing pair is retained.</p>
+<table>
+<thead>
+<tr>
+<th>Transform about (256,256)</th>
+<th align="right">Native terrain MAE</th>
+<th align="right">Maximum start matching error</th>
+<th align="right">Maximum mex error</th>
+<th align="right">Hydro error</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Horizontal mirror</td>
+<td align="right">0.340</td>
+<td align="right">3.000</td>
+<td align="right">3.000</td>
+<td align="right">3.000</td>
+</tr>
+<tr>
+<td>Vertical mirror</td>
+<td align="right">0.346</td>
+<td align="right">3.162</td>
+<td align="right">3.162</td>
+<td align="right">3.000</td>
+</tr>
+<tr>
+<td>Half-turn</td>
+<td align="right">0.087</td>
+<td align="right">1.414</td>
+<td align="right">4.243</td>
+<td align="right">4.243</td>
+</tr>
+</tbody></table>
+<p>All distances and heights are world units. Both mirrors independently pass the existing 4-unit source/default marker checks. The targeted rerun also confirms the vertical mirror through the existing movement checks. Horizontal reflection fixes the selected bases approximately in place; vertical reflection exchanges them. Thus a valid map symmetry does not automatically identify the useful opposing-base transform.</p>
+<p>The half-turn is a particularly strong terrain fit but two of 46 mexes and the central hydro narrowly exceed the marker gate. Hydrocarbon 00 is at <code>(254.5,254.5)</code>: its 1.5-unit offset on each coordinate becomes a 4.243-unit displacement under a half-turn, versus 3 units under either mirror. No threshold has been relaxed.</p>
+<p>The implementation error was the early-exit condition <code>candidate size &lt;= accepted group size</code>. After finding a horizontal single mirror it skipped vertical and other single mirrors. Equal-sized groups can have different axes, so this was not a valid completeness assumption. The new search revision <code>equal_size_group_alternatives_v2_1</code> skips only strictly smaller groups and records accepted source/default alternatives. The scenario audit can consume those alternatives instead of relying solely on the primary label.</p>
+<p>The two independently tolerated mirrors must not automatically be combined into an accepted two-mirror/half-turn group: their composition can exceed tolerance, as it does here. Their evidence stays separate. Eight layout tests pass, including a regression reproducing this failure. The earlier bulk outputs are preserved; only this map was rerun. This is not a claim that all maps have been reprocessed with the fix.</p>
+<p>Evidence: <code>data/processed/symmetry_standing_stones_diagnostic_v1/report.json</code> and <code>fixed_search_result.json</code>. The existing v2 cohort result remains unchanged. Owner-verified pairs are recorded separately in <code>data/processed/spawn_pair_audit_v2/owner_pair_confirmations.json</code>.</p>
+<script src="model-atlas/public-links.js" data-public-links></script></body></html>

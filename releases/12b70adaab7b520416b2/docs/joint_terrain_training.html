@@ -1,0 +1,90 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>joint_terrain_training.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="joint-height-and-water-training">Joint Height And Water Training</h1>
+<blockquote>
+<p>The recorded checkpoint uses legacy resource-dependent conditioning. New
+terrain-only work should use the <a href="terrain_controls_v1.md">direct terrain target schema</a>
+and derive labels from the actual encoded target representation. This document
+remains a record of the existing experiment, not a claim it has been retrained.</p>
+</blockquote>
+<p>This terrain-only experiment keeps height, water boundary and depth in one
+diffusion network. Spawn/resource/reclaim/texture models do not train in this run.
+The existing annotated 10km cohort and family splits remain unchanged.</p>
+<h2 id="representation">Representation</h2>
+<p>The source is <code>data/tensors/strategy_10km_1v1_v1</code>, with 1,688 training versions,
+170 validation versions and 219 test versions. The prepared terrain dataset is
+<code>data/tensors/terrain_joint_10km_1v1</code>. Packing verifies source archive checksums.
+It stores these three simultaneous outputs at 128x128:</p>
+<ul>
+<li>Signed physical height relative to the source sea plane, encoded with asinh.
+The 4-world-unit scale preserves ordinary relief while accommodating tall cliffs.</li>
+<li>Signed shoreline distance in world units, positive inside water and negative
+on land, capped at 64 units. This is the learned water layer. Its sign supplies
+a water mask; the smooth distance field supplies shoreline context.</li>
+<li>Positive water depth with reversible log scaling around 2 world units.</li>
+</ul>
+<p>Height/depth limits and conditioning statistics use the training split only.
+No per-map height stretching is introduced. The original physical/native tensors
+remain intact. Re-encoding does not alter the frozen automated rating policy.</p>
+<p>The two requested base locations are spatial conditions, represented by broader
+Gaussian fields. They are not spawn predictions. Gameplay labels remain optional
+profile conditions with their presence masks. Direct structural controls for water
+fraction and height relief are added from the training tensors; these are not new
+human quality ratings. The sample sweep requests 0%, 20% and 40% water at typical
+training-cohort relief with the same other conditions and starting noise.</p>
+<h2 id="model-and-compute">Model And Compute</h2>
+<p>The larger normalized residual U-Net has 2,986,739 parameters, base width 48,
+embedding width 256, and global bottleneck attention. The run uses velocity
+prediction, a cosine noise schedule, bfloat16 mixed precision on the RTX 5080,
+AdamW, 500-update warm-up, learning-rate decay, gradient clipping and EMA weights.
+Cross-machine seed identity is out of scope. Local matched-noise samples remain
+useful for comparing model behavior.</p>
+<p>The main objective is joint denoising. Supervised gradient reconstruction for
+height/water emphasizes coherent source features rather than indiscriminate
+smoothing. A small sign-consistency term discourages height and water from
+disagreeing away from shore. Base neighborhoods receive extra reconstruction
+weight. These are structural training hypotheses, not a replacement for testing
+generated terrain.</p>
+<p>The bounded budget is 12,000 updates at batch size 16, or 192,000 sampled map
+presentations. The preceding terrain smoke model used 2,000 updates at batch 8.
+The throughput probe used under 1.9 GiB of allocated GPU memory and settled near
+12 updates/second after startup. Actual duration is written to the run report.</p>
+<h2 id="checkpoints-and-inspection">Checkpoints And Inspection</h2>
+<p>Run directory: <code>data/models/terrain_joint_10km_1v1_long_v1</code>.</p>
+<ul>
+<li><code>progress.json</code>: live update count, loss, elapsed time, throughput and ETA.</li>
+<li><code>last.pt</code>: atomically replaced model/EMA/optimizer checkpoint every 1,000 updates.</li>
+<li><code>best.pt</code>: checkpoint selected by full-validation EMA loss, not by cherry-picked pictures.</li>
+<li><code>losses.json</code>: training and validation history.</li>
+<li><code>code_snapshot/</code>, <code>config.json</code>: saved implementation, settings, runtime and data hashes.</li>
+<li><code>samples/step_XXXXXX/</code>: fresh-noise grids every 2,000 updates; the final grid has four seeds.</li>
+</ul>
+<p><code>raw_height_water.png</code> shows predicted height with predicted water overlaid.
+It does not discard the water prediction and infer all water from height.
+Raw unmirrored outputs are retained in every NPZ. The inspection grid applies
+180-degree symmetry and records that intervention.</p>
+<p><code>joint_projection.png</code> is a separate decoder diagnostic. It combines learned
+height, water boundary and depth into one height field, with a feathered shoreline.
+It can improve geometric consistency without establishing that the model itself
+learned that consistency. The metrics therefore report raw height/water agreement,
+raw and projected pathability/connectivity, water-body counts and height corrections
+separately. No resources or textures are added and no playable maps are exported.</p>
+<h2 id="windows-commands">Windows Commands</h2>
+<pre><code class="language-powershell">$env:PYTHONPATH = &#39;src&#39;
+.venv-codex/Scripts/python.exe -m supmapai.tensors.terrain_joint `
+  --source data/tensors/strategy_10km_1v1_v1 `
+  --out data/tensors/terrain_joint_10km_1v1
+.venv-codex/Scripts/python.exe -m supmapai.tools.audit_joint_terrain `
+  --dataset data/tensors/terrain_joint_10km_1v1
+.venv/Scripts/python.exe -m supmapai.ml.train_joint_terrain `
+  --dataset data/tensors/terrain_joint_10km_1v1 `
+  --out data/models/terrain_joint_10km_1v1_long_v1 `
+  --max-steps 12000 --batch-size 16 --base-channels 48 `
+  --eval-every 1000 --sample-every 2000
+</code></pre>
+<p>After an interrupted process has stopped, rerun the training command with
+<code>--resume</code> under the same configuration/code. Do not launch a second writer against
+an active run. The test split is prepared/audited but never used for fitting,
+checkpoint selection or sample comparisons.</p>
+<p>More compute is an experiment, not a promise of map quality. We judge this run
+by water coherence, physical height/water agreement, requested-base suitability,
+connectivity, held-out reconstruction and diversity alongside denoising loss.</p>
+<script src="model-atlas/public-links.js" data-public-links></script></body></html>

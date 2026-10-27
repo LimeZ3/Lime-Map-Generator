@@ -1,0 +1,18 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>questionnaire-water-refresh-publication.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="corrected-terrain-metrics-publication">Corrected terrain metrics publication</h1>
+<p>Published 14 October 2026 to <a href="https://lime-mapgen.netlify.app/">https://lime-mapgen.netlify.app/</a>.
+Netlify deployment: <code>6acf85560398f415c2938a3c</code>.</p>
+<p>The existing 14,841-entry catalog uses the current serialized-water decoder cache
+in <code>data/processed/terrain_metrics_current/metrics.json</code>, joined by exact vault
+version or canonical folder. Water coverage and buildable area are available for
+14,737 entries; 104 remain unknown. Missing sources are not treated as dry.</p>
+<p>The naval category retains its 40% water threshold and existing ranked/visibility
+and original-selection gates. With corrected coverage it contains 1,443 maps.
+Water suggestions and buildable-area hints use the same refreshed catalog.
+All three Python catalog generators apply the current metric cache.</p>
+<p>Dragons Tooth Mountains (<code>13875_29369</code>) now has 0% water and 78.7281% buildable
+area, and is excluded from naval invitations. Regression checks cover this map,
+the 40% threshold, unknown coverage, disabled-water decoding, and exact-version
+joins. Survey, EN/RU, PostgreSQL integration checks and the production build pass.</p>
+<p>Existing map IDs, reviews, category priorities and published PNG overlays are
+preserved. The calculation repair does not require PNG uploads.</p>
+<script src="model-atlas/public-links.js" data-public-links></script></body></html>
