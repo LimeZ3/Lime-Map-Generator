@@ -1,0 +1,63 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>symmetry-nine-map-followup.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="corrected-symmetry-search-nine-owner-verified-pairs">Corrected symmetry search: nine owner-verified pairs</h1>
+<p>27 October 2026. The corrected search was applied to all nine kept maps from the former unresolved list, including Standing Stones (eight additional maps). Moon Safari remains excluded. No replacement opponents, source coordinates, detector tolerances, historical tensors or ratings were changed.</p>
+<p>The source-checked rerun took 4.64 seconds of detector compute. Standing Stones is confirmed against both source and default configuration. Fast Rush is confirmed for its selected default 1v1 setup. Seven retain owner confirmation without automatic layout certification.</p>
+<table>
+<thead>
+<tr>
+<th>Map</th>
+<th>Automatic support for existing pair</th>
+<th>Finding</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Ayzee</td>
+<td>Owner confirmation retained</td>
+<td>Selected top/bottom pair is close to mirrored; 4/84 active mexes fail 4-unit matching, up to 17.94 units.</td>
+</tr>
+<tr>
+<td>Cold September</td>
+<td>Owner confirmation retained</td>
+<td>Half-turn pair fits; 4/128 active mexes fail marker matching, maximum 5.10 units.</td>
+</tr>
+<tr>
+<td>Factory Wins</td>
+<td>Owner confirmation retained</td>
+<td>Top/bottom pair fits; 8/40 active mexes narrowly fail, maximum 4.12 units.</td>
+</tr>
+<tr>
+<td>Fast Rush</td>
+<td>Default 1v1 only</td>
+<td>Default 1v1 half-turn is already automatically supported; full source layout differs. The earlier pairing audit ignored default-scope evidence and considered inactive nearby slots.</td>
+</tr>
+<tr>
+<td>Fastest Possible 001</td>
+<td>Owner confirmation retained</td>
+<td>Top/bottom pair fits; 100/400 active mexes fail matching, maximum 27 units.</td>
+</tr>
+<tr>
+<td>GRRRR</td>
+<td>Owner confirmation retained</td>
+<td>Half-turn passes marker and broad terrain checks, but land/hover geometry gates reject it.</td>
+</tr>
+<tr>
+<td>hoodu</td>
+<td>Owner confirmation retained</td>
+<td>Top/bottom pair fits; 1/129 active mexes is unmatched, maximum 12.08 units.</td>
+</tr>
+<tr>
+<td>Island Ruckus</td>
+<td>Owner confirmation retained</td>
+<td>Half-turn pair fits; 2/60 active mexes fail, maximum 9 units; terrain weighted error 0.209 also exceeds the 0.20 broad guard.</td>
+</tr>
+<tr>
+<td>Standing Stones</td>
+<td>Source + default</td>
+<td>Vertical mirror now validated with source/default resources and movement; equal-sized search alternatives had been skipped.</td>
+</tr>
+</tbody></table>
+<h2 id="what-this-means">What this means</h2>
+<p>Only Standing Stones is demonstrated to be the same missed-equal-sized-mirror case. Fast Rush exposes an audit-scope issue: its saved original default descriptor already confirms the half-turn and selected base swap, but the earlier full-source counterpart audit omitted it. A known active pair must be verified within that scenario; inactive near-coincident slots should not veto it. The new follow-up evaluator validates actual pair swaps against separately verified source/default transform groups.</p>
+<p>For the other seven, matching starts are not the failing feature. Source/default resource matching, terrain guards and static movement masks are separate requirements. These failures do not overturn the owner&#39;s judgement that the existing spawns are sensible. They also do not establish competitive imbalance. No thresholds were relaxed, nor were unverified transforms promoted to symmetry training labels. Listed mex distances are best tested pair-compatible canonical/proposed transforms, not universal proofs of asymmetry.</p>
+<p>Two scope-regression tests passed in addition to the previously passed eight layout and six pairing checks. Every rerun verifies the original native archive and marker checksums. The immutable run records implementation hashes, original settings, owner confirmations and per-map source/default groups. Previous v1 diagnostic outputs are retained as history; the active follow-up is v2.</p>
+<p>Artifacts: <code>data/processed/layout_symmetry_pair_followup_v2/run.json</code>, <code>summary.json</code>, <code>results.json</code>, <code>comparison.csv</code>, <code>probe_diagnostics.json</code> and <code>maps/&lt;key&gt;/result.json</code>. The current scenario setup release remains <code>data/processed/spawn_pair_audit_v2</code>; its pairs have not changed.</p>
+<script src="model-atlas/public-links.js" data-public-links></script></body></html>

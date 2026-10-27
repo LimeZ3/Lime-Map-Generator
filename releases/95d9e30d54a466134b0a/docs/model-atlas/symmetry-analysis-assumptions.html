@@ -1,0 +1,47 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>symmetry-analysis-assumptions.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="measured-symmetry-and-analysis-reference-frames">Measured symmetry and analysis reference frames</h1>
+<p>26 October 2026. <strong>Proposal for discussion, not an implemented fallback.</strong> The
+owner accepted the chosen map symmetry results and requested removal of the
+automatic &quot;needs review&quot; presentation. The 82 unmatched maps remain unchanged
+while the owner inspects them. No assumed symmetry is added to source labels.</p>
+<p>An asymmetric map can still be examined relative to a candidate mirror or
+half-turn. That operation is an <strong>analysis reference frame</strong>, not a claim that
+all map features obey it. A real selected base pair can define a joining axis,
+midpoint and perpendicular bisector even on a completely asymmetric map.</p>
+<p>Keep the two records separate:</p>
+<table>
+<thead>
+<tr>
+<th>Record</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Detected map symmetry</td>
+<td>Evidence-backed source/default/terrain descriptor, including no supported match</td>
+</tr>
+<tr>
+<td>Analysis reference/assumption</td>
+<td>Explicit transform used by a particular gameplay estimator</td>
+</tr>
+</tbody></table>
+<p>A proposed analysis record should identify the actual source base pair, transform,
+supporting features, conflicting features, estimation purpose and its limitations.
+Different layers may support different transforms; no single global assumption
+needs to replace the measured data.</p>
+<p>For routes and resource availability, a frame can align regions for comparison,
+seed counterpart contacts, or provide a soft routing prior. Both sides must still
+be evaluated against their actual passability, route distances, resources and
+reclaim. If a mapped contact is blocked or a corresponding resource is absent,
+record that difference rather than copying a route/resource into the other side.
+Resource asymmetry becomes an imbalance measurement, not something to erase.</p>
+<p>Choose the reference and its evidence before reporting the target metric. For
+example, do not choose a transform simply because it makes resource totals look
+equal and then conclude that the economy is balanced.</p>
+<p>Assumed overlays should be visually distinct from detected source masks. They
+must not silently become ground-truth symmetry conditions or trigger height,
+texture, marker or prop averaging. A future model could consume a reference
+frame as its own explicit condition, separate from a symmetry truth label.</p>
+<p>No pipeline enforcement, new fallback labeling, model input or training is
+implemented by this proposal. EXTRACT-13 still requires actual passable contact
+joining and scenario-aware route construction.</p>
+<script src="public-links.js" data-public-links></script></body></html>

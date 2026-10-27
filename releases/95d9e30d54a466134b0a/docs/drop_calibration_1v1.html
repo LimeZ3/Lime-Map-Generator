@@ -1,0 +1,157 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>drop_calibration_1v1.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><blockquote>
+<p>Engineer water-unload update (15 October 2026): engineers now use hover movement and can unload onto water. The tables below describe the earlier run; refreshed counts and rules are in <a href="engineer_water_unloads.md">engineer_water_unloads.md</a>.</p>
+</blockquote>
+<h1 id="drop-calibration-reward-and-reinforcement">Drop calibration: reward and reinforcement</h1>
+<p>15 October 2026. Viewer: <a href="http://127.0.0.1:5177/drop_calibration_1v1/index.html">http://127.0.0.1:5177/drop_calibration_1v1/index.html</a></p>
+<p>This supersedes the first speed-only pilot. It uses shared strict, medium and permissive settings on Astro Crater Battles (2535/3658, slots 1/4), original Seton&#39;s Clutch (433/560, slots 1/2), and original The Drunken Beetles Dance (4822/7169, slots 1/6). Only those two slots are active; default map options apply. No map-specific viability overrides or target-count fitting is used.</p>
+<h2 id="what-changed">What changed</h2>
+<ul>
+<li>Arrival advantage alone is no longer sufficient. Both resource reward and a reinforcement window must pass.</li>
+<li>Offensive/gunship targets are excluded if the base is close or a tank could respond promptly from a main route. The pinned tank weapon range (18 map units) is subtracted before travel time.</li>
+<li>Initial intel, AA and actual army positions remain unknown. Structural base/route proximity is a protection proxy, never proof of absent defenses.</li>
+<li>The transport is now the T1 UEF uea0107 (120 mass, 4800 energy, speed 10.75), correcting the previous T2 profile. Nominal production from an existing unassisted T1 air factory is 800 / 20 = 40 seconds. Air raids use the UEF uea0203 gunship (192 mass, speed 13.5), correcting the bomber profile.</li>
+<li>Small isolated land components up to 50,000 tiles without an active spawn are grouped as island pockets. This prevents spaced mexes on the same island being rejected merely because they were previously separate marker clusters. Full island economy is potential regional value, not a claim that every mex is attacked instantly.</li>
+<li>Contested islands may be conditional offensive targets if the enemy occupies them. Their ownership is explicitly unknown. Island groups with resource sites advantaged to both players are contested rather than assigned by the first marker alone.</li>
+<li>Nearby viable patches are grouped into destinations within 160 walking units on the same movement layer. Grouping obeys actual terrain detours and cannot join separate islands. The seed-based grouping is an approximation, not a unique tactical decomposition.</li>
+</ul>
+<h2 id="shared-presets">Shared presets</h2>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th align="right">Strict</th>
+<th align="right">Medium</th>
+<th align="right">Permissive</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Minimum mexes*</td>
+<td align="right">3</td>
+<td align="right">2</td>
+<td align="right">1</td>
+</tr>
+<tr>
+<td>Minimum distance from base, units</td>
+<td align="right">128</td>
+<td align="right">96</td>
+<td align="right">80</td>
+</tr>
+<tr>
+<td>Minimum ground response, seconds</td>
+<td align="right">35</td>
+<td align="right">22</td>
+<td align="right">12</td>
+</tr>
+<tr>
+<td>Minimum enemy gunship travel, seconds</td>
+<td align="right">18</td>
+<td align="right">12</td>
+<td align="right">8</td>
+</tr>
+<tr>
+<td>Minimum net engineer time saved, seconds</td>
+<td align="right">60</td>
+<td align="right">35</td>
+<td align="right">15</td>
+</tr>
+<tr>
+<td>Early income / transport mass</td>
+<td align="right">2</td>
+<td align="right">1</td>
+<td align="right">0.5</td>
+</tr>
+<tr>
+<td>Income-denial ceiling / attack craft mass</td>
+<td align="right">1</td>
+<td align="right">0.6</td>
+<td align="right">0.25</td>
+</tr>
+</tbody></table>
+<p>*Ordinary resource-count floors are waived for ground-inaccessible pockets, provided at least one mex and the remaining value/protection checks pass. Expansion uses engineer accessibility; offense uses the land-counter model. A favorable flag is not proof that a drop is mandatory.</p>
+<h2 id="economic-and-response-measurements">Economic and response measurements</h2>
+<p>Expansion net saving = walking engineer time - (flight + unload overhead + final ground leg + 40-second fresh transport production). Advance mex income sums 2 × max(net saving - 12 × build index, 0) across T1 mexes. This models sequential construction but omits walking between mexes, so the credit is optimistic. Reclaim is reported but gets no automatic credit. Energy, air-factory build/queue cost, mex investment and combat losses are not converted into mass. Transport-only payback = 120 / (2 × mex count), once all selected mexes are producing; it is not complete expansion ROI.</p>
+<p>Ground response = min(response from enemy base, response from any discovered main-route point), using max(distance - 18, 0) / 3.4. Land-disconnected response is unbounded; amphibious, hover, navy, a counter-drop or existing air can still change defense. Gunship response from the enemy base is tracked separately and must meet the preset threshold. This assumes an existing gunship there, not that one is known to exist.</p>
+<p>Offensive value is an income-denial ceiling: T1 mex production × min(ground response, 60 seconds), compared with the transport mass for drops or gunship mass for raids. It does not simulate DPS, destruction, payload cost, AA or intel. Both base-distance and response tests are mandatory. If the walking alternative does not exist, head-start credit is unbounded in the comparison and exported as null plus an explicit access-required role; finite transport-only payback remains available.</p>
+<h2 id="results-slot-1-attacking">Results: slot 1 attacking</h2>
+<p>Each cell is distinct destinations / viable resource patches / mexes. Categories overlap and must not be summed. Threshold candidate sets are nested; heuristic destination grouping itself is not a proof of independent tactical routes.</p>
+<table>
+<thead>
+<tr>
+<th>Map</th>
+<th>Opportunity</th>
+<th>Strict</th>
+<th>Medium</th>
+<th>Permissive</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Astro Crater Battles</td>
+<td>expansion drop</td>
+<td>0 / 0 / 0</td>
+<td>0 / 0 / 0</td>
+<td>0 / 0 / 0</td>
+</tr>
+<tr>
+<td>Astro Crater Battles</td>
+<td>offensive drop</td>
+<td>0 / 0 / 0</td>
+<td>0 / 0 / 0</td>
+<td>0 / 0 / 0</td>
+</tr>
+<tr>
+<td>Astro Crater Battles</td>
+<td>air raid</td>
+<td>0 / 0 / 0</td>
+<td>0 / 0 / 0</td>
+<td>0 / 0 / 0</td>
+</tr>
+<tr>
+<td>Seton&#39;s Clutch</td>
+<td>expansion drop</td>
+<td>2 / 2 / 8</td>
+<td>4 / 8 / 22</td>
+<td>7 / 22 / 39</td>
+</tr>
+<tr>
+<td>Seton&#39;s Clutch</td>
+<td>offensive drop</td>
+<td>3 / 3 / 12</td>
+<td>5 / 8 / 26</td>
+<td>9 / 26 / 44</td>
+</tr>
+<tr>
+<td>Seton&#39;s Clutch</td>
+<td>air raid</td>
+<td>3 / 3 / 12</td>
+<td>5 / 8 / 26</td>
+<td>8 / 25 / 43</td>
+</tr>
+<tr>
+<td>The Drunken Beetles Dance</td>
+<td>expansion drop</td>
+<td>4 / 4 / 15</td>
+<td>4 / 4 / 15</td>
+<td>6 / 6 / 17</td>
+</tr>
+<tr>
+<td>The Drunken Beetles Dance</td>
+<td>offensive drop</td>
+<td>4 / 4 / 15</td>
+<td>4 / 4 / 15</td>
+<td>5 / 5 / 16</td>
+</tr>
+<tr>
+<td>The Drunken Beetles Dance</td>
+<td>air raid</td>
+<td>3 / 3 / 14</td>
+<td>11 / 18 / 29</td>
+<td>11 / 19 / 30</td>
+</tr>
+</tbody></table>
+<p>Astro now has no qualifying drops/raids in any preset. Seton&#39;s gains progressively more mainland economy candidates as the gates relax. Beetles highlights land-isolated pockets; its permissive gunship targets also include seabed sites allowed by the pinned gunship target-layer profile. Gunship weapon/underwater behavior has not been engine-validated. The exact ordering of Seton&#39;s versus Beetles counts is not forced: Seton&#39;s empty back-start economy in this 1v1 configuration can create many optional mainland patches. Counts alone are not a map ranking; compare their positions and resource totals.</p>
+<h2 id="review-and-exports">Review and exports</h2>
+<p>The viewer switches map, side, preset and opportunity type. Rejected areas are visible with the failed checks. Clicking an area shows route/base response, enemy air travel, net engineer saving, payback, income ceiling, resources and conditional ownership. The parameter and comparison tables show all three settings together.</p>
+<p>Each map directory contains <code>opportunities.json</code>, <code>calibration_metrics.csv</code>, <code>area_metrics.csv</code>, <code>opportunity_layers.npz</code>, and transparent preset/side/category PNGs. Main flags and the ordinary area CSV use the corrected medium preset, not the superseded speed-only booleans. Raw timing measurements remain available. Source hashes, unit profiles and map settings are recorded.</p>
+<p>Reproduce with <code>PYTHONPATH=src</code> and <code>.venv-codex/Scripts/python.exe -m supmapai.tools.inspect_opportunities</code>. The explicit <code>--calibration</code> flag remains accepted; calibration is now the default. Raw navigation inputs must already exist; use <code>compare_navigation_maps.prepare(key,name)</code> to build a missing navigation-only cache. <code>--rebuild</code> regenerates route/entity caches. No whole-library render, naval sweep or hosted deployment is performed.</p>
+<p>Validation and a three-map/preset comparison PNG are recorded in the output directory. All 47 targeted tests and the three-map data/mask/provenance audit passed. Unit tests include fast-flight rejection beside a route, protected base clusters, inaccessible economy, transport production/sequential build costs, nested thresholds, island grouping and terrain-aware destination grouping. Static-map approximations still need review against the intended in-game destinations.</p>
+<script src="model-atlas/public-links.js" data-public-links></script></body></html>

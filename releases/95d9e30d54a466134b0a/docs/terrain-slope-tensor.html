@@ -1,0 +1,66 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>terrain-slope-tensor.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="physical-terrain-slope-tensor-extract-05">Physical terrain slope tensor (EXTRACT-05)</h1>
+<p>Implemented and extracted 27 October 2026. This is a numeric supporting tensor, not an additional trained stage. Existing terrain, texture and resource checkpoints, their input channels and their selected loss functions remain unchanged.</p>
+<h2 id="definition-and-model-role">Definition and model role</h2>
+<p>For physical height h, slope is <code>sqrt((dh/dx)^2 + (dh/dz)^2)</code>: vertical world units per horizontal world unit. It is an unsigned steepness magnitude, not a compass direction and not a passability label. A rise of 0.75 per horizontal unit gives slope 0.75. The bounded model encoding is <code>atan(slope) * 2/pi</code>; slope 1 maps to 0.5. This physical angle encoding has no learned scale or train/validation statistic fit.</p>
+<p>Height remains authoritative geometry. Downstream texture/resource models can derive this channel from the actual upstream terrain available at inference. For terrain generation, use slope calculated from predicted clean height as an auxiliary supervised output/loss. Do not feed clean target slope to an unconditional terrain model. No new loss weight or training run was selected here.</p>
+<h2 id="saved-arrays">Saved arrays</h2>
+<p>Every map has <code>maps/&lt;key&gt;/slope.npz</code>. All arrays are <strong>1 x 256 x 256</strong>.</p>
+<table>
+<thead>
+<tr>
+<th>Array</th>
+<th>Type</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>slope</td>
+<td>float32</td>
+<td>Physical rise/run from native cell heights pooled to 256 before differentiating</td>
+</tr>
+<tr>
+<td>encoded</td>
+<td>float32</td>
+<td>Fixed angle encoding of source slope, in [0,1]</td>
+</tr>
+<tr>
+<td>valid</td>
+<td>bool</td>
+<td>Source derivative validity</td>
+</tr>
+<tr>
+<td>target_slope</td>
+<td>float32</td>
+<td>Physical slope from the exact decoded saved 256 terrain-height target</td>
+</tr>
+<tr>
+<td>target_encoded</td>
+<td>float32</td>
+<td>Bounded auxiliary target corresponding to the represented terrain height</td>
+</tr>
+<tr>
+<td>target_valid</td>
+<td>bool</td>
+<td>Target derivative validity; saturated height neighborhoods excluded</td>
+</tr>
+</tbody></table>
+<p>The current corpus has 512 x 512 native cells, giving <strong>2 world units per tensor cell</strong> on both axes. Native vertices are averaged into native cells, then cells are mean-pooled to 256. Slope is taken <strong>after pooling</strong>. Averaging high-resolution slope is a different quantity and is not used as hidden supervision. The target branch decodes the exact frozen asinh height field at the same resolution. It does not reconcile water channels, upsample, force symmetry or use native-detail gradients that the represented height cannot contain.</p>
+<p>Central differences require the centre and its four cardinal neighbors. The outer one-cell tensor border is invalid. Physical playable bounds are checked by whole cell footprint; derivatives crossing padding, nonfinite height or the playable boundary are invalid. Invalid values are stored as zero with mask false; valid flat terrain is zero with mask true. Target height saturation masks its derivative neighborhood. No maps in this cohort had saturated saved height targets.</p>
+<p>Underwater terrain uses the same physical height field and derivative; the water surface is not substituted for terrain. Slope alone is not an engine navigation grid. Narrow cliffs may be smoothed by 256-grid height pooling, which is why the native pathing analysis remains separate.</p>
+<h2 id="collection-eligibility-and-provenance">Collection, eligibility and provenance</h2>
+<p>The extraction covers the original <strong>1,310-map audit cohort</strong>: 1,200 train / 110 validation, with no held-out test maps. All 1,310 completed with <strong>zero failures in 63.82 seconds</strong> of build/finalization time (initial source-contract preparation is separate).</p>
+<p>The pinned latest owner snapshot has <strong>1,255 kept / 55 excluded</strong>. Excluded maps retain arrays for auditing but cannot enter the role-filtered training manifests. The existing curated terrain release has 1,117 recorded members; intersecting it with current owner exclusions leaves <strong>1,112 current-role examples: 1,018 train / 94 validation</strong>. This does not silently expand the selected training cohort to 1,255 maps or create a newly approved training dataset. The EXTRACT-06 field audit and release freeze are still pending.</p>
+<p>The source is <code>data/tensors/terrain_full256_controls_v3</code>; output is <code>data/tensors/physical_slope_256_v1</code>. <code>all.jsonl</code> includes all source records and explicit eligibility. <code>train.jsonl</code> and <code>validation.jsonl</code> contain the current-role/owner-kept intersection. Each row records key/family/split, array hash, source hashes, spacing and statistics. The sealed release lists artifact hashes. The build contract pins source release, target normalization, owner snapshot, bounds records and implementation. Code snapshots are saved in the release.</p>
+<h2 id="validation-and-available-code">Validation and available code</h2>
+<p>Seven tests passed, covering a known 3-4-5 physical plane, non-square spacing, additive height shifts, quarter-turn consistency, padding and missing values, angle encoding, NumPy/Torch parity and finite backpropagation on both sloping and flat terrain. Three real-map smoke extractions passed: (-X-), Adaptive Twin Rivers and water-heavy 3v3 Winter Expanses. The initial Canis smoke request was outside this 10km source cohort; no replacement version was silently substituted.</p>
+<p>All 1,310 saved archives were independently checked for hashes, shapes, float/bool types, finite/nonnegative values, encoding parity, invalid zeros, boundary masks, role exclusions and family separation. Source pooled height and decoded target height differ by at most 0.0000701 world units on usable cells. Small floating-point representation differences remain separate from physical definition differences.</p>
+<ul>
+<li>Pure NumPy extraction/encoding and differentiable Torch helper: <code>src/supmapai/tensors/slope.py</code>.</li>
+<li>Optional <code>masked_slope_loss</code>: masked L1 between predicted physical-angle slope and target; implemented and tested, not added to an existing model loss. Sensitive nonlinear height decoding runs in float32 for mixed-precision callers.</li>
+<li>Resume-safe builder: <code>PYTHONPATH=src python -m supmapai.tools.extract_slope_tensors --workers 2</code>. Completed signatures are checked; failures remain explicit and are not automatically retried. Use a new output version if the source/code contract changes.</li>
+<li>Liveness: <code>data/tensors/physical_slope_256_v1/status.json</code>; numerical checks: <code>audit.json</code> and <code>validation.json</code>; atlas <a href="model-atlas/slope-receipt.json">receipt</a>.</li>
+</ul>
+<h2 id="dataset-viewer">Dataset viewer</h2>
+<p>Datasets -&gt; 1x1, 10km -&gt; Compare layer across maps -&gt; <strong>Terrain slope</strong>. The PNG shows the saved source slope on a fixed angle color scale (flat dark blue, steeper green/yellow/red); invalid derivatives are transparent. Its per-map metadata identifies the actual six array channels, units, spacing and masks. The model atlas slope illustration now uses a saved Adaptive Twin Rivers tensor rather than an ad-hoc native-height gradient.</p>
+<p>No source map, old target tensor, current checkpoint, profile dimension or historical rating was modified. Loader/auxiliary-loss adoption belongs to the next explicit model configuration. Non-square class/eligibility work remains EXTRACT-06a; the numerical slope function already accepts unequal x/z spacing, but this extraction release is the existing square native cohort.</p>
+<script src="model-atlas/public-links.js" data-public-links></script></body></html>

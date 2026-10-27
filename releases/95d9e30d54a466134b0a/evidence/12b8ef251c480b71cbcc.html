@@ -1,0 +1,157 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>wreck_composer.py | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="../docs/model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1>wreck_composer.py</h1><p class="meta">Saved public evidence snapshot: src/supmapai/export/wreck_composer.py</p><pre>&quot;&quot;&quot;Value-budgeted unit wrecks, instantiated through FAF's native wreck API.&quot;&quot;&quot;
+
+from collections import Counter
+import hashlib
+from pathlib import Path
+import re
+import zipfile
+
+import numpy as np
+
+from supmapai.export.reclaim_composer import Spacing
+from supmapai.export.symmetry_geometry import bilinear_height
+from supmapai.extract.blueprint_values import build_index, wreck_profile
+from supmapai.ml.terrain_symmetry import average
+
+UNITS = ('uel0202', 'uel0303', 'url0202', 'url0303', 'ual0202', 'ual0303')
+
+
+def load_wreck_assets(game_data, faf_data):
+    game_data, faf_data = Path(game_data), Path(faf_data)
+    profile = wreck_profile(faf_data/'lua.nx2')
+    if not profile or profile['method'] != 'faf_source_tier_and_submerged':
+        raise ValueError('Active FAF wreck economy rule is not recognized')
+    index = build_index(game_data, faf_data/'env.nx2', faf_data/'units.nx2')
+    assets = []
+    with zipfile.ZipFile(game_data/'units.scd') as archive:
+        stock = {name.lower() for name in archive.namelist()}
+    for unit in UNITS:
+        bp = index[unit]
+        tier = next((t for t in ('TECH3', 'TECH2') if t in bp['categories']), None)
+        if (not tier or 'LAND' not in bp['categories'] or 'MOBILE' not in bp['categories']
+                or not bp.get('Wreckage_Blueprint') or bp.get('unparsed_wreck_multipliers')
+                or f'units/{unit}/{unit}_lod0.scm' not in stock):
+            raise ValueError('Unverified unit wreck asset: '+unit)
+        mass = bp['BuildCostMass']*bp['MassMult']*profile['mass_tier_factors'][tier]
+        energy = bp['BuildCostEnergy']*bp.get('EnergyMult', 0.)
+        if not np.isfinite([mass, energy]).all() or mass &lt;= 0 or energy &lt; 0:
+            raise ValueError('Unresolved wreck value: '+unit)
+        assets.append(dict(unit=unit, mass=mass, energy=energy, tier=tier, sources=bp['sources'],
+            generic_prop_blueprint=bp['Wreckage_Blueprint'],
+            value_policy='Fully built, zero-overkill, land-equivalent FAF wreck values; explicitly assigned at composition, including underwater'))
+    api = {}
+    with zipfile.ZipFile(faf_data/'lua.nx2') as archive:
+        for member, required in {
+                'lua/wreckage.lua': ('function CreateWreckage(', 'prop:SetMesh(', 'prop.AssociatedBP =', 'prop:SetMaxReclaimValues(timeMult, mass, energy)'),
+                'lua/sim/Prop.lua': ('self.MaxMassReclaim = mass', 'self.MaxEnergyReclaim = energy')}.items():
+            raw = archive.read(member)
+            if not all(token in raw.decode('utf-8') for token in required):
+                raise ValueError('Unrecognized runtime wreck API: '+member)
+            api[member] = hashlib.sha256(raw).hexdigest()
+    return assets, dict(economy_profile=profile, runtime_api=api, submerged_discount_applied=False,
+        note='Direct CreateWreckage receives explicit budgeted values; it does not simulate a unit death or apply a second tier/water discount')
+
+
+def compose_wrecks(field, budget, vertices, assets, *, seed=11, tiles=2, min_spacing=4., max_wrecks=500):
+    field = np.asarray(field, dtype=float)
+    if (field.shape != (128, 128) or not np.isfinite(field).all() or (field &lt; 0).any()
+            or not np.isfinite(budget) or budget &lt; 0 or vertices.shape != (513, 513)
+            or not np.isfinite(vertices).all() or seed &lt; 0 or tiles not in (2, 4, 8)
+            or not np.isfinite(min_spacing) or min_spacing &lt; 0 or max_wrecks &lt; 0):
+        raise ValueError('Invalid wreck allocation, terrain, budget or safety limits')
+    if not assets or any(not re.fullmatch('[a-z][a-z0-9_]+', a['unit']) or not np.isfinite([a['mass'], a['energy']]).all()
+                         or a['mass'] &lt;= 0 or a['energy'] &lt; 0 for a in assets):
+        raise ValueError('Invalid wreck asset pool')
+    field = average(field, 'rotate180')
+    if budget &gt; 0 and field.sum() == 0:
+        raise ValueError('Positive wreck budget has no learned support')
+    if field.sum():
+        field /= field.sum()
+    width = 128//tiles
+    wanted = field.reshape(tiles, width, tiles, width).sum((1, 3))*budget
+    actual = np.zeros((tiles, tiles))
+    positions, reasons, spacing = [], Counter(), Spacing(min_spacing)
+    for tile in range(tiles*tiles//2):
+        tz, tx = divmod(tile, tiles)
+        local_budget = wanted[tz, tx]*2
+        if local_budget &lt;= 0:
+            continue
+        rng = np.random.default_rng(np.random.SeedSequence([seed, 303, tile]))
+        weights = field[tz*width:(tz+1)*width, tx*width:(tx+1)*width].ravel()
+        weights = weights/weights.sum()
+        spent = 0.
+        while True:
+            asset = assets[int(rng.integers(len(assets)))]
+            cost = 2*asset['mass']
+            if spent+cost &gt; local_budget+1e-8:
+                reasons['indivisible_next_pair'] += 1
+                break
+            if len(positions)+2 &gt; max_wrecks:
+                reasons['entity_cap'] += 1
+                break
+            chosen = None
+            for _ in range(64):
+                cell = int(rng.choice(len(weights), p=weights))
+                origin = np.array([tx*width+cell % width, tz*width+cell//width])*4.
+                x, z = np.clip(np.rint((origin+rng.random(2)*4)*1024)/1024, origin+1/1024, origin+4-1/1024)
+                pair = [(float(x), float(z)), (float(512-x), float(512-z))]
+                if spacing.accept(pair):
+                    chosen = pair
+                    break
+            if chosen is None:
+                reasons['spacing_exhausted'] += 1
+                break
+            spacing.add(chosen)
+            yaw = float(rng.uniform(-np.pi, np.pi))
+            for side, (x, z) in enumerate(chosen):
+                positions.append(dict(unit=asset['unit'], x=x, z=z, y=128+bilinear_height(vertices, x, z),
+                    rotation=yaw+side*np.pi, mass=asset['mass'], energy=asset['energy']))
+            spent += cost
+            actual[tz, tx] += asset['mass']
+            actual[tiles-1-tz, tiles-1-tx] += asset['mass']
+    achieved = sum(p['mass'] for p in positions)
+    report = dict(requested_mass=float(budget), achieved_mass=achieved, unmet_mass=max(0., budget-achieved),
+        energy=sum(p['energy'] for p in positions), entities=len(positions), assets=dict(Counter(p['unit'] for p in positions)),
+        target_by_area=wanted.tolist(), achieved_by_area=actual.tolist(), no_redistribution=True,
+        stopping_reasons=dict(reasons), symmetry='rotate180', terrain_filter=False, terrain_changed=False,
+        min_spacing=min_spacing, spacing_scope='wrecks_only', budget_tiles=tiles,
+        underwater_centers=sum(p['y'] &lt; 128 for p in positions),
+        value_policy='Explicit full-health land-equivalent blueprint-derived values; no water discount')
+    return positions, report, field
+
+
+def wreck_script(records):
+    lines = []
+    for p in records:
+        if not re.fullmatch('[a-z][a-z0-9_]+', p['unit']) or not np.isfinite([p[k] for k in ('x', 'y', 'z', 'rotation', 'mass', 'energy')]).all():
+            raise ValueError('Unsafe wreck script record')
+        lines.append(&quot;    {unit='%s', position={%.10f, %.10f, %.10f}, yaw=%.12f, mass=%.10f, energy=%.10f},&quot; %
+                     (p['unit'], p['x'], p['y'], p['z'], p['rotation'], p['mass'], p['energy']))
+    return &quot;&quot;&quot;local ScenarioUtils = import('/lua/sim/ScenarioUtilities.lua')
+local Wreckage = import('/lua/wreckage.lua')
+local Entries = {
+&quot;&quot;&quot;+'\n'.join(lines)+&quot;&quot;&quot;
+}
+function OnPopulate()
+    ScenarioUtils.InitializeArmies()
+    local totalMass, totalEnergy = 0, 0
+    for _, entry in Entries do
+        local bp = __blueprints[entry.unit]
+        if not bp or not bp.Wreckage or not bp.Wreckage.Blueprint then
+            error('MapGen missing wreck blueprint: ' .. entry.unit)
+        end
+        local prop = Wreckage.CreateWreckage(bp, entry.position,
+            EulerToQuaternion(0, entry.yaw, 0), entry.mass, entry.energy,
+            2 * (bp.Wreckage.ReclaimTimeMultiplier or 1))
+        if not prop or math.abs(prop.MaxMassReclaim - entry.mass) &gt; 0.001 then
+            error('MapGen wreck value mismatch: ' .. entry.unit)
+        end
+        totalMass = totalMass + prop.MaxMassReclaim
+        totalEnergy = totalEnergy + prop.MaxEnergyReclaim
+    end
+    LOG(string.format('MAPGEN_WRECKS count=%d mass=%.3f energy=%.3f',
+        table.getn(Entries), totalMass, totalEnergy))
+end
+function OnStart() end
+&quot;&quot;&quot;
+</pre><script src="../docs/model-atlas/public-links.js" data-public-links></script></body></html>

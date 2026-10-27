@@ -1,0 +1,216 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>frontier_fronts.py | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="../docs/model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1>frontier_fronts.py</h1><p class="meta">Saved public evidence snapshot: src/supmapai/strategy/frontier_fronts.py</p><pre>&quot;&quot;&quot;Experimental base-to-frontier fronts with army response from contact points.
+
+Deployment paths and military response sources are
+different objects. The virtual completion reward never enters the physical graph.
+&quot;&quot;&quot;
+import numpy as np
+from scipy import sparse
+from scipy.sparse.csgraph import dijkstra
+from .corridors import movement_graph
+from .economic_fronts import fractional_owners,physical_length
+from .opportunities import distance
+from .route_normalization import transform_grid,transform_points,shared_sections
+from .routes import validate_route
+
+
+class FrontierFronts:
+    def __init__(self,mask,spawns,resources,symmetry='mirror_z',gain=4,sigma=64,speed=3.4,
+                 base_strength=4,snap_distance=96,max_stretch=2.5,allow_empty_resources=False):
+        if symmetry not in {None,'mirror_z','mirror_x','rotate180','diagonal','anti_diagonal'}:raise ValueError('A supported symmetry or explicit asymmetric half is required')
+        if sigma&lt;=0 or gain&lt;0 or speed&lt;=0 or max_stretch&lt;1 or base_strength&lt;0 or snap_distance&lt;0:raise ValueError('Invalid frontier parameters')
+        self.symmetry=symmetry;self.speed=speed;self.spawns=spawns
+        self.mask=np.asarray(mask,bool).copy()
+        if symmetry:self.mask &amp;= transform_grid(self.mask,symmetry)
+        self.h,self.w=self.mask.shape
+        if symmetry in {'diagonal','anti_diagonal'} and self.h!=self.w:raise ValueError('Diagonal symmetry requires a square grid')
+        a,b=np.array([[s['x'],s['z']] for s in spawns]);self.start=tuple(np.floor(a).astype(int))
+        if symmetry and not np.allclose(transform_points([a],self.mask.shape,symmetry)[0],b,atol=1e-6,rtol=0):raise ValueError('Pilot requires normalized reflected spawn positions')
+        midpoint=(a+b)*.5;axis=b-a
+        if np.linalg.norm(axis)==0:raise ValueError('Distinct bases are required')
+        self.midpoint=midpoint;self.axis=axis/np.linalg.norm(axis);self.tangent=np.array([-self.axis[1],self.axis[0]])
+        z,x=np.indices(self.mask.shape);projection=(x+.5-midpoint[0])*axis[0]+(z+.5-midpoint[1])*axis[1]
+        self.boundary=np.isclose(projection,0,atol=1e-7,rtol=0)
+        self.own=self.mask&amp;((projection&lt;0)|self.boundary)
+        if not self.own[self.start[1],self.start[0]]:raise ValueError('Own base is blocked or outside its half')
+        self.graph=movement_graph(self.own)
+        self.base=distance(self.graph,self.mask.shape,[a.tolist()]).astype(np.float32)
+        # Only real legal cross-cut edges qualify as terminal crossings.
+        full=movement_graph(self.mask)
+        u=np.repeat(np.arange(self.h*self.w),np.diff(full.indptr));v=full.indices
+        crossing=self.own.ravel()[u]&amp;(projection.ravel()[v]&gt;1e-7)
+        nodes=np.unique(u[crossing])
+        self.frontier_nodes=nodes[np.isfinite(self.base.ravel()[nodes])]
+        del full,u,v
+        if not len(self.frontier_nodes):raise ValueError('No reachable legal frontier crossing')
+        self.frontier_mask=np.zeros(self.mask.shape,bool);self.frontier_mask.ravel()[self.frontier_nodes]=True
+        self.scope_exclusions=[];self.resources=[]
+        for r in resources:
+            x,z=int(r['x']),int(r['z'])
+            if self.boundary[z,x]:self.scope_exclusions.append(dict(r,reason='neutral_frontier_cell'));continue
+            if not self.own[z,x]:continue
+            if not np.isfinite(self.base[z,x]):self.scope_exclusions.append(dict(r,reason='own_half_disconnected'));continue
+            self.resources.append(dict(r))
+        if not self.resources and not allow_empty_resources:raise ValueError('No own-side eligible resources')
+        self.xy=np.floor([[r['x'],r['z']] for r in self.resources]).astype(int).reshape(-1,2)
+        self.values=np.array([r.get('income_value',2.) for r in self.resources])
+        if not np.isfinite(self.values).all() or np.any(self.values&lt;=0):raise ValueError('Resource values must be finite and positive')
+        self.baseline=self.base[self.xy[:,1],self.xy[:,0]].astype(float)
+        if not np.isfinite(self.baseline).all() or np.any(self.baseline&lt;=0):raise ValueError('Unreachable or zero-baseline resource')
+        self.denominator=float(self.values@self.baseline)
+        self.fields=np.array([distance(self.graph,self.mask.shape,[[r['x'],r['z']]]).ravel() for r in self.resources],np.float32).reshape(len(self.resources),self.h*self.w)
+        potential=self.attraction_potential(sigma)
+        peak=potential.max();cost=(1/(1+gain*potential/peak)).ravel() if peak else np.ones(self.h*self.w)
+        u=np.repeat(np.arange(self.h*self.w),np.diff(self.graph.indptr));v=self.graph.indices
+        weights=self.graph.data*(cost[u]+cost[v])*.5
+        base=self.base.ravel();radius=max(snap_distance,1)
+        with np.errstate(invalid='ignore'):
+            returning=np.maximum(0,base[u]-base[v])
+            weights+=base_strength*np.nan_to_num(np.exp(-base[v]/radius)*returning,nan=0)
+            weights[(base[v]&lt;base[u]-.001)&amp;(base[v]&lt;snap_distance)]=np.inf
+        # Frontier is absorbing for deployment only: touch it once, then stop.
+        weights[(self.frontier_mask|self.boundary).ravel()[u]]=np.inf
+        deployment=sparse.csr_matrix((weights,self.graph.indices,self.graph.indptr),shape=self.graph.shape)
+        root=self.start[1]*self.w+self.start[0]
+        costs,parents=dijkstra(deployment,directed=True,indices=root,return_predecessors=True)
+        self.candidates=[]
+        for node in self.frontier_nodes:
+            if not np.isfinite(costs[node]):continue
+            chain=[];cell=int(node)
+            while cell&gt;=0:
+                chain.append([cell%self.w+.5,cell//self.w+.5]);cell=int(parents[cell])
+            chain.reverse();length=physical_length(chain)
+            if length&gt;max_stretch*self.base.ravel()[node]+.001:continue
+            validate_route(self.own,chain,self.start,(int(node%self.w),int(node//self.w)))
+            self.candidates.append(dict(node=int(node),points=chain,length=length))
+        if not self.candidates:raise ValueError('No legal deployment candidates')
+        self.services=self.candidate_services()
+        self.field_cache={}
+        self.parameters=dict(symmetry=symmetry,gain=gain,sigma=sigma,speed=speed,base_strength=base_strength,
+            snap_distance=snap_distance,max_stretch=max_stretch,
+            frontier='perpendicular bisector; legal real cross-cut edges; first contact is terminal',
+            search='all reachable frontier cells; resource-attracted common deployment tree; greedy contact placement and coordinate swaps',
+            response='physical own-half walking distance from a frontier contact or own base; no virtual teleport in response graph',
+            resource_scope='unchanged eligible mexes from reference; optimize own half only; reclaim excluded',
+            route_count='explicit budgets; no 3% early stop; no required target count',
+            limitation='static contact-position hypothesis; equal army presence per selected contact; no battle or arrival simulation')
+        self.parameters.update(symmetry_rule='exact mirrored half-map approaches and response territories; rotated contacts are not joined by a fictitious crossing',
+            neutral_frontier_resources='reported separately, not assigned to either player objective')
+
+    def attraction_potential(self,sigma):
+        return (self.values@np.where(self.fields&lt;=3*sigma,np.exp(-.5*(self.fields/sigma)**2),0)).reshape(self.mask.shape)
+
+    def candidate_services(self):
+        return self.fields[:,[c['node'] for c in self.candidates]].T.astype(float)
+
+    def objective(self,services):
+        best=np.minimum(np.min(services,axis=0),self.baseline) if len(services) else self.baseline
+        return float(self.values@(self.baseline-best))
+
+    def prefix(self,points):
+        result=[]
+        for p in points:
+            x,z=np.floor(p).astype(int)
+            if not self.own[z,x]:break
+            result.append(p)
+            if self.frontier_mask[z,x]:break
+        if not result or not self.frontier_mask[int(result[-1][1]),int(result[-1][0])]:raise ValueError('Route has no first frontier contact')
+        return result
+
+    def resource_services(self,prefixes,mode='frontier'):
+        if mode not in {'frontier','deployment'}:raise ValueError('Unknown response mode')
+        result=[]
+        for points in prefixes:
+            xy=np.floor(points[-1:] if mode=='frontier' else points).astype(int)
+            result.append(np.min(self.fields[:,xy[:,1]*self.w+xy[:,0]],axis=1).astype(float))
+        return np.asarray(result)
+
+    def metrics(self,prefixes,mode='frontier'):
+        services=self.resource_services(prefixes,mode);owners,best=fractional_owners(services,self.baseline)
+        objective=self.objective(services)
+        return dict(access_improvement=objective/self.denominator,
+            mean_response_seconds=float(self.values@best/self.values.sum()/self.speed),
+            base_response_seconds=float(self.values@self.baseline/self.values.sum()/self.speed),
+            resource_responses_seconds=(best/self.speed).tolist(),
+            improved_mexes=int(np.sum(owners.sum(axis=0)&gt;0)),base_preferred_mexes=int(np.sum(owners.sum(axis=0)==0)),
+            routes=[dict(id=i+1,allocated_mexes=float(own.sum()),
+                allocated_economic_share=float(self.values@own/self.values.sum()),
+                removal_loss=(objective-self.objective(np.delete(services,i,axis=0)))/self.denominator)
+                for i,own in enumerate(owners)],
+            resource_allocation=[dict(name=r['name'],x=r['x'],z=r['z'],route_ids=(np.flatnonzero(owners[:,j])+1).tolist(),
+                shares=owners[:,j].tolist(),base_seconds=float(self.baseline[j]/self.speed),response_seconds=float(best[j]/self.speed)) for j,r in enumerate(self.resources)])
+
+    def territory(self,prefixes):
+        fields=[]
+        for points in prefixes:
+            endpoint=tuple(points[-1])
+            if endpoint not in self.field_cache:self.field_cache[endpoint]=distance(self.graph,self.mask.shape,[endpoint]).astype(np.float32)
+            fields.append(self.field_cache[endpoint])
+        fields=np.asarray(fields);nearest=fields.min(axis=0);served=self.own&amp;(nearest&lt;self.base-.001)
+        bits=np.zeros(self.mask.shape,np.uint16)
+        for i,field in enumerate(fields):bits[served&amp;np.isclose(field,nearest,atol=.001,rtol=0)]|=1&lt;&lt;i
+        return bits|transform_grid(bits,self.symmetry) if self.symmetry else bits
+
+    def snapshot(self,prefixes,budget,label):
+        routes=[]
+        for i,prefix in enumerate(prefixes,1):
+            if self.symmetry is None:
+                validate_route(self.own,prefix,self.start,tuple(np.floor(prefix[-1]).astype(int)))
+                routes.append(dict(id=i,points=prefix,own_points=prefix,contact=prefix[-1],
+                    mirror_contact=None,mirror_points=[],geometry_kind='independent_own_half',
+                    own_length=physical_length(prefix),length=physical_length(prefix),symmetry_partner=None))
+                continue
+            reflected=transform_points(prefix[::-1],self.mask.shape,self.symmetry).tolist()
+            # A rotation moves a contact along the frontier. Keep the two
+            # physical approaches separate; never draw or score a teleport.
+            separate=self.symmetry=='rotate180'
+            full=prefix if separate else prefix+(reflected[1:] if np.array_equal(prefix[-1],reflected[0]) else reflected)
+            validate_route(self.mask,full,self.start,tuple(np.floor(full[-1]).astype(int)))
+            routes.append(dict(id=i,points=full,own_points=prefix,contact=prefix[-1],
+                mirror_contact=reflected[0],mirror_points=reflected[::-1] if separate else [],
+                geometry_kind='separate_half_approaches' if separate else 'joined_reflected_approaches',
+                own_length=physical_length(prefix),length=physical_length(prefix)*2 if separate else physical_length(full),symmetry_partner=i))
+        sections=shared_sections(display_routes(routes))
+        reposition=[]
+        for a in prefixes:
+            field=distance(self.graph,self.mask.shape,[a[-1]])
+            reposition.append([float(field[int(b[-1][1]),int(b[-1][0])]/self.speed) for b in prefixes])
+        return dict(label=label,requested_routes=budget,route_count=len(routes),routes=routes,merged_sections=sections,
+            frontier_metrics=self.metrics(prefixes),deployment_metrics=self.metrics(prefixes,'deployment'),
+            total_own_deployment_length=sum(r['own_length'] for r in routes),contact_reposition_seconds=reposition)
+
+    def run(self,max_routes=6):
+        if not isinstance(max_routes,int) or not 1&lt;=max_routes&lt;=8:raise ValueError('Choose a route budget between1 and8')
+        selected=[];snapshots=[]
+        for budget in range(1,max_routes+1):
+            old=self.objective(self.services[selected])
+            best=np.minimum(self.services[selected].min(axis=0),self.baseline) if selected else self.baseline
+            scores=(self.values*(self.baseline-np.minimum(best[None,:],self.services))).sum(axis=1)
+            scores[selected]=-np.inf;candidate=int(np.argmax(scores))
+            if scores[candidate]&gt;old+1e-6:selected.append(candidate)
+            for _ in range(20):
+                changed=False
+                for i in range(len(selected)):
+                    others=selected[:i]+selected[i+1:]
+                    best=np.minimum(self.services[others].min(axis=0),self.baseline) if others else self.baseline
+                    scores=(self.values*(self.baseline-np.minimum(best[None,:],self.services))).sum(axis=1)
+                    scores[others]=-np.inf;replacement=int(np.argmax(scores))
+                    if scores[replacement]&gt;self.objective(self.services[selected])+1e-6:selected[i]=replacement;changed=True
+                if not changed:break
+            if not selected:continue
+            ordered=sorted(selected,key=lambda j:np.asarray(self.candidates[j]['points'][-1])@self.tangent)
+            prefixes=[self.candidates[j]['points'] for j in ordered]
+            snapshots.append(self.snapshot(prefixes,budget,f'Frontier model K{budget}'))
+        return dict(parameters=self.parameters,resources=self.resources,own_resource_count=len(self.resources),
+            candidate_count=len(self.candidates),scope_exclusions=self.scope_exclusions,snapshots=snapshots)
+
+
+def display_routes(routes):
+    &quot;&quot;&quot;Expand separate mirrored branches for drawing, without adding army sources.&quot;&quot;&quot;
+    result=[];count=len(routes)
+    for route in routes:
+        result.append(dict(route,corridor_id=route['id']))
+        if route.get('mirror_points'):
+            result.append(dict(route,id=count+route['id'],corridor_id=route['id'],
+                display_id=str(route['id'])+&quot;′&quot;,points=route['mirror_points']))
+    return result
+</pre><script src="../docs/model-atlas/public-links.js" data-public-links></script></body></html>
