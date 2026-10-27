@@ -1,0 +1,178 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>select_annualized_map_families.py | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="../docs/model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1>select_annualized_map_families.py</h1><p class="meta">Saved public evidence snapshot: src/supmapai/tools/select_annualized_map_families.py</p><pre>&quot;&quot;&quot;Freeze owner-approved family selection from captured exact-version FAF counters.
+
+Offline, deterministic, no network writes or tensor mutations.
+&quot;&quot;&quot;
+from __future__ import annotations
+
+import csv
+import hashlib
+import json
+from datetime import datetime
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[3]
+OUT = ROOT / 'data/processed/annualized_family_selection_v1'
+
+
+def load(path):
+    return json.loads((ROOT / path).read_text(encoding='utf-8-sig'))
+
+
+def distinct(pair):
+    &quot;&quot;&quot;Use existing audit tolerances, excluding inactive adaptive inventories.&quot;&quot;&quot;
+    return bool(
+        pair['terrain_different'] or pair['texture_different']
+        or not all(pair['marker_comparison'][k]['same_layout']
+                   for k in ('default_mex', 'default_hydro'))
+        or not pair['default_starts']['same_layout']
+        or (pair['reclaim_assessed'] and (
+            pair['known_reclaim_spatial_difference'] &gt;= .05
+            or pair['reclaim_total_relative_difference'] &gt;= .05))
+    )
+
+
+def annual_rate(plays, released, as_of):
+    years = (as_of - released).total_seconds() / (365.2425 * 86400)
+    if years &lt;= 0 or plays &lt; 0:
+        raise ValueError('Invalid release date or counter')
+    return years, plays / years
+
+
+def main():
+    curation = load('data/processed/annualized_family_selection_v1/curation_before.json')
+    groups = load('data/processed/dataset_dedup_audit_v2/families.json')
+    inventory = {m['key']: m for m in load('docs/model-atlas/generated/datasets/1x1-10km/inventory.json')['maps']}
+    versions = {r['id']: r for r in load('data/processed/vault_family_popularity_v1/resources.json') if r['type'] == 'mapVersion'}
+    pairs = {frozenset((p['a'], p['b'])): p for p in load('data/processed/dataset_dedup_audit_v2/pairs.json')}
+    source_summary = load('data/processed/vault_family_popularity_v1/summary.json')
+    as_of_text = source_summary['captured_end']
+    as_of = datetime.fromisoformat(as_of_text)
+    owner = {r['key']: r for r in curation['rows']}
+    assert len(owner) == len(inventory) == 1310
+    assert {k for g in groups for k in g['members']} == {k for k, r in owner.items() if r['decision'] == 'keep'}
+    rows, families = [], []
+    for group in groups:
+        ranked = []
+        for key in group['members']:
+            parent, version_id = key.split('_')
+            version = versions[version_id]
+            assert version['relationships']['map']['data']['id'] == parent
+            a = version['attributes']
+            age, rate = annual_rate(a['gamesPlayed'], datetime.fromisoformat(a['createTime'].replace('Z', '+00:00')), as_of)
+            ranked.append(dict(key=key, name=inventory[key]['name'], folder=a['folderName'],
+                               family=group['family'], split=group['split'], plays=a['gamesPlayed'],
+                               released=a['createTime'], age_years=age, plays_per_year=rate,
+                               previous_representative=key == group['current']))
+        ranked.sort(key=lambda r: (-r['plays_per_year'], -r['plays'], r['key']))
+        selected = [ranked[0]['key']]
+        for r in ranked[1:]:
+            if distinct(pairs[frozenset((selected[0], r['key']))]):
+                selected.append(r['key'])
+                break
+        for rank, r in enumerate(ranked, 1):
+            r['rate_rank'] = rank
+            r['decision'] = 'keep' if r['key'] in selected else 'exclude'
+            r['role'] = ('primary' if r['key'] == selected[0] else 'secondary') if r['decision'] == 'keep' else ''
+            r['distinct_from_primary'] = r['key'] != selected[0] and distinct(pairs[frozenset((selected[0], r['key']))])
+            r['reason'] = ('highest_annualized_plays' if r['role'] == 'primary' else
+                           'highest_annualized_content_distinct_runner_up' if r['role'] == 'secondary' else
+                           'lower_annualized_rank_family_cap' if r['distinct_from_primary'] else
+                           'no_verified_materialized_difference_from_rate_leader')
+            rows.append(r)
+        families.append(dict(family=group['family'], split=group['split'], selected=selected,
+                             previous=group['current'], ranked=[r['key'] for r in ranked]))
+    excluded = [r for r in rows if r['decision'] == 'exclude']
+    prior = [dict(key=k, name=inventory[k]['name'], folder=inventory[k]['folder'],
+                  decision='exclude', reason='preexisting_owner_exclusion')
+             for k, r in owner.items() if r['decision'] == 'exclude']
+    retained = [r for r in rows if r['decision'] == 'keep']
+    assert len(retained) + len(excluded) + len(prior) == 1310
+    assert all(1 &lt;= len(g['selected']) &lt;= 2 for g in families)
+    assert len({r['key'] for r in rows}) == len(rows)
+    summary = dict(schema='annualized_map_family_selection_v1', as_of=as_of_text,
+                   cohort=curation['cohort'], total_maps=1310, previous_owner_kept=len(rows),
+                   families=len(families), retained=len(retained), newly_excluded=len(excluded),
+                   preexisting_excluded=len(prior), total_excluded=len(excluded)+len(prior),
+                   secondary_versions=sum(len(g['selected']) == 2 for g in families),
+                   primary_changed=sum(g['selected'][0] != g['previous'] for g in families),
+                   status='selection_frozen_shared_application_pending', training_ready=False,
+                   policy=dict(rate='exact_version_gamesPlayed / elapsed_years_since_version_createTime',
+                               days_per_year=365.2425, age_floor=None, cap=2,
+                               second='highest-rate verified materialized content-distinct alternative',
+                               candidates='existing owner-kept audited cohort only',
+                               ties='exact plays descending, then stable key ascending',
+                               exclusions='preexisting owner exclusions preserved',
+                               splits='existing deduplicated family split preserved'),
+                   limitations=['Lifetime average; not a recent popularity trend or causal preference estimate.',
+                                'FAF version upload timestamp approximates release; counter/window alignment is not guaranteed.',
+                                'No unpublished, hidden or outside-cohort version is added.',
+                                'Only existing audit evidence establishes secondary content variety.',
+                                'Selected checkpoints and old tensor manifests are unchanged; downstream role rebuild pending.'])
+    after_path = OUT / 'curation_after.json'
+    if after_path.exists():
+        after = json.loads(after_path.read_text(encoding='utf-8-sig'))
+        after_rows = {r['key']: r for r in after['rows']}
+        desired = {r['key']: r['decision'] for r in rows + prior}
+        assert after['cohort'] == curation['cohort']
+        assert set(after_rows) == set(owner)
+        assert all(after_rows[k]['decision'] == decision for k, decision in desired.items())
+        assert all(after_rows[k].get('manualSymmetry') == owner[k].get('manualSymmetry') for k in owner)
+        assert sum(after_rows[k]['decision'] != owner[k]['decision'] for k in owner) == len(excluded)
+        summary.update(status='selection_frozen_shared_application_verified',
+                       shared_verified=True, shared_changed_maps=len(excluded))
+    def write(name, obj):
+        (OUT / name).write_text(json.dumps(obj, ensure_ascii=False, indent=2)+'\n', encoding='utf-8')
+    def table(name, values):
+        keys = list(dict.fromkeys(k for r in values for k in r))
+        with (OUT/name).open('w', encoding='utf-8-sig', newline='') as f:
+            w = csv.DictWriter(f, fieldnames=keys); w.writeheader(); w.writerows(values)
+    write('selection.json', dict(summary=summary, families=families, maps=rows,
+                                 preexisting_exclusions=prior, owner_metadata=curation['rows']))
+    write('summary.json', summary)
+    write('curation_patch.json', dict(cohort=curation['cohort'], updates=[
+        dict(key=r['key'], decision='exclude', expectedVersion=owner[r['key']]['version']) for r in excluded]))
+    for name, values in [('rankings.csv', rows), ('retained.csv', retained),
+                         ('excluded_by_rule.csv', excluded), ('all_excluded.csv', excluded+prior)]:
+        table(name, values)
+    sources = {}
+    for split in ('train', 'validation'):
+        path = ROOT / f'data/tensors/terrain_full256_controls_v3/{split}.jsonl'
+        for line in path.read_text(encoding='utf-8').splitlines():
+            r = json.loads(line)
+            sources[r['key']] = r
+    with (OUT/'source_candidates.jsonl').open('w', encoding='utf-8') as f:
+        for r in retained:
+            candidate = dict(sources[r['key']])
+            candidate.update(original_family=candidate['family'], original_split=candidate['split'],
+                             family=r['family'], split=r['split'], selection_role=r['role'],
+                             selection_release='annualized_family_selection_v1',
+                             manual_symmetry=owner[r['key']].get('manualSymmetry'),
+                             training_ready=False)
+            f.write(json.dumps(candidate, ensure_ascii=False)+'\n')
+    lines = ['# Annualized family selection — excluded maps', '',
+             f&quot;As of {as_of_text}: {len(retained)} kept across {len(families)} families; &quot;
+             f&quot;{len(excluded)} newly excluded, plus {len(prior)} existing owner exclusions.&quot;, '',
+             'Exact-version lifetime plays / elapsed years since version upload. Maximum two per family; '
+             'a second must have a verified materialized terrain, paint, resource/start or reclaim difference.', '',
+             '## Newly excluded by this decision', '',
+             '| Map / folder | Key | Plays | Release | Plays/year | Reason |',
+             '|---|---|---:|---|---:|---|']
+    for r in sorted(excluded, key=lambda r: (r['folder'].casefold(), r['key'])):
+        lines.append(f&quot;| {r['folder'].replace('|','/')} | {r['key']} | {r['plays']} | {r['released'][:10]} | {r['plays_per_year']:.2f} | {r['reason']} |&quot;)
+    lines += ['', '## Existing owner exclusions — preserved', '']
+    lines += [f&quot;- {r['folder']} (`{r['key']}`)&quot; for r in sorted(prior, key=lambda r: r['folder'].casefold())]
+    (OUT/'excluded_maps.md').write_text('\n'.join(lines)+'\n', encoding='utf-8')
+    inputs = ['data/processed/annualized_family_selection_v1/curation_before.json',
+              'data/processed/dataset_dedup_audit_v2/families.json',
+              'data/processed/dataset_dedup_audit_v2/pairs.json',
+              'data/processed/vault_family_popularity_v1/resources.json',
+              'data/tensors/terrain_full256_controls_v3/train.jsonl',
+              'data/tensors/terrain_full256_controls_v3/validation.jsonl',
+              'src/supmapai/tools/select_annualized_map_families.py']
+    write('checksums.json', {p: hashlib.sha256((ROOT/p).read_bytes()).hexdigest() for p in inputs})
+    print(json.dumps(summary, indent=2))
+
+
+if __name__ == '__main__':
+    main()
+</pre><script src="../docs/model-atlas/public-links.js" data-public-links></script></body></html>

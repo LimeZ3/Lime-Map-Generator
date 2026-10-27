@@ -1,0 +1,72 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>questionnaire-next-stage.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="next-stage-full-vault-acquisition-audit-overlays-and-team-geometry">Next stage: full-vault acquisition, audit, overlays and team geometry</h1>
+<p>Status: planning only. No bulk downloads or new audits authorized by this stage.</p>
+<h2 id="collection-provenance-and-priorities">Collection provenance and priorities</h2>
+<p>The original 6,047-map questionnaire catalog came from the owner&#39;s manually
+selected local library. Selection used previews and a judgment of dataset
+usefulness, not a verified positive-quality label. Preserve that provenance.
+The October 8 vault snapshot contains 14,811 parent map records and 32,213 map
+versions; these are different units, so the download backlog is not simply
+14,811 minus 6,047. The questionnaire also contains a small number of vault-only
+popular representatives, whose metadata must not be mistaken for an audited local
+map. Record local presence, download status, audit status, and source separately.</p>
+<p>Compute the exact missing set by parent ID and exact version ID/folder, joining
+all local inventory records first. Select one version per parent for initial
+coverage and retain a manifest of historical versions for subsequent work.
+Preserve readable hidden/unranked records as provenance, while keeping public
+questionnaire visibility a deliberate choice. Failed downloads remain missing,
+not zero-size maps. Do not label maps negative merely because they were omitted
+from the manual selection, unranked, unpopular, hidden or failed extraction.</p>
+<p>Keep the curated library and ranked popular pool as normal-priority work. Put
+new, unreviewed vault-only maps in a separate lowest-priority exploration pool,
+with clear unaudited/missing-data indicators. Activate this pool after exact
+identity and safe previews are available. Group map families across acquisition,
+annotation and train/test splits so variants do not dominate the dataset.</p>
+<h2 id="acquisition-and-audit-sequence">Acquisition and audit sequence</h2>
+<ol>
+<li>Produce a dry-run manifest of missing parent/version identities, URLs, known
+sizes and disk-budget estimate. Reconcile the existing local library and
+already imported vault representatives; never download known files twice.</li>
+<li>Agree the batch size and storage location before the full backfill. Resume
+sequential bounded batches, respect server retry guidance, and cache results.
+Record timestamps, hashes, source IDs, failures and retry state.</li>
+<li>Validate archives before extraction: reject traversal, absolute paths,
+symlinks escaping the destination and unreasonable decompression sizes.
+Parse map/Lua data without executing untrusted scripts.</li>
+<li>Run the existing technical audit and explicit regression checks for Astro
+water and Fast Rush water, including exact-version joins, height/water levels,
+coordinate transforms, passability and buildability. Missing is not zero.</li>
+<li>Extract reclaim position and resource yield per prop, spawn/marker positions,
+terrain and water masks. Publish versioned derived products with audit flags.</li>
+<li>Attach overlays only when aligned to the vault preview and validated against
+known examples. Keep vault imagery as the base and label overlays as extracted
+evidence. Each overlay can be switched off and its provenance inspected.</li>
+</ol>
+<h2 id="symmetry-and-team-positioning-are-separate-properties">Symmetry and team positioning are separate properties</h2>
+<p>Record separately:</p>
+<ul>
+<li>Terrain/resource symmetry: reflection axes, 180-degree rotation, higher-order
+rotation, approximate symmetry, or none/unknown. Do not assume every competitive
+map has a reflection axis; rotation and gameplay balance need separate checks.</li>
+<li>Spawn symmetry: whether the active start positions match under those transforms.</li>
+<li>Team orientation for a selected configuration: left/right, top/bottom, the two
+diagonal pairings, interleaved, radial/FFA, custom or unknown.</li>
+<li>Team grouping: clustered teammates, distributed starts/lanes, interleaved teams;
+within-team and cross-team distances, with scale-normalized measures.</li>
+<li>Positional specialization and teamwork dependence remain human assessments;
+geometry can suggest but cannot establish either one.</li>
+</ul>
+<p>Use normalized map coordinates and explicitly document origin and preview
+rotation. Infer candidate transforms from terrain and resource/spawn positions;
+report tolerance/error and confidence instead of asserting exact symmetry.
+Team assignments require active spawn selection and team membership, not just
+all capacity slots. Adaptive spawn/resource settings can change the answer.</p>
+<p>Use the owner&#39;s examples as configuration-specific review fixtures: Seton&#39;s
+bottom-left versus top-right, Gap left versus right, Canis River top versus
+bottom. Verify slot assignments and coordinate conventions on exact versions.</p>
+<p>After audited overlays exist, add selectable active slots/team colors and ask:
+&#39;How are the teams arranged in the setup you are assessing?&#39; and &#39;How grouped
+are teammates at the start?&#39; Show inferred suggestions separately from player
+answers, allow corrections, and store the chosen configuration, slots, team
+assignments, inference version and confidence. Keep geometry annotations distinct
+from subjective gameplay quality and do not retrofit old reviews with guesses.</p>
+<script src="model-atlas/public-links.js" data-public-links></script></body></html>

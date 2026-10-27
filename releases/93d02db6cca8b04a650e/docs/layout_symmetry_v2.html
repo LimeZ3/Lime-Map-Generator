@@ -1,0 +1,159 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>layout_symmetry_v2.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="anchor-assisted-symmetry-v2---26-october-2026">Anchor-assisted symmetry v2 - 26 October 2026</h1>
+<p><strong>Presentation update:</strong> the owner accepted the chosen detections and removed
+automatic needs-review flags. Fit measurements remain as diagnostics; 82
+unmatched maps are unchanged. See <a href="model-atlas/symmetry-analysis-assumptions.md">analysis assumptions</a>.</p>
+<p>This implements the owner&#39;s correction: rated maps can genuinely be asymmetric,
+including resources. Rating/ranked status is <strong>not an input</strong>. A layout is never
+assigned a symmetry merely because it is rated or because an earlier terrain
+label exists. Terrain, source layout and selected default configuration have
+separate evidence and conditions.</p>
+<h2 id="completed-collection">Completed collection</h2>
+<p><code>data/processed/layout_symmetry_collection_v2</code> attempted all <strong>1,310</strong> maps in the
+original audit cohort in <strong>360.7 seconds</strong>, two CPU workers, zero failures.
+The native source arrays, map configurations, family splits, source curation,
+selected checkpoints and previously scored gameplay labels are unchanged.</p>
+<table>
+<thead>
+<tr>
+<th>Outcome</th>
+<th align="right">Maps</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Terrain-close supported layout</td>
+<td align="right">791</td>
+<td>Anchors and movement checks pass; original height gates also pass</td>
+</tr>
+<tr>
+<td>Approximate supported layout</td>
+<td align="right">89</td>
+<td>Anchors and movement pass despite larger raw-height differences</td>
+</tr>
+<tr>
+<td>Terrain only</td>
+<td align="right">348</td>
+<td>Height symmetry exists, but no source/default layout passed the combined checks</td>
+</tr>
+<tr>
+<td>No supported symmetry</td>
+<td align="right">82</td>
+<td>Asymmetric or unresolved; retained for review</td>
+</tr>
+</tbody></table>
+<p>Of the 880 supported layouts, 870 use the full source inventory and 10 apply only
+to the recorded default configuration. <strong>36 of the former 118 height-only
+no-match cases</strong> now have a supported layout, including Cinder. The other 82 are
+not forced into a group. Terrain-only is not proof that resources specifically
+are asymmetric: failed movement checks, insufficient evidence or configuration
+conflicts can also explain it. Per-map rejection records remain available.</p>
+<p>A real scope example is <code>339_416</code>, <code>4v4_serenity.v0001</code>: terrain and all eight
+source starts support fourfold symmetry, but a quarter-turn fails one-to-one
+matching for two of 56 mexes and two of 14 hydros (nearest errors up to 41.87
+and 62.94 units). Its supported source layout is a half-turn. The atlas preserves
+the fourfold terrain descriptor instead of forcing that symmetry onto resources.</p>
+<h2 id="fixed-method-and-evidence">Fixed method and evidence</h2>
+<ol>
+<li>Reuse the sealed earlier terrain scan and verify its contract/output hashes.
+Verify the native NPZ, source metadata and marker identity. Propose whole-square
+groups, earlier fitted groups and mirror bisectors suggested by source starts.
+Test whole generated groups, not one isolated matching transform.</li>
+<li>Match starts, mexes and hydros <strong>separately</strong>, using one-to-one correspondence
+within <strong>4 world units</strong>. There is no unmatched-marker percentage allowance.
+Bijective nearest matching is used where possible; a sparse minimum-cost
+matching resolves collisions. Missing hydros contribute no evidence. Approximate
+layout confirmation requires at least two starts, four mexes, nontrivial point
+movement and anchor span of at least 20% of the map extent.</li>
+<li>Separate full source starts/resource pools from the recorded selected starts
+and active resource configuration. A fourfold source map can have a smaller
+1v1 configuration group. Default confirmation tests the entire selected pair,
+not one-direction matching from A to B. Whether a default transform actually
+exchanges the two bases is recorded independently.</li>
+<li>Require at least <strong>99.5%</strong> continuous playable-domain preservation. Approximate
+interior radial patterns remain separate terrain evidence rather than silently
+discarding square corners. The current audit cohort is full-square 10km maps;
+rectangular and arbitrary cropped-domain support remains a separate task.</li>
+<li>Keep the original height fit. The old terrain-close limits remain 0.055
+weighted normalized RMSE and 0.12 normalized p95. The layout fallback also has
+broad terrain guards: RMSE &lt;=0.20 and p95 &lt;=0.40, normalized by robust relief.
+These are bounded screening policies, not calibrated confidence probabilities.</li>
+<li>Check cached native land/hover masks and water occupancy. Land/hover mismatch
+must be &lt;=8% of the map and &lt;=15% of the passable union. Disagreement farther
+than two native cells from a source boundary must cover &lt;=1% of the map.
+Water mismatch must cover &lt;=2% of the map; when the wet union covers &gt;=1%,
+its relative mismatch must also be &lt;=15%.</li>
+<li>Compare endpoint connectivity partitions on native land/hover masks at
+clearances <strong>0, 1, 2 and 4 cells</strong>, using four-neighbor connectivity. The
+un-eroded check allows a recorded endpoint snap of at most two cells. Wider
+clearance checks use endpoints passable on both sides. These checks can reject
+a marker-symmetric map whose routes disconnect or whose wide connection changes.</li>
+<li>Check spawn-to-marker travel costs on a conservative four-cell grid. A change
+greater than <strong>8 world units + 20% of the shorter cost</strong> is suspected material
+asymmetry. Coarse-grid conflicts are always recomputed at native resolution
+before rejection; coarse rasterization alone must not close an opening and
+manufacture a veto. Only finite comparable costs are used for this cost test;
+native connectivity checks separately handle reachability.</li>
+</ol>
+<p>The thresholds are a frozen first policy for this version, with code/settings
+and source pins saved in its contract. They were not selected from map ratings
+or changed to reduce the remaining no-match count. Largest complete groups are
+tested first, canonical proposals before pixel-fitted alternatives. Smaller
+alternatives are not re-evaluated after both scopes have a larger verified group.
+Untested dominated candidates are recorded as such, not as failed matches.</p>
+<h2 id="data-and-model-roles">Data and model roles</h2>
+<p>Every result preserves the previous <code>terrain_descriptor</code>, the new <code>source_layout</code>
+and <code>default_layout</code>, selected scope, match quality, anchor inventory, movement
+evidence, group rejection reasons and original source-slot names. No height is
+averaged or mirrored, no marker is moved and no opponent is replaced.</p>
+<p>Per-map NPZs retain the 28-value <code>condition</code> plus separate 28-value
+<code>terrain_condition</code> and <code>default_condition</code>. The aggregate <code>conditions.npz</code>
+contains the same arrays in pinned map-key order, with availability. The primary
+condition describes the supported full-source group, or selected-default group
+if only that scope is supported. Terrain-only and unresolved primary conditions
+are unavailable/zero-filled. The terrain vector preserves the earlier detector&#39;s
+semantics, including its legacy bounded no-match label; it is not newly certified
+as a gameplay condition. Future loaders must choose the appropriate scope.</p>
+<p>The selected models still use their actual existing inputs. This change does not
+add the vectors to a checkpoint, start training, drop maps, modify existing loss
+masks, or replace the original terrain/resource training targets. A symmetric
+layout is allowed to retain artistic height/texture/prop asymmetry.</p>
+<h2 id="dataset-review">Dataset review</h2>
+<p>The extracted <strong>Symmetry</strong> PNG layer stays in the atlas source-layer selector.
+New filters show approximate layouts, terrain-only results and recovered
+height-only no-matches. Detail views show all three scopes, not a single forced
+symmetry label. Approximate, unresolved, terrain-only and configuration-conflict
+cases retain neutral diagnostic notes; automatic review flags are removed and
+no manual owner notes or flags are cleared.</p>
+<p>Current PNG release: <code>data/processed/terrain_symmetry_assets_v4</code> (cached-render
+presentation update; original masks and numeric detections are unchanged). It keeps the
+directional-gradient convention. Catalogs include <code>symmetry_catalog.csv</code>,
+<code>no_symmetry_match.csv</code>, <code>no_supported_layout.csv</code> and
+<code>changes_from_terrain_baseline.csv</code>. Earlier scans and PNG releases remain saved.</p>
+<h2 id="limits-and-tests">Limits and tests</h2>
+<p>This checks the recorded static source/configuration, cached land/hover movement,
+water occupancy and selected clearances. It does not certify engine navigation,
+combat balance, naval depth-specific movement, every amphibious profile, scripted
+walls/effects, reclaim symmetry, or every adaptive setting. A finite travel-cost
+sample and high mask overlap cannot prove complete tactical equivalence. Existing
+source/script uncertainty and dataset review issues remain visible.</p>
+<p>Seven new tests cover approximate-layout acceptance, a smaller default subgroup,
+genuinely asymmetric resources even when marked ranked, preservation of no-match,
+one-to-one matching, a single mirror that must not become a half-turn, a moved
+chokepoint with unchanged endpoint connectivity but changed travel cost, and flat
+terrain without anchors. The earlier terrain tests still pass. Integrity checks
+verify all sealed outputs, frozen source identities, affine transforms and vectors.</p>
+<p>The parent cohort inherited a previous half-map compatibility filter. These
+counts are not an unbiased estimate of symmetry prevalence across the FAF vault.</p>
+<p>Implementation: <a href="../src/supmapai/extract/layout_symmetry.py">layout detector</a>,
+<a href="../src/supmapai/tools/calculate_map_symmetry.py">collector</a>,
+<a href="../tests/test_layout_symmetry.py">tests</a>. Earlier <a href="symmetry-cinder-review.md">Cinder measurements</a>
+remain the motivating case study; its current match is now approximate rather
+than a height-only no-match.</p>
+<pre><code class="language-powershell">$env:PYTHONPATH=&#39;src&#39;
+.venv-codex/Scripts/python.exe -m supmapai.tools.calculate_map_symmetry --baseline data/processed/terrain_symmetry_collection_v2 --out data/processed/layout_symmetry_collection_v2 --limit 0 --workers 2
+.venv-codex/Scripts/python.exe tools/finalize_terrain_symmetry.py --run data/processed/layout_symmetry_collection_v2
+.venv-codex/Scripts/python.exe tools/render_symmetry_assets.py --source data/processed/layout_symmetry_collection_v2 --out data/processed/terrain_symmetry_assets_v3
+.venv-codex/Scripts/python.exe tools/audit_symmetry_assets.py --run data/processed/terrain_symmetry_assets_v3
+.venv-codex/Scripts/python.exe tools/finalize_atlas_dataset_index.py
+</code></pre>
+<script src="model-atlas/public-links.js" data-public-links></script></body></html>

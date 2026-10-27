@@ -1,0 +1,144 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>train_terrain256.py | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="../docs/model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1>train_terrain256.py</h1><p class="meta">Saved public evidence snapshot: src/supmapai/ml/train_terrain256.py</p><pre>&quot;&quot;&quot;Full-map 256 training on direct terrain controls; old checkpoints stay intact.&quot;&quot;&quot;
+import argparse
+from collections import Counter
+import json
+import os
+from pathlib import Path
+import subprocess
+import time
+
+import numpy as np
+from PIL import Image, ImageDraw
+import torch
+
+from supmapai.ml.conditional_diffusion import ProfileUNet, schedule
+from supmapai.ml.train_joint_terrain import TerrainDataset, losses, sample_terrain, train
+from supmapai.tensors.strategy_dataset import file_hash, read_json, read_rows, write_json
+from supmapai.tensors.terrain_joint import decode, spawn_fields
+
+ROOT=Path(__file__).resolve().parents[3]
+
+
+class Full256Dataset(TerrainDataset):
+    def __init__(self,root,split):
+        root=Path(root);release=read_json(root/'release_manifest.json')
+        if release.get('status')!='ready' or release.get('schema')!='terrain_full256_controls_v3':
+            raise ValueError('Full 256 dataset must be published and audited')
+        for name,sha in release['artifacts'].items():
+            if file_hash(root/name)!=sha:raise ValueError('Published dataset changed: '+name)
+        if read_json(root/'audit.json')['status']!='passed':raise ValueError('Dataset audit failed')
+        self.rows=read_rows(root/(split+'.jsonl'));self.data=[]
+        if not self.rows:raise ValueError('Empty dataset split')
+        families=Counter(r['family'] for r in self.rows)
+        for row in self.rows:
+            path=root/row['archive']
+            if file_hash(path)!=row['sha256']:raise ValueError('Training target changed')
+            with np.load(path) as archive:target,spatial=archive['target'].copy(),archive['spatial'].copy()
+            profile=np.asarray(row['profile'],np.float32)
+            if target.shape!=(3,256,256) or spatial.shape!=(2,256,256) or profile.shape!=(21,):
+                raise ValueError('Wrong full-map training shapes')
+            if not all(np.isfinite(a).all() for a in [target,spatial,profile]):raise ValueError('Nonfinite training data')
+            self.data.append((target,spatial,profile))
+        self.weights=np.array([1/families[r['family']] for r in self.rows]);self.weights/=self.weights.sum()
+
+
+def request_profile(norm,water):
+    values=[];validity=[]
+    for name in norm['profile_fields']:
+        stats=norm['controls'][name];valid=stats['count']&gt;0
+        value=stats['presets']['medium'] if valid else 0.
+        if name=='water_fraction':value=water
+        if name=='base_connectivity':value=1.
+        values.append(((np.log1p(value) if stats['log1p'] else value)-stats['mean'])/stats['std'] if valid else 0.)
+        validity.append(float(valid))
+    return np.asarray(values+validity+[1.],np.float32)
+
+
+def gallery(model,norm,cumulative,out,step,mixed=False,seeds=(101,202),sample_steps=100):
+    out=Path(out);out.mkdir(parents=True,exist_ok=True)
+    spawns=[dict(x=96.,z=256.),dict(x=416.,z=256.)]
+    device=next(model.parameters()).device;model.eval()
+    fields=torch.from_numpy(spawn_fields(spawns,256,sigma=8.)[None]).to(device)
+    rows=[]
+    for seed in seeds:
+        for water in [.05,.2,.45]:
+            profile=request_profile(norm,water)
+            encoded=sample_terrain(model,torch.from_numpy(profile[None]).to(device),fields,cumulative,
+                                   seed,sample_steps,guidance=1.5,mixed=mixed)
+            physical=decode(encoded,norm)
+            key=f'seed{seed}_water{int(water*100):02d}';path=out/(key+'.npz')
+            np.savez_compressed(path,physical=physical,encoded=encoded,profile=profile)
+            rows.append(dict(key=key,seed=seed,requested_water=water,archive=path.name,sha256=file_hash(path)))
+    write_json(out/'samples.json',dict(step=step,spawns=spawns,rows=rows))
+    cpu=ROOT/'.venv-codex/Scripts/python.exe'
+    result=subprocess.run([str(cpu),'-m','supmapai.ml.train_terrain256','report','--run',str(out)],
+        cwd=ROOT,env=dict(os.environ,PYTHONPATH=str(ROOT/'src')),
+        creationflags=subprocess.CREATE_NO_WINDOW if os.name=='nt' else 0,timeout=300)
+    if result.returncode:raise RuntimeError('CPU gallery decoder failed; checkpoint is preserved')
+
+
+def report(run):
+    from supmapai.export.terrain_water import finish_terrain
+    from supmapai.strategy.navigation import raw_layers
+    from supmapai.tools.steer_terrain import render
+    run=Path(run);manifest=read_json(run/'samples.json');rows=[];tiles=[]
+    for row in manifest['rows']:
+        path=run/row['archive']
+        if file_hash(path)!=row['sha256']:raise ValueError('Sample changed')
+        with np.load(path) as archive:physical=archive['physical'].copy()
+        vertices,_,water=finish_terrain(physical)
+        nav=raw_layers(vertices,np.ones((512,512),np.uint8),0.)
+        image=render(vertices,[],nav['masks']['land'],manifest['spawns'])
+        image.save(run/(row['key']+'.png'))
+        tile=Image.new('RGB',(320,368),'#202326');tile.paste(image.resize((320,320)),(0,48))
+        draw=ImageDraw.Draw(tile);draw.text((5,4),f&quot;seed {row['seed']} request water {row['requested_water']:.0%}&quot;,fill='white')
+        draw.text((5,22),f&quot;raw {water['learned_water_fraction']:.1%} final {water['native_water_fraction']:.1%}&quot;,fill='white')
+        tiles.append(tile);rows.append(dict(**row,water=water))
+    canvas=Image.new('RGB',(960,368*((len(tiles)+2)//3)))
+    for i,tile in enumerate(tiles):canvas.paste(tile,((i%3)*320,(i//3)*368))
+    canvas.save(run/'terrain_water.png');write_json(run/'metrics.json',rows)
+
+
+def probe(out,batch=16):
+    if not torch.cuda.is_available():raise RuntimeError('CUDA required')
+    torch.set_num_threads(4);torch.cuda.reset_peak_memory_stats()
+    model=ProfileUNet(3,2,profile_dim=21,base=48,embedding=256,attention=True).cuda()
+    optimizer=torch.optim.AdamW(model.parameters(),lr=2e-4)
+    clean=torch.zeros(batch,3,256,256,device='cuda');spatial=torch.zeros(batch,2,256,256,device='cuda')
+    profile=torch.zeros(batch,21,device='cuda');profile[:,-1]=1
+    cumulative=schedule(1000,'cuda');times=[]
+    for i in range(8):
+        torch.cuda.synchronize();began=time.perf_counter();optimizer.zero_grad(set_to_none=True)
+        with torch.autocast('cuda',dtype=torch.bfloat16):
+            loss,_=losses(model,clean,spatial,profile,cumulative,torch.Generator(device='cuda').manual_seed(i),training=True)
+            loss=loss.mean()
+        if not torch.isfinite(loss):raise ValueError('Nonfinite probe loss')
+        loss.backward();optimizer.step();torch.cuda.synchronize();times.append(time.perf_counter()-began)
+    metrics=dict(status='passed',shape=[batch,3,256,256],profile_dim=21,
+        peak_memory_mb=torch.cuda.max_memory_allocated()/1024**2,
+        median_update_seconds=float(np.median(times[2:])),parameters=sum(p.numel() for p in model.parameters()))
+    write_json(out,metrics);print(json.dumps(metrics),flush=True)
+
+
+def main():
+    p=argparse.ArgumentParser(description=__doc__);sub=p.add_subparsers(dest='command',required=True)
+    t=sub.add_parser('train');t.add_argument('--dataset',type=Path,required=True);t.add_argument('--out',type=Path,required=True)
+    for name,value in [('max-steps',12000),('batch-size',16),('base-channels',48),('eval-every',1000),('sample-every',4000),('seed',20261024)]:
+        t.add_argument('--'+name,type=int,default=value)
+    t.add_argument('--learning-rate',type=float,default=2e-4)
+    t.add_argument('--pause-file',type=Path)
+    for name in ['fp32','resume','no-samples']:t.add_argument('--'+name,action='store_true')
+    r=sub.add_parser('report');r.add_argument('--run',type=Path,required=True)
+    b=sub.add_parser('probe');b.add_argument('--out',type=Path,required=True);b.add_argument('--batch-size',type=int,default=16)
+    a=p.parse_args()
+    if a.command=='report':report(a.run)
+    elif a.command=='probe':probe(a.out,a.batch_size)
+    else:
+        if min(a.max_steps,a.batch_size,a.base_channels,a.eval_every,a.sample_every)&lt;1:p.error('Positive sizes required')
+        print(json.dumps(train(a,dataset_type=Full256Dataset,gallery_fn=gallery,spatial_channels=2,
+            profile_dim=21,extra_sources=(Path(__file__),ROOT/'src/supmapai/export/terrain_water.py',
+                ROOT/'src/supmapai/export/terrain_smoothing.py',ROOT/'src/supmapai/ml/terrain_symmetry.py')),indent=2),flush=True)
+
+
+if __name__=='__main__':main()
+</pre><script src="../docs/model-atlas/public-links.js" data-public-links></script></body></html>

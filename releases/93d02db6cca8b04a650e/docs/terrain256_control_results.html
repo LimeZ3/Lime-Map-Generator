@@ -1,0 +1,117 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>terrain256_control_results.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="full256-direct-control-test">Full256 Direct-control Test</h1>
+<p>Run: <code>data/models/terrain_full256_control_test_v1</code>.
+Checkpoint: validation-selected <code>terrain_full256_controls_v3/best.pt</code>, EMA.
+32 samples: four seeds (1001-1004), eight profiles, all 10 km 1v1.
+Generation took 34.4 seconds; CPU measurement/reporting took 110.4 seconds.
+No training, map installation or game launch was performed.</p>
+<h2 id="method">Method</h2>
+<p>Each seed starts from the same PCG noise across every profile. Base positions
+are fixed at (96,256) and (416,256). Sampling uses 100 DDIM steps and guidance
+1.5. Water request (20%) and relief request (training median) are held fixed.
+The current learned-water-budget symmetry decoder and light smoothing are used
+for final terrain; no resource pads, passage carving or base relocation is applied.</p>
+<p>Profile presets use the frozen training-only normalization. Widths are adjusted
+together to avoid impossible tuples: sustained total bottleneck equals typical
+total front times (1 - contraction), with a compatible largest-span width. Weak
+versus strong bottleneck profiles also request shorter versus longer restriction
+duration. These are linked profile bundles, not one-coordinate causal ablations.
+Disconnected requests set connectivity to zero and mask unavailable width fields,
+matching the training representation rather than inventing zero-width fronts.</p>
+<p>Raw model outputs are reconstructed with <code>measure_joint_target</code>, exactly as in
+dataset labeling. Final symmetric/smoothed native heights are measured with the
+same <code>measure_vertices</code> teacher. Physical values, masks, statuses and full
+cross-section evidence are retained for both stages. No route-witness counts or
+economic/front-resource proxies are used.</p>
+<h2 id="results">Results</h2>
+<p>Four seeds establish an exploratory response, not statistical reliability.</p>
+<table>
+<thead>
+<tr>
+<th>Comparison</th>
+<th>Raw model</th>
+<th>Final output</th>
+<th>Interpretation</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Wider total front</td>
+<td>Correct direction 4/4; mean 299.8 -&gt; 333.3</td>
+<td>Correct direction 3/4; mean 383.0 -&gt; 392.8</td>
+<td>Modest response, strongly attenuated by postprocessing</td>
+</tr>
+<tr>
+<td>More fragmented front</td>
+<td>Correct direction 4/4</td>
+<td>Correct direction 4/4; mean fragmentation 0.446 -&gt; 0.784</td>
+<td>Clearest learned response</td>
+</tr>
+<tr>
+<td>Stronger bottleneck contraction</td>
+<td>Correct direction 1/4</td>
+<td>Correct direction 3/4, but mean only 0.299 -&gt; 0.309</td>
+<td>Not dependable; direction alone overstates the effect</td>
+</tr>
+<tr>
+<td>Longer restricted section</td>
+<td>Correct direction 0/4</td>
+<td>Mean 1.5 -&gt; 1.5 world units</td>
+<td>No useful response</td>
+</tr>
+<tr>
+<td>Disconnected bases</td>
+<td>0/4 disconnected</td>
+<td>0/4 disconnected</td>
+<td>Requested disconnection ignored in this test</td>
+</tr>
+</tbody></table>
+<p>The front-width request is 245.4 versus 481.3 world units, so the final mean
+change of 9.8 units is far too small to claim calibrated front control. Largest
+uninterrupted span does move more clearly (213.5 -&gt; 308.6); the network often
+changes fragmentation instead of creating a substantially different total front.</p>
+<p>The dedicated fragmentation profiles produce final largest spans of 343.9 versus
+221.2 world units while total width stays around 390. This is consistent with
+partitioning the front, but is not certified control over an attack-lane count.
+Changes to local hills/roughness can influence these metrics too.</p>
+<p>Strong bottleneck requests ask for contraction 0.681 versus 0.327 and restricted
+length 46 versus zero. Output contraction and persistence do not track that
+requested separation. A few tiny positive differences are not success.</p>
+<p>All connected baseline requests remain connected. All disconnected requests also
+remain connected, even before postprocessing. This failure therefore cannot be
+attributed solely to the symmetry decoder. Nearest training-profile distances
+are retained as support diagnostics, not probabilities or a substitute for
+checking spatial support and training-label quality.</p>
+<h2 id="recommended-follow-up">Recommended Follow-up</h2>
+<p>Before another long training run, isolate which final processing operations
+attenuate the raw front response: symmetry projection, water reconciliation and
+light smoothing. Compare geometry-preserving alternatives on these same saved
+samples without regenerating noise or choosing only flattering examples.</p>
+<p>Separately, bottleneck and connectivity conditioning need improvement in the
+learner/data balance or structural objective; their raw-model failures are not
+fixed by changing the final decoder alone. More compute is not yet an established
+solution. No retraining was started automatically.</p>
+<h2 id="artifacts">Artifacts</h2>
+<ul>
+<li><code>front.png</code>, <code>bottleneck.png</code>, <code>fragmentation.png</code>, <code>connectivity.png</code>: all four
+seeds, consistent visual mapping, measured outcomes in footers.</li>
+<li><code>png/</code>: 32 individual structural previews.</li>
+<li><code>profiles.json</code>: physical requests, normalized 21-vectors, training-support diagnostics.</li>
+<li><code>results.json</code>, <code>summary.json</code>: raw/final measurements and paired comparisons.</li>
+<li><code>arrays/</code>: model fields, native heights, full measurement evidence and masks.</li>
+<li><code>config.json</code>, <code>code_snapshot/</code>, phase JSONs: checkpoint identity and execution provenance.</li>
+</ul>
+<p>All 36 PNGs were decoded successfully for validation. Two focused tests check
+profile consistency, disconnected masks, train-only support and missing-width
+handling. Existing checkpoints, datasets and generated training galleries are
+unchanged.</p>
+<pre><code class="language-powershell">$env:PYTHONPATH = &#39;src&#39;
+.venv/Scripts/python.exe -m supmapai.tools.evaluate_terrain256_controls generate `
+  --checkpoint data/models/terrain_full256_controls_v3/best.pt `
+  --out data/models/terrain_full256_control_test_v1
+$env:OPENBLAS_NUM_THREADS = &#39;1&#39;
+$env:OMP_NUM_THREADS = &#39;1&#39;
+.venv-codex/Scripts/python.exe -m supmapai.tools.evaluate_terrain256_controls report `
+  --run data/models/terrain_full256_control_test_v1
+</code></pre>
+<p>Choose a new output directory for another generation sweep. Reporting reuses
+hash-checked arrays; neither phase opens the game.</p>
+<script src="model-atlas/public-links.js" data-public-links></script></body></html>
