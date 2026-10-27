@@ -1,0 +1,84 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>annualized-map-family-selection.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="final-map-family-selection-by-plays-per-year">Final map-family selection by plays per year</h1>
+<p>Owner decision applied on 27 October 2026. <strong>1,189 maps retained across 1,111
+families</strong>, with no more than two examples per family. There are <strong>65 new
+exclusions</strong>, plus 56 preserved owner exclusions: <strong>121 excluded in total</strong>.
+The shared atlas selection was updated through its authenticated owner controls
+and independently read back. All 1,310 decisions match; manual symmetry
+suggestions were preserved unchanged.</p>
+<h2 id="selection-rule">Selection rule</h2>
+<p>For each exact map version:</p>
+<p><code>plays_per_year = mapVersion.gamesPlayed / ((as_of - mapVersion.createTime) / 365.2425 days)</code></p>
+<p>The common as-of timestamp is <strong>2026-10-27 16:41:33.939668 UTC</strong>, the end of the
+captured live FAF lookup. Use the version upload/release time, not last update
+time or its parent&#39;s date. Parent-map play totals are not version counters.
+Every kept candidate has a valid release date and exact-version counter.</p>
+<p>Within each existing audited family, retain the highest annualized rate. Retain
+at most one additional example: the highest-rate alternative with a verified
+materialized terrain/water, paint, default resource/start, or reclaim difference
+from the leader. This preserves the owner&#39;s earlier variety requirement for
+second versions. Different inactive adaptive option inventories alone do not
+justify a second example. Existing duplicate-audit comparison tolerances are
+unchanged. Ties use lifetime exact plays, then stable map key. There is no
+newness, adaptive, FAF branding or texture-completeness preference.</p>
+<p>Candidates are the 1,254 owner-kept members of the existing 1,310-map audit
+cohort. This does not add more vault history or restore any of the 56 owner
+exclusions. Existing family splits are preserved: <strong>1,083 train candidates and
+106 validation candidates</strong>. Seventy-eight families retain a second version;
+41 primary representatives change from the old curated selection.</p>
+<h2 id="example-canis">Example: Canis</h2>
+<table>
+<thead>
+<tr>
+<th>Retained exact version</th>
+<th align="right">Lifetime plays</th>
+<th>Version uploaded</th>
+<th align="right">Plays/year</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Canis 4v4 Spezial Edition v2 (<code>68_71</code>)</td>
+<td align="right">21,910</td>
+<td>2014-03-22</td>
+<td align="right">1,738.92</td>
+</tr>
+<tr>
+<td>Canis 5v5 Fixed Edition (<code>3666_5148</code>)</td>
+<td align="right">15,433</td>
+<td>2014-08-12</td>
+<td align="right">1,264.17</td>
+</tr>
+</tbody></table>
+<p>The twelve other previously kept Canis versions are excluded. Newer Fizzy
+Revenge does not outrank these versions by annualized usage.</p>
+<h2 id="complete-decision-lists-and-reproducibility">Complete decision lists and reproducibility</h2>
+<ul>
+<li><a href="annualized-family-exclusions.md">Every excluded map, by name and key</a>, with
+the 65 new decisions separated from the 56 earlier owner exclusions.</li>
+<li><a href="../data/processed/annualized_family_selection_v1/excluded_by_rule.csv">New exclusions CSV</a>.</li>
+<li><a href="../data/processed/annualized_family_selection_v1/all_excluded.csv">All exclusions CSV</a>.</li>
+<li><a href="../data/processed/annualized_family_selection_v1/retained.csv">Retained versions CSV</a>.</li>
+<li><a href="../data/processed/annualized_family_selection_v1/rankings.csv">Every candidate&#39;s rate and family rank</a>.</li>
+<li><a href="model-atlas/annualized-family-selection-receipt.json">Atlas receipt</a>.</li>
+<li><a href="../src/supmapai/tools/select_annualized_map_families.py">Deterministic offline selector</a>.</li>
+</ul>
+<p>The run directory <code>data/processed/annualized_family_selection_v1</code> holds
+<code>selection.json</code>, before/after shared snapshots, input hashes and
+<code>source_candidates.jsonl</code>. The latter preserves source/archive signatures and
+records the selected family split, role and human symmetry suggestion. It is a
+<strong>source selection manifest</strong>, not a rebuilt training dataset. Three unit tests
+cover annualized ranking, invalid age and inactive adaptive settings; full-run
+assertions verify membership, cap, provenance and shared outcomes.</p>
+<h2 id="interpretation-and-remaining-work">Interpretation and remaining work</h2>
+<p>Plays/year is the owner&#39;s final representative-selection criterion. It measures
+average observed lifetime usage, not recent growth, intrinsic quality or a causal
+player preference: availability, listing visibility and years of game activity
+can affect it. FAF upload time approximates release, and counters need not cover
+exactly the same historical observation window. No age floor or statistical
+shrinkage is applied. These caveats do not change the chosen ranking rule.</p>
+<p>No source map was deleted. Existing checkpoints, labels and tensor releases
+remain immutable and may refer to the previous representatives. Next, audit
+per-field readiness and rebuild the named dataset&#39;s role manifests/tensors from
+this selection, including effective human symmetry/start overrides and slope.
+Missing RGB or other role data must be explicit; it must not silently substitute
+a lower-popularity version. No model training was started by this operation.</p>
+<script src="model-atlas/public-links.js" data-public-links></script></body></html>

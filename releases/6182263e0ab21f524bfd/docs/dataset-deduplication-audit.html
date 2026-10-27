@@ -1,0 +1,171 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>dataset-deduplication-audit.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="dataset-duplicateversion-audit">Dataset duplicate/version audit</h1>
+<p>27 October 2026. <strong>Audit and proposals only: dataset membership, source files, tensors and selected checkpoints have not been changed.</strong> This is the deduplication part of EXTRACT-06b; non-square support is deferred by the owner.</p>
+<h2 id="which-collection-contains-the-repeats">Which collection contains the repeats?</h2>
+<table>
+<thead>
+<tr>
+<th>Scope</th>
+<th align="right">Entries</th>
+<th>Repetition finding</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Original atlas audit collection</td>
+<td align="right">1310</td>
+<td>Retains versions and variants for review</td>
+</tr>
+<tr>
+<td>Latest owner-kept audit pool</td>
+<td align="right">1254</td>
+<td>65 repeated normalized-name groups, 151 entries, 86 extra entries beyond one per name</td>
+</tr>
+<tr>
+<td>Broader linked families in that kept pool</td>
+<td align="right">227 entries in 84 repeated families</td>
+<td>143 extra entries beyond one per family</td>
+</tr>
+<tr>
+<td>Eligible intersection of the existing curated terrain release and latest owner exclusions</td>
+<td align="right">1111</td>
+<td>Zero repeated detected families; one Canis representative</td>
+</tr>
+<tr>
+<td>Most recent joint-model release</td>
+<td align="right">851</td>
+<td>851 families; no Canis entries</td>
+</tr>
+</tbody></table>
+<p>The original frozen curated terrain release has 1,117 maps. The current 1,111 eligible count applies the latest 56 owner exclusions to that role; no frozen manifest was silently rewritten. The most recent owner snapshot adds one exclusion compared with the preceding 1,255-kept snapshot.</p>
+<p>Only <strong>two repeated vault-parent groups</strong> contain multiple actual author versions. Most other repeats are forks, renamings, adaptive/resource variants or reskins with separate vault parent IDs. Repeated names are candidates, not automatic proof of duplication. The broader links use existing source families, normalized names, prior near-height matches and the owner-confirmed Canis alias family.</p>
+<h2 id="concrete-redundant-author-versions">Concrete redundant author versions</h2>
+<table>
+<thead>
+<tr>
+<th>Older</th>
+<th>Retain if that design is selected</th>
+<th>Evidence</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Canis 4v4 Spezial Edition v1 (<code>68_1020</code>)</td>
+<td>v2 (<code>68_71</code>)</td>
+<td>Compared terrain/water, paint/material references, source/default markers, starts and reclaim fields agree</td>
+</tr>
+<tr>
+<td>Zeuthea Valley v5 (<code>5865_10757</code>)</td>
+<td>v6 (<code>5865_32532</code>)</td>
+<td>Same compared fields; no additional training variety established</td>
+</tr>
+</tbody></table>
+<p>Both older versions were already outside the current curated role. Preferring the newer author version is justified here because the measured training fields are redundant; this is not a claim that every later fork is aesthetically or competitively better. Vault upload IDs are not used as version order.</p>
+<h2 id="largest-repeated-families">Largest repeated families</h2>
+<table>
+<thead>
+<tr>
+<th>Representative family label</th>
+<th align="right">Kept source entries</th>
+<th>Current representative</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Adaptive Canis Fizzy Revenge</td>
+<td align="right">14</td>
+<td>adaptive_canis_fizzy_revenge.v0010</td>
+</tr>
+<tr>
+<td>Argon - FAF Version</td>
+<td align="right">6</td>
+<td>argon_-_faf_version.v0001</td>
+</tr>
+<tr>
+<td>Syrtis Major - FAF version</td>
+<td align="right">6</td>
+<td>syrtis_major_-_faf_version.v0002</td>
+</tr>
+<tr>
+<td>lots of mass</td>
+<td align="right">6</td>
+<td>SCMP_031.v0002</td>
+</tr>
+<tr>
+<td>Adaptive Tabula Rasa</td>
+<td align="right">6</td>
+<td>adaptive_tabula_rasa.v0007</td>
+</tr>
+<tr>
+<td>Forest Gap</td>
+<td align="right">5</td>
+<td>forest_gap.v0003</td>
+</tr>
+<tr>
+<td>Flooded Hilly plateau</td>
+<td align="right">5</td>
+<td>flooded_hilly_plateau.v0002</td>
+</tr>
+<tr>
+<td>Oc-Tal V2</td>
+<td align="right">4</td>
+<td>oc-tal_v2.v0004</td>
+</tr>
+<tr>
+<td>Adaptive Pyramid</td>
+<td align="right">4</td>
+<td>adaptive_pyramid.v0004</td>
+</tr>
+<tr>
+<td>Adaptive Twin Rivers</td>
+<td align="right">4</td>
+<td>adaptive_twin_rivers.v0002</td>
+</tr>
+<tr>
+<td>Adaptive Crystal Open</td>
+<td align="right">4</td>
+<td>adaptive_crystal_open.v0002</td>
+</tr>
+<tr>
+<td>Two City 5v5</td>
+<td align="right">4</td>
+<td>two_city_5v5.v0001</td>
+</tr>
+<tr>
+<td>Africa</td>
+<td align="right">3</td>
+<td>Africa.v0005</td>
+</tr>
+<tr>
+<td>Darkfall</td>
+<td align="right">3</td>
+<td>Darkfall.v0003</td>
+</tr>
+<tr>
+<td>Adaptive Fields Of Great Phoenix</td>
+<td align="right">3</td>
+<td>adaptive_fields_of_great_phoenix.v0003</td>
+</tr>
+</tbody></table>
+<h2 id="canis">Canis</h2>
+<p>There are <strong>14 Canis-related audit entries</strong>, but only <strong>Adaptive Canis Fizzy Revenge v10 (<code>10139_19261</code>)</strong> in the current curated terrain role. That family is assigned to <strong>validation</strong>, not training. All retained variants must stay in the same family split. Six further Canis entries occur in the wider 3,108-version annotation pool; they are outside this audit cohort and were not silently restored.</p>
+<p><img src="model-atlas/generated/dedup-canis.png" alt="Canis source previews and numeric terrain"></p>
+<p>The newer Fizzy variant differs from the classic Canis family in active material references and terrain/water fields; the old sources are not fourteen byte-identical maps. This supports allowing a small amount of variety, not fourteen independent training families. The automatic diversity screen nominates <code>canis3v3.v0001</code> as an optional second because it differs strongly; its key <code>0_1</code> is a valid FAF entry (parent ID zero is legitimate), verified in the 27 October live lookup with 4,574 plays. The earlier synthetic/unverified provenance concern was incorrect and is removed. <strong>That remains a comparison candidate, not a quality endorsement or approved inclusion.</strong> Classic v2, Winter and Flooded are useful alternative examples to inspect before choosing a second. The currently retained one-per-family baseline already satisfies the owner&#39;s cap.</p>
+<p>A separate coverage issue matters: the recent 851-map joint release contains <strong>no Canis</strong>, because the retained Fizzy representative was excluded for <code>incomplete_or_unsupported_rgb</code> (saved RGB-valid fraction 0.893692). Avoid choosing a sole representative by version/name and then dropping the entire family when that representative lacks a required field. A future release should prefer a complete representative for the particular model role, or explicitly preserve an availability mask if that model supports one. Source paint comparison in this audit does not certify complete reconstructable RGB.</p>
+<h2 id="proposed-freeze-policy">Proposed freeze policy</h2>
+<ul>
+<li>Keep the existing one-per-family baseline. Allow at most <strong>one additional materialized variant</strong> per family where it adds useful terrain, water, appearance, spawn or resource variation. This is a ceiling, not a target to fill for every family.</li>
+<li>Within a real author-version chain, omit an older version when the newer one retains its useful content and the compared fields are equivalent. Across forks, age or a higher version suffix alone does not establish an improvement. Prefer role completeness and recorded owner choices before novelty.</li>
+<li>Use role-specific equivalence: texture-only changes do not create a new terrain design; resource-only changes may help a resource model without being counted as independent terrain variety.</li>
+<li>Keep every version, setting configuration and augmentation of a family in one split. If two members are sampled, use family-balanced sampling so that keeping a variant does not double that family&#39;s influence. No selected loader was changed here.</li>
+<li>An option declaration or a changed script is not itself an additional tensor example. Resolve and materialize the chosen setting before counting low/rich-resource variants; exhaustive adaptive enumeration remains EXTRACT-14/11 work.</li>
+</ul>
+<p>Optional second candidates break down as 45 with terrain/water differences, 7 with appearance differences without the terrain flag, and 26 with spawn/resource-only differences. Resource-only candidates should not be counted as additional terrain designs.</p>
+<p>The screening found <strong>15 near-duplicate pairs</strong> among <strong>303 content comparisons</strong>. Pair counts are not counts of removable maps. Under a permissive max-two screen, 78 families have a possible second; the upper-bound candidate pool would be 1189 instead of the existing 1111. <strong>This is not a recommendation to restore all 78 or a new frozen release.</strong> Current membership remains unchanged.</p>
+<h2 id="methods-limits-and-verification">Methods, limits and verification</h2>
+<p>Geometry was compared under eight square rotations/reflections, with vertical offsets recorded separately. Source height differences over 0.25 world units on at least 1% of cells, or water-coverage difference of at least 1%, trigger a terrain-variation screening flag. These are triage thresholds, not measured gameplay-quality grades.</p>
+<p>Appearance comparison uses decoded source paint weights at 64px, matched by active albedo/normal paths and tiling scales rather than slot numbers. Active means at least 0.1% mean paint weight. Current-map custom assets use content hashes where resolvable. A 2% semantic paint difference triggers a texture-variation flag. It is not an RGB perceptual metric and does not certify custom shader, decal, lighting or full asset coverage; dormant palette edits do not count. Adaptive Esais Vengeance v13 has an unsupported material shader and remains explicitly unassessed for texture variety; its existing primary is retained.</p>
+<p>Source and recorded default mex/hydro layouts and starts are compared one-to-one at 4-world-unit tolerance, after the same geometry alignment. Known reclaim totals and spatial distributions are checked at a 5% difference screen; incomplete reclaim is never treated as proven equivalence. Default resources are those from the frozen recorded analysis scenario: differences can reflect source options or selected slots, so changed scenarios must be resolved afresh before training. Symmetry-tied flat terrain can leave pose ambiguities; near-duplicate counts are conservative and are not a universal all-library copy detector.</p>
+<p>All 227 repeated-family sources were read with zero extraction failures, covering 303 pairs. Source archives, terrain targets and SCMAP hashes were checked. The active phase-2 evidence adds starts/reclaim spatial checks and excludes unknown reclaim from near-duplicate assertions. Five tests passed: bijective marker matching, identical content, coherent rotation alignment, active material variation and resource-layout variation. Coverage, owner exclusions, maximum two family slots, preserved splits and the original phase-1 code snapshot were verified.</p>
+<p>The initial content phase finished in 110.36 seconds. A CSV bookkeeping error after the JSON results were saved was corrected; no content extraction was repeated. The completed phase-2 exports are the active report. No source map, owner exclusion, current training manifest or checkpoint was changed.</p>
+<h2 id="artifacts">Artifacts</h2>
+<p><code>data/processed/dataset_dedup_audit_v2/summary.json</code>, <code>repeated_versions.csv</code> (227 human-readable source rows), <code>canis_versions.csv</code> (14 rows), <code>family_counts.csv</code>, <code>proposals.csv</code>, <code>families.json</code> and <code>pairs.json</code>. The phase-1 directory retains the pinned owner snapshot, source feature evidence and original code snapshot. Reproduce with <code>supmapai.tools.audit_dataset_duplicates</code> then <code>supmapai.tools.finalize_duplicate_audit</code>; proposals require a deliberate future dataset-release decision. <a href="model-atlas/deduplication-receipt.json">Atlas receipt</a>.</p>
+<h2 id="live-popularity-follow-up">Live popularity follow-up</h2>
+<p><a href="vault-family-popularity.md">Current vault counts and all representative mismatches</a>: 37 of 84 multi-entry families match the most-played kept member; 47 differ. Canis classic v2 has 21,910 exact-version plays versus 212 for the current Fizzy v10. Dataset selection is unchanged. Parent ID zero is valid; Canis3v3 is verified.</p>
+<script src="model-atlas/public-links.js" data-public-links></script></body></html>

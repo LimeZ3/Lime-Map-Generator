@@ -1,0 +1,66 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>comparison_summary.json | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="../docs/model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1>comparison_summary.json</h1><p class="meta">Saved public evidence snapshot: data/models/joint_diagnostics_v1/comparison_summary.json</p><pre>{
+  &quot;arms&quot;: [
+    {
+      &quot;id&quot;: &quot;one_map_baseline&quot;,
+      &quot;status&quot;: &quot;completed&quot;,
+      &quot;step&quot;: 2365,
+      &quot;learning_rate&quot;: 0.0002,
+      &quot;loss&quot;: &quot;baseline&quot;,
+      &quot;baseline_denoising_500&quot;: 0.007506891941794982,
+      &quot;scope&quot;: &quot;training-map memorization&quot;,
+      &quot;height_correlation&quot;: 0.9980251972677291,
+      &quot;rgb_correlation&quot;: 0.587742562243566,
+      &quot;start_peak_distance_world&quot;: 0.5,
+      &quot;foreground_mse&quot;: 0.06876728142378852,
+      &quot;start_a_density_integral&quot;: 139.93505859375,
+      &quot;expected_start_a_integral&quot;: 1
+    },
+    {
+      &quot;id&quot;: &quot;one_map_lower_lr&quot;,
+      &quot;status&quot;: &quot;completed&quot;,
+      &quot;step&quot;: 2340,
+      &quot;learning_rate&quot;: 0.00005,
+      &quot;loss&quot;: &quot;baseline&quot;,
+      &quot;baseline_denoising_500&quot;: 0.01567842080616034,
+      &quot;scope&quot;: &quot;training-map memorization&quot;,
+      &quot;height_correlation&quot;: 0.9866722154095708,
+      &quot;rgb_correlation&quot;: 0.3662843552172597,
+      &quot;start_peak_distance_world&quot;: 0.5,
+      &quot;foreground_mse&quot;: 0.018487194611225277,
+      &quot;start_a_density_integral&quot;: 170.09618377685547,
+      &quot;expected_start_a_integral&quot;: 1
+    },
+    {
+      &quot;id&quot;: &quot;one_map_balanced&quot;,
+      &quot;status&quot;: &quot;completed&quot;,
+      &quot;step&quot;: 2367,
+      &quot;learning_rate&quot;: 0.00005,
+      &quot;loss&quot;: &quot;balanced&quot;,
+      &quot;baseline_denoising_500&quot;: 0.01854399419747866,
+      &quot;scope&quot;: &quot;training-map memorization&quot;,
+      &quot;height_correlation&quot;: 0.9836343775448522,
+      &quot;rgb_correlation&quot;: 0.3373933538992578,
+      &quot;start_peak_distance_world&quot;: 0,
+      &quot;foreground_mse&quot;: 0.00876572186825797,
+      &quot;start_a_density_integral&quot;: 191.81592559814453,
+      &quot;expected_start_a_integral&quot;: 1
+    },
+    {
+      &quot;id&quot;: &quot;full_lower_lr&quot;,
+      &quot;status&quot;: &quot;completed&quot;,
+      &quot;step&quot;: 4971,
+      &quot;learning_rate&quot;: 0.00005,
+      &quot;loss&quot;: &quot;baseline&quot;,
+      &quot;baseline_denoising_500&quot;: 0.023347073816564538,
+      &quot;scope&quot;: &quot;69 held-out families&quot;,
+      &quot;crossed_original_collapse_step&quot;: true,
+      &quot;maximum_heldout_loss&quot;: 0.027445650239004745
+    }
+  ],
+  &quot;observations&quot;: [
+    &quot;Baseline one-map fresh generation: mean terrain correlation 0.9980; mean start-peak error 0.50 world units. This establishes memorization only.&quot;,
+    &quot;At the same lower LR and time budget, source-activity balancing changed mean fresh-sample foreground MSE from 0.01849 to 0.00877. Quantity sums require separate inspection.&quot;,
+    &quot;Full-cohort lower-LR test ended at update 4971 with held-out t500 loss 0.02335; maximum during the test 0.02745. It crossed the original deterioration step 4412: True.&quot;
+  ],
+  &quot;caution&quot;: &quot;Same-time controlled diagnostics. Single-map fitting is not generalization. Pending/failed stages are not promoted.&quot;
+}</pre><script src="../docs/model-atlas/public-links.js" data-public-links></script></body></html>

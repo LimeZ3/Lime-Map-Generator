@@ -1,0 +1,115 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>map-effects-feasibility.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="extract-12-bounded-effects-feasibility-probe">Extract-12: bounded effects feasibility probe</h1>
+<p>27 October 2026. Dataset map selection (Extract-06b) is owner-finalized and
+closed. This probe uses those <strong>1,189 selected versions</strong>. It executes no map Lua,
+downloads no maps and does not change training inputs.</p>
+<h2 id="findings">Findings</h2>
+<table>
+<thead>
+<tr>
+<th>Stored evidence</th>
+<th align="right">Maps</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Non-wave effect/weather candidates, union</td>
+<td align="right">24</td>
+<td>Static evidence, not a count of effects active with defaults</td>
+</tr>
+<tr>
+<td>Effect-related Lua candidates</td>
+<td align="right">20</td>
+<td>Includes shared optional volcano code and custom prop scripts</td>
+</tr>
+<tr>
+<td>Weather markers</td>
+<td align="right">9</td>
+<td>Generator positions and weather definitions in <code>_save.lua</code></td>
+</tr>
+<tr>
+<td>Custom prop-script anchors recovered</td>
+<td align="right">3</td>
+<td>55 placed anchors; emitter IDs obtained from their scripts</td>
+</tr>
+<tr>
+<td>Explicit <code>Effect</code> marker</td>
+<td align="right">1</td>
+<td>Narrow Shaft v2 has an empty EffectTemplate; no usable effect ID</td>
+</tr>
+<tr>
+<td>Shoreline wave records</td>
+<td align="right">196</td>
+<td>Separate <code>.scmap</code> section, 312,783 records; not rare special effects</td>
+</tr>
+</tbody></table>
+<p>No structural wave/marker inventory failures across 1,189 maps. The candidate
+union overlaps categories. Absence of these signatures is <strong>not proof of no
+effects</strong>: effects can come from imported game scripts, unit/prop classes, custom
+blueprint scripts or generated runtime behavior outside this bounded scan.</p>
+<h2 id="storage-and-mapping">Storage and mapping</h2>
+<ol>
+<li><strong>Save markers:</strong> <code>_save.lua</code> → <code>Scenario.MasterChain...Markers</code>. Effect
+markers can carry <code>EffectTemplate</code>, <code>position</code>, <code>offset</code>, <code>orientation</code>, and
+<code>scale</code>. Weather Definition markers describe weather names/chances/drift;
+Weather Generator markers supply origins and cloud parameters. A weather
+definition&#39;s position is not an effect footprint.</li>
+<li><strong>Placed effect props:</strong> position comes from the SCMAP prop instance. An
+associated <code>*_script.lua</code> may call <code>CreateEmitterAtBone</code> with an emitter <code>.bp</code>
+path. Retain both the placed prop ID and the emitter ID; they are different
+things. Some emitters are placed directly as emitter blueprints. Existing
+extraction already identifies six such instances in Adaptive High Hovis.</li>
+<li><strong>Arbitrary map Lua:</strong> emitter calls can attach to props/entities, depend on
+options, move, recur over time, or use randomized target objects. Merely finding
+the code does not establish default activation or fixed coordinates.</li>
+<li><strong>Shoreline waves:</strong> <code>.scmap</code> binary wave-generator section before terrain
+layers. Position, rotation, velocity, texture/ramp strings and ten remaining
+float parameters are recoverable. This probe preserves those floats without
+assigning unverified parameter semantics. These are separate from the binary
+water settings, terrain textures, decals and skybox.</li>
+</ol>
+<p>Source evidence is the local selected map files, the existing structural SCMAP
+reader, and saved entity extraction. See also the game&#39;s
+<a href="https://github.com/FAForever/fa/blob/develop/lua/defaultexplosions.lua">emitter utility usage</a>
+for examples of attached emitters, blueprint paths, scale and lifetime changes.
+No general emitter behavior or visual radius is inferred from its filename.</p>
+<h2 id="easy-subset-locations-can-be-heatmapped">Easy subset: locations can be heatmapped</h2>
+<p>Recovered custom prop-script anchor locations:</p>
+<ul>
+<li>Adaptive Esais Vengeance v13: <strong>9</strong> rain anchors.</li>
+<li>Adaptive High Hovis v1: <strong>37</strong> rain/vapor anchors (the six direct emitter
+records above are included, not additional).</li>
+<li>Cityscape Duel v7: <strong>9</strong> rain anchors.</li>
+</ul>
+<p><img src="../data/processed/map_effects_feasibility_v1/prototype_examples.png" alt="Location-only examples"></p>
+<p>The prototypes save <code>1 × 256 × 256</code> anchor heatmaps at native x/z positions,
+with a fixed three-pixel Gaussian for illustration only. Orange dots mark origins
+over terrain. This is <strong>not</strong> rendered effect coverage, intensity, physical size,
+time persistence, or proof that an effect is active. No rotation/canonicalization
+or symmetry replication was applied. IDs and raw positions remain in JSON.</p>
+<h2 id="stop-rule-and-recommendation">Stop rule and recommendation</h2>
+<p>The simple placed-origin subset is feasible. The general layer is not a single
+straightforward mask. For example, Adaptive Twilight Hill attaches probabilistic,
+temporary lightning emitters to surviving crystals. Several adaptive scripts
+share volcano functions with option-dependent behavior. Weather moves and drifts;
+an origin heatmap cannot represent its full visible extent. Even a custom prop&#39;s
+script being present does not prove an instance is active under engine defaults.</p>
+<p><strong>Defer the general effects tensor at this low priority.</strong> Keep this inventory and
+the three prototypes. Do not add empty effect targets to the remaining maps or
+claim absent effects as supervised negatives. A future implementation can begin
+with explicit static anchors and validity masks; defaults/runtime interpretation
+belongs with Extract-14/11 rather than this quick probe. No effects model is
+trained and no source-layer training contract is changed.</p>
+<h2 id="evidence">Evidence</h2>
+<ul>
+<li><a href="../data/processed/map_effects_feasibility_v1/candidate_maps.csv">Candidate map list</a>.</li>
+<li><a href="model-atlas/effects-feasibility-receipt.json">Receipt</a>.</li>
+<li><a href="../src/supmapai/tools/probe_map_effects.py">Static wave/marker probe</a>.</li>
+</ul>
+<p>Run directory <code>data/processed/map_effects_feasibility_v1</code>: <code>script_scan.json</code>
+retains the broad first pass (including ordinary blueprint references, deliberately
+not counted as effect candidates); <code>script_candidates.json</code> filters actual
+effect/weather signatures. <code>static_inventory.json</code> preserves wave records and
+raw weather/effect marker blocks. <code>placed_effects.json</code> inventories previously
+classified emitter blueprints; <code>custom_prop_anchors.json</code> joins custom scripts to
+placed instance positions. Prototype NPZ/PNG files are analysis artifacts only.</p>
+<script src="model-atlas/public-links.js" data-public-links></script></body></html>

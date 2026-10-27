@@ -1,0 +1,162 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>terrain_controls_v1.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="direct-terrain-controls-v1">Direct terrain controls v1</h1>
+<p>Implemented 23 October 2026. These are <strong>resource-independent continuous measurements</strong>, separate from frozen strategy-label pipeline 1.2.1. Historical labels and checkpoints remain unchanged.</p>
+<p><a href="http://127.0.0.1:5177/terrain_controls_v1_comparison/index.html">Review the 22-case comparison</a>: six synthetic cases, eight familiar maps, four existing generated samples and four actual encoded model targets. CSV, JSONL targets, width profiles, source/code hashes and PNGs accompany it. The final comparison took 41.4 seconds on CPU; no training, new generation or collection-wide relabeling was started.</p>
+<h2 id="measurements">Measurements</h2>
+<table>
+<thead>
+<tr>
+<th>Control</th>
+<th>Measurement</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Water coverage</td>
+<td>Mean underwater coverage over playable cells</td>
+<td>Playable area only; disabled water does not flood low terrain</td>
+</tr>
+<tr>
+<td>Terrain relief</td>
+<td>Playable height p95 minus p05</td>
+<td>Robust range including underwater terrain, without isolated extreme heights dominating</td>
+</tr>
+<tr>
+<td>Base connectivity</td>
+<td>Supplied bases share a no-corner-cut land component</td>
+<td>Connected, disconnected, blocked or unresolved; bases are never moved to nearby land</td>
+</tr>
+<tr>
+<td>Traversable front width</td>
+<td>Total geodesic cross-section length <strong>and largest uninterrupted span</strong></td>
+<td>Several narrow spans remain different from one broad front</td>
+</tr>
+<tr>
+<td>Bottleneck severity and persistence</td>
+<td>Lowest eight-unit mean widths, relative contraction and restricted-run lengths</td>
+<td>Absolute narrowness, additional local pinching and restriction duration remain separate</td>
+</tr>
+</tbody></table>
+<p>No aggregate “openness” score or certified attack-lane count is produced.</p>
+<h2 id="inputs-and-observability">Inputs and observability</h2>
+<p>Inputs are height, water state/coverage, playable bounds, physical cell size and two supplied base coordinates. There are no mexes, reclaim, faction stats, economic weights or route witnesses in the calculation. The selected pair is still required: this is a two-base structural measurement, not a spawn-independent or team-game label.</p>
+<p>The height/water adapter uses strict four-corner slope checks below 0.75 per map unit and water exclusion. Source terrain-type codes, props, units and scripted obstacles are deliberately omitted because those are not channels of the current terrain-only model. This is not a substitute for full native game-pathability validation.</p>
+<p>Blocked/disconnected bases produce known false connectivity and <strong>null width/bottleneck targets</strong>. Outside-playable or coincident grid bases are unresolved. Disconnection is not a zero-width openness score.</p>
+<h2 id="resource-free-cross-sections">Resource-free cross sections</h2>
+<p>Compute shortest-distance fields from each base on their common connected land component, using eight-neighbor movement without corner cutting. Define:</p>
+<pre><code class="language-text">phase(x) = (distance_from_A(x) − distance_from_B(x)) / 2
+</code></pre>
+<p>This progress coordinate advances in physical distance along a shortest A–B path. Its sections bend around terrain instead of using a single representative route or resource-attracted line. A constant-phase offshoot does not add crossing edges merely because it is reachable.</p>
+<p>For each sampled level, find passable grid faces crossing that level. Orientation correction reduces diagonal staircase bias. Connected face groups provide individual geometric spans; retain their total length, largest span and complete width list. Typical width is the median in the central 50% of shortest-distance progress, restricted to interior samples.</p>
+<p>The result is aggregate traversable cross-section length. Folded/curved sections can be longer than their straight-line projection. Effective span count, <code>(sum widths)^2 / sum(widths^2)</code>, is a diagnostic of partitioning, <strong>not a military lane count</strong>. Spans can split or merge between sections. A small obstacle can split a section without creating another worthwhile attack lane. This diagnostic count is not a conditioning target.</p>
+<h2 id="bottlenecks-need-both-absolute-width-and-persistence">Bottlenecks need both absolute width and persistence</h2>
+<p>Ignore the first/last 32 shortest-distance units near the bases and sample approximately every map unit. Record minimum widths and the smallest mean over eight units, separately for total width and the largest span.</p>
+<pre><code class="language-text">relative_contraction = clip(1 − sustained_minimum_total_width / typical_total_width, 0, 1)
+</code></pre>
+<p>Also retain largest-span contraction, the longest run below half the typical width, and the fraction of the interior occupied by such runs lasting at least eight units. Persistent fragmentation similarly requires effective spans of at least 1.5 for at least eight units.</p>
+<p><strong>A uniformly narrow corridor can have low contraction:</strong> it has no additional local pinch, but its absolute widths are still small. Several narrow spans can have moderate total width while each span remains restrictive. Read these together rather than collapsing them into one scalar.</p>
+<p>Distances here are geodesic progress, not wall thickness. Even a thin wall with a gap can create a funnel. Buffers, eight-unit support and half-typical thresholds are explicit measurement conventions, not proven unit-formation thresholds.</p>
+<h2 id="checked-examples">Checked examples</h2>
+<table>
+<thead>
+<tr>
+<th>Synthetic geometry</th>
+<th align="right">Typical total width</th>
+<th align="right">Largest span</th>
+<th align="right">Effective spans, diagnostic only</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>One narrow passage</td>
+<td align="right">8</td>
+<td align="right">8</td>
+<td align="right">1</td>
+</tr>
+<tr>
+<td>Three narrow passages</td>
+<td align="right">24</td>
+<td align="right">8</td>
+<td align="right">3</td>
+</tr>
+<tr>
+<td>One broad front</td>
+<td align="right">96</td>
+<td align="right">96</td>
+<td align="right">1</td>
+</tr>
+</tbody></table>
+<p>A brief pinch has sustained width 15.7 versus 8.0 for a longer neck. Below-half-typical runs last 13 versus 36 progress units. The disconnected case has null widths.</p>
+<table>
+<thead>
+<tr>
+<th>Native map</th>
+<th align="right">Typical total / largest span</th>
+<th align="right">Sustained total bottleneck</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Astro Crater Battles</td>
+<td align="right">105.5 / 105.5</td>
+<td align="right">51.4</td>
+</tr>
+<tr>
+<td>Adaptive Setons Clutch</td>
+<td align="right">62.1 / 62.1</td>
+<td align="right">49.0</td>
+</tr>
+<tr>
+<td>Adaptive Canis River</td>
+<td align="right">399.2 / 201.2</td>
+<td align="right">161.8</td>
+</tr>
+<tr>
+<td>Twin Rivers</td>
+<td align="right">328.0 / 240.5</td>
+<td align="right">219.4</td>
+</tr>
+<tr>
+<td>Adaptive Tabula Rasa</td>
+<td align="right">267.2 / 155.3</td>
+<td align="right">82.5</td>
+</tr>
+<tr>
+<td>Adaptive Pandemonium Pass</td>
+<td align="right">319.0 / 119.1</td>
+<td align="right">239.4</td>
+</tr>
+</tbody></table>
+<p>Maridia and Point of Reason are land-disconnected for their selected pair. These are geometric measurements, not economic front counts or map-quality grades.</p>
+<p>Thirteen focused tests cover one/several/broad fronts, brief versus sustained necks, uniform narrowness, false corner connectivity, blocked/disconnected bases, transpose invariance, world-unit scaling, playable bounds, outliers, disabled water and target masks/observability. Existing generated samples use their saved requested bases, not guessed coordinates.</p>
+<p>The full suite passed <strong>381 tests</strong>. The comparison&#39;s <code>validation.json</code> also checks all 22 preview files, target masks, per-section span conservation and pinned implementation hashes, and verifies that all frozen strategy-release artifacts remain unchanged.</p>
+<h2 id="native-maps-versus-what-the-model-sees">Native maps versus what the model sees</h2>
+<p><strong>Native and model-representation labels are not interchangeable.</strong> Downsampling, clipping, interpolation and water reconciliation can change narrow obstacles or connectivity.</p>
+<p>The <code>joint_target</code> adapter decodes the actual three target channels and applies the existing deterministic height/water reconciliation plus bilinear native reconstruction. Disabled water remains dry. No old resource-conditioning profile, hidden source detail, learned refinement, smoothing or forced symmetry enters the adapter.</p>
+<p>Twin Rivers&#39; largest span changes from 240.5 on the native source to 350.5 on its decoded training representation. Pandemonium&#39;s total/largest widths change from 319.0/119.1 to 368.7/155.7. This is representation loss, not a reason to supervise a terrain-only model with native details it cannot see.</p>
+<p>For new training, derive controls from the <strong>exact terrain representation and decoder the model learns</strong>. Keep native measurements as a separate source/game-geometry evaluation. For generated outputs, evaluate raw reconstruction and later refinement/smoothing separately: postprocessing can change the controls.</p>
+<h2 id="target-schema-and-integration-boundary">Target schema and integration boundary</h2>
+<p><code>targets.jsonl</code> exports <code>terrain_condition_targets_v1</code>: raw continuous values and loss masks for:</p>
+<pre><code class="language-text">water_fraction
+terrain_relief
+base_connectivity
+front_total_width
+front_largest_span_width
+front_fragmentation_fraction
+bottleneck_total_width
+bottleneck_largest_span_width
+bottleneck_relative_contraction
+bottleneck_restricted_length
+</code></pre>
+<p>There is no economic <code>front_width</code>, resource/army-control rating, witness count or claimed attack-lane count. Complete profiles remain available for inspection.</p>
+<p>Native/model rows retain family and split identity where available. Synthetic/generated cases are diagnostic, not training examples. No normalizer or presets were fitted on this mixed review set. Future scaling must use train only, retaining families and masks. Positive widths/lengths/relief can use <code>log1p</code>; fractions/connectivity should be handled separately.</p>
+<p>Existing checkpoints and <code>joint_terrain_v1</code> data retain their original 13-dimensional conditioning. They do not understand these new controls automatically. A new conditioning manifest/normalizer and versioned trainer/sampler wiring are required before retraining. That rebuild and collection-wide measurements have deliberately not been launched during this bounded review. Historical economic labels remain useful for resource-aware models.</p>
+<h2 id="code-and-bounded-reproduction">Code and bounded reproduction</h2>
+<p>Core: <code>src/supmapai/terrain_controls/measure.py</code>, <code>conditioning.py</code>, <code>joint_target.py</code>. CLI: <code>supmapai.tools.measure_terrain_controls</code>. Tests: <code>tests/test_terrain_controls.py</code>.</p>
+<pre><code class="language-powershell">$env:PYTHONPATH = &#39;src&#39;
+$env:MPLCONFIGDIR = (Resolve-Path .local-tools/matplotlib).Path
+.venv-codex/Scripts/python.exe -m supmapai.tools.measure_terrain_controls `
+  --out data/processed/terrain_controls_new_review `
+  --generated data/models/terrain_steering_10km_v1 `
+  --joint-source data/tensors/terrain_joint_10km_1v1
+</code></pre>
+<p>Use a fresh output directory. Defaults select eight familiar maps; repeated <code>--key</code> selects another bounded set. Settings, source signatures and code hashes are recorded. Hard cell/section bounds raise explicit errors rather than silently coarsening resolution.</p>
+<p>Remaining limits: grid/gradient approximation, finite spacing and endpoint buffer, geometric fragmentation rather than certified lanes, no prop/unit/script collision model, and dependence on pair and represented resolution. This pilot checks correctness and interpretation; it does not establish exhaustive topology or universal gameplay validity.</p>
+<script src="model-atlas/public-links.js" data-public-links></script></body></html>

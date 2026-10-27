@@ -1,0 +1,139 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>README.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="mapgen-project-atlas">MapGen project atlas</h1>
+<p>The <a href="research/all-in/index.html">all-in source-layer research</a> is concluded with a negative full-generation result. The report records thirteen outputs, twelve rating inputs, 851 maps, 9.10 measured GPU-session hours, 667,632 map presentations, failed fresh outputs and completed diagnostics. It preserves the evidence that one-map memorization worked. No experimental checkpoint replaces a selected stage. The <a href="research/all-in/compute-ledger.json">compute ledger</a> includes provenance and accounting limits.</p>
+<p>Open <a href="index.html">index.html</a> directly in a browser. No server, GPU inference,
+training, installation or online deployment is needed. <a href="pipeline-overview.png">pipeline-overview.png</a>
+is the standalone generation chart.</p>
+<p>This is a DRAFT. The opening section is <strong>Maps, Layers and Tensors</strong>, with five
+map comparisons for ten source rows and nine derived-analysis rows.
+Project home is hidden. Default source previews use Setons Clutch – FAF version
+<code>8553_17709</code>; original model results and training-map figures remain behind
+disclosures with their actual provenance. The atlas also contains model contracts,
+a searchable document library and work status. Existing
+<code>#overview</code> links still open the generation chain. The folder remains <code>model-atlas</code>
+to preserve local links. <code>project.js</code> owns the project sections; <code>library-data.js</code>
+is the curated document index (titles, categories and relative paths). Update these
+when adding project entry points. The atlas is a saved reference, not live job monitoring.</p>
+<p>The atlas separates current models, their deterministic tooling, planned stages
+and checkpoint-bearing historical runs. Inputs at generation, outputs and
+training targets are distinct. Images come from real saved arrays except the
+explicitly labeled Gaussian-noise illustration. PNGs visualize numeric channels;
+they do not imply that map previews were the training inputs.</p>
+<p>Each selected model includes an <strong>actual training receipt</strong>: checkpoint-pinned
+dataset release, train/validation counts, exact source archive, array shapes/dtypes,
+target-channel PNGs, source-condition PNGs, scalar profiles and loss-mask semantics.
+The shared Argon FAF example belongs to the train split of all four releases.
+It is shown before random augmentation; resource-loader cache quantization is noted.</p>
+<p><strong>Controls &amp; data use</strong> (<code>index.html#controls</code>) distinguishes learned conditioning,
+diffusion sampling, decoding, composition and export settings. It shows train-only
+control support, the saved seed-303 request, and available-but-unused air/drop masks
+and automated gameplay ratings. These are not community votes.</p>
+<p><strong>Tensors &amp; map data</strong> (<code>index.html#training</code>) inventories physical layers and
+derived gameplay observations together. Rating coverage is read from source
+metadata for the exact curated marker cohort, with scenario identity and hashes
+checked. It lists native spatial arrays and structured front/economy/naval records,
+not just neural input/target arrays. Economic safety and independent army-passage
+count are not claimed as established automatic measurements. The linked
+<a href="../gameplay-conditioned-resources-v2.md">V2 gameplay-conditioning proposal</a>
+is explicitly design-only; no selected model was changed.</p>
+<h2 id="updating">Updating</h2>
+<p><code>catalog.json</code> is the curated source of truth for purposes, tensor contracts,
+selected checkpoints and human-reviewed status. For every new stage or changed
+selection, record:</p>
+<ul>
+<li>Input shapes, meanings and origin, including controls/noise where applicable.</li>
+<li>Output shapes/semantics and what the network does not produce.</li>
+<li>Separate source dataset and training-target representation.</li>
+<li>Actual loader-consumed arrays/profile origin, target vs condition vs loss mask.</li>
+<li>Update <code>controls.json</code> for learned controls and non-neural settings, keeping
+extracted-but-unused data and historical conditioning separate from active use.</li>
+<li>Selected checkpoint and exact step, training state and player/playtest state.</li>
+<li>The subsequent decoder/composer/validator, including bypassed constraints.</li>
+<li>Actual example channels/results, with source vs generated labels.</li>
+</ul>
+<p>Then refresh from saved artifacts:</p>
+<pre><code class="language-powershell">$env:PYTHONPATH = &#39;src&#39;
+$env:OPENBLAS_NUM_THREADS = &#39;1&#39;
+$env:OMP_NUM_THREADS = &#39;1&#39;
+.venv/Scripts/python.exe -m supmapai.tools.build_model_atlas
+</code></pre>
+<p>The builder creates <code>generated/atlas-data.js</code>, JSON provenance and channel PNGs.
+It scans checkpoint directories and inspects trusted local checkpoint metadata
+with <code>map_location=&#39;meta&#39;, mmap=True</code>; no full-weight GPU load or model execution
+is performed. It refuses stale selected checkpoint steps and missing references.
+New historical runs are automatically listed; they are not automatically promoted
+to the active generation chain. A new role also needs an explicit chart branch.
+Early experimental contracts are separate from modern encodings; do not relabel
+an old water-mask model as signed-distance prediction.</p>
+<p>Browser verification and PNG refresh:</p>
+<pre><code class="language-powershell">$env:PLAYWRIGHT_PACKAGE = &#39;&lt;absolute path to installed playwright package&gt;&#39;
+node tools/check_model_atlas.mjs
+</code></pre>
+<p>The test uses an isolated temporary headless Edge profile, opens the offline page,
+checks all model/tool views at desktop/mobile widths, validates image loading and
+basic interactions, and captures <code>pipeline-overview.png</code>. Browser screenshots
+remain under <code>.tmp/model-atlas-browser</code>. This does not inspect or change the
+user&#39;s existing browser tabs.</p>
+<p><code>vendor/lucide.min.js</code> and its license are copied from the installed Lucide
+package for offline icons. There are no runtime CDN calls or analytics.</p>
+<h2 id="snapshot-boundaries">Snapshot Boundaries</h2>
+<p>The main visible sample is generated seed-303 terrain with water request 20%.
+The extraction/target example is Argon FAF (<code>11802_23428</code>), intentionally a
+different map; source targets are not secretly inputs for the generated sample.
+Texture images are extracted source data, not learned outputs.</p>
+<p>Four trained stages are selected. Natural reclaim was visually preferred and
+seen in game; its 21-minute run remains paused. Wreck learning finished a
+five-minute pilot and exported a runtime script, but is not yet playtested.
+Texture extraction completed on 1,117 maps with validity caveats; there is no
+trained texture model. Living civilian and spawn-layout stages are not trained.</p>
+<p>Historical checkpoint facts are a reference inventory, not a claim that every
+old run is compatible with current data or part of the generation chain.
+Training loss, source agreement, file integrity and gameplay quality remain
+different kinds of evidence. Refresh status after future player reviews or runs.</p>
+<h2 id="five-map-comparisons">Five-map comparisons</h2>
+<p>See <a href="layer-methods.md">layer-methods.md</a> for exact map versions, assumptions,
+preparation, rendering, sources and work to continue. <code>layers.js</code> owns the section
+layout and method summaries; <code>atlas_layers.py</code> produces the numeric diagnostics
+and PNGs. Images live inside <code>generated/comparisons/</code>; source/evidence links
+resolve against the repository data folders.</p>
+<h2 id="entity-overlay-backgrounds-and-section-review">Entity-overlay backgrounds and section review</h2>
+<p>Starts, markers, props/wrecks, civilians and analytical overlays default to a
+separate official FAF vault image with adjustable brightness (default <strong>10%</strong>), labeled as context only.
+The Background brightness slider at 0 hides context; full-resolution PNG links contain only the transparent
+layer. Do not use extracted terrain as an implicit background. Context never
+changes source tensor values, and vault registration uncertainty stays visible.</p>
+<p>See <a href="layer-review.md">layer-review.md</a> for the 25 October section review, exact
+saved artifact coverage and pending TODOs. The former atlas air-distance proxy and duplicate abundance aggregate have been
+removed from the displayed section. Saved air/drop, battle-path, resource-role
+and contested-region evidence is now rendered with explicit releases and gaps. Prefer existing
+artifacts; record missing exact-version outputs instead of substituting stock
+variants or recomputing without a request.</p>
+<h2 id="global-display-controls-and-side-specific-fields">Global display controls and side-specific fields</h2>
+<p>Two 0–100 sliders stay at the bottom of the desktop left sidebar: <strong>Background
+brightness</strong> defaults to <strong>10</strong>, and <strong>Mask opacity</strong> defaults to <strong>100</strong>.
+Settings apply across atlas routes and survive reloads through local browser
+storage when available. Background 0 hides only the separate vault image; mask 0
+hides data previews. Sliders remain available under navigation on mobile.</p>
+<p>Layer PNGs have full base opacity; their display alpha is controlled globally,
+including model tensor galleries. This supersedes the previous fixed 50% rule.
+Source tensors and numeric values never change. Original vault reference cards
+are not masks and retain their normal appearance.</p>
+<p>Side-specific air fields show both archived sides, blue and orange with violet
+overlap. Slots are never silently renamed. The known DualGap ARMY_1/ARMY_12 air
+pair issue is visibly flagged; newer frontier paths use ARMY_1/ARMY_2. Saved
+mirrored frontier branches are displayed for both sides.</p>
+<p>The <a href="../map-extraction-todos.md">maps extraction work queue</a> and
+<a href="maps-data-gap-plan.md">owner decision plan</a> put dataset-wide symmetry first,
+followed by a stable 10x10 km release, slope support, settings/defaults and
+special-effects research. Access/routes/zoning/scoring are deferred difficult
+work; team games are postponed and specific atlas-map reruns are out of scope.
+Atlas presentation changes do not claim to fix scientific outputs.</p>
+<p>All comparison rows now share that separate vault context, including terrain,
+water and surface appearance. Reducing albedo opacity reveals the context rather
+than merely dimming the image over an empty background.</p>
+<h2 id="rebuilding-the-concluded-all-in-report">Rebuilding the concluded all-in report</h2>
+<p>Use the CPU environment for saved-artifact packaging and the bundled marked module for offline HTML. These commands perform no model inference or training:</p>
+<pre><code class="language-powershell">.venv-codex/Scripts/python.exe tools/build_all_in_research_report.py
+node tools/render_all_in_research_report.mjs
+</code></pre>
+<p>The public snapshot workflow is documented in <a href="../atlas-publication.md">atlas-publication.md</a>. It publishes sanitized atlas content on the dedicated GitHub branch; no Netlify or portal-code deployment is required.</p>
+<script src="public-links.js" data-public-links></script></body></html>
