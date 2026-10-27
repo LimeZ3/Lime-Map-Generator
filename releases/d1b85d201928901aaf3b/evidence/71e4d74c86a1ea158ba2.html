@@ -1,0 +1,135 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>build_all_in_research_report.py | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="../docs/model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1>build_all_in_research_report.py</h1><p class="meta">Saved public evidence snapshot: tools/build_all_in_research_report.py</p><pre>&quot;&quot;&quot;Package the concluded joint-source experiment from saved artifacts only.
+
+No checkpoint loading, inference, CUDA initialization, or training.
+&quot;&quot;&quot;
+from __future__ import annotations
+
+import hashlib
+import json
+import os
+import shutil
+import statistics
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+OUT = ROOT / &quot;docs/model-atlas/research/all-in&quot;
+ASSETS = OUT / &quot;assets&quot;
+
+
+def read(relative):
+    return json.loads((ROOT / relative).read_text(encoding=&quot;utf-8&quot;))
+
+
+def main():
+    ASSETS.mkdir(parents=True, exist_ok=True)
+    sources = []
+    rows = []
+    specs = [
+        (&quot;16-map implementation check&quot;, &quot;joint_sources_pilot_v1/sanity&quot;, 0, 24),
+        (&quot;Full-cohort pilot&quot;, &quot;joint_sources_pilot_v1/pilot&quot;, 0, 24),
+        (&quot;Long continuation&quot;, &quot;joint_sources_12h_v1/training&quot;, 2074, 24),
+        (&quot;One-map baseline&quot;, &quot;joint_diagnostics_v1/one_map_baseline&quot;, 0, 6),
+        (&quot;One-map lower LR&quot;, &quot;joint_diagnostics_v1/one_map_lower_lr&quot;, 0, 6),
+        (&quot;One-map balanced loss&quot;, &quot;joint_diagnostics_v1/one_map_balanced&quot;, 0, 6),
+        (&quot;Full-cohort lower LR&quot;, &quot;joint_diagnostics_v1/full_lower_lr&quot;, 2074, 24),
+    ]
+    for name, folder, start, batch in specs:
+        relative = f&quot;data/models/{folder}/summary.json&quot;
+        summary = read(relative)
+        sources.append(relative)
+        rows.append(dict(name=name, summary=relative, start_step=start,
+                         end_step=summary[&quot;step&quot;], additional_updates=summary[&quot;step&quot;]-start,
+                         effective_batch=batch,
+                         map_presentations=(summary[&quot;step&quot;]-start)*batch,
+                         session_seconds=summary[&quot;session_seconds&quot;]))
+    telemetry = []
+    pipelines = []
+    for folder in [&quot;joint_sources_pilot_v1&quot;, &quot;joint_sources_12h_v1&quot;, &quot;joint_diagnostics_v1&quot;]:
+        relative = f&quot;data/models/{folder}/gpu_history.json&quot;
+        points = read(relative)
+        sources.append(relative)
+        pairs = [(a,b) for a,b in zip(points, points[1:]) if 0 &lt; b[&quot;unix&quot;]-a[&quot;unix&quot;] &lt; 120]
+        telemetry.append(dict(run=folder, source=relative, samples=len(points),
+            covered_seconds=sum(b[&quot;unix&quot;]-a[&quot;unix&quot;] for a,b in pairs),
+            maximum_gap_seconds=max(b[&quot;unix&quot;]-a[&quot;unix&quot;] for a,b in pairs),
+            mean_utilization_percent=statistics.mean(p[&quot;utilization_percent&quot;] for p in points),
+            median_utilization_percent=statistics.median(p[&quot;utilization_percent&quot;] for p in points),
+            peak_device_memory_mib=max(p[&quot;used_memory_mb&quot;] for p in points),
+            mean_board_power_watts=statistics.mean(p[&quot;power_watts&quot;] for p in points),
+            board_energy_estimate_kwh=sum((a[&quot;power_watts&quot;]+b[&quot;power_watts&quot;])/2 *
+                (b[&quot;unix&quot;]-a[&quot;unix&quot;])/3600000 for a,b in pairs)))
+        relative = f&quot;data/models/{folder}/pipeline.json&quot;
+        pipeline = read(relative)
+        sources.append(relative)
+        pipelines.append(dict(run=folder, source=relative, elapsed_seconds=pipeline[&quot;elapsed_seconds&quot;],
+                              state=pipeline[&quot;state&quot;]))
+    copies = {
+        &quot;full-cohort-final.png&quot;: &quot;data/models/joint_sources_12h_v1/training/latest_layers.png&quot;,
+        &quot;one-map-memorization.png&quot;: &quot;data/models/joint_diagnostics_v1/one_map_baseline/latest_layers.png&quot;,
+        &quot;full-lower-lr.png&quot;: &quot;data/models/joint_diagnostics_v1/full_lower_lr/latest_layers.png&quot;,
+        &quot;diagnostic-conclusions.png&quot;: &quot;data/models/joint_diagnostics_v1/conclusions.png&quot;,
+        &quot;sampling-comparison.png&quot;: &quot;data/models/joint_diagnostics_v1/sampling/comparison.png&quot;,
+    }
+    for name, relative in copies.items():
+        shutil.copyfile(ROOT/relative, ASSETS/name)
+        sources.append(relative)
+    for relative in [&quot;data/tensors/joint_sources_curated_256_v1/audit.json&quot;,
+                     &quot;data/tensors/joint_sources_curated_256_v1/release_manifest.json&quot;,
+                     &quot;data/tensors/joint_sources_curated_256_v1/normalization.json&quot;,
+                     &quot;data/models/joint_diagnostics_v1/comparison_summary.json&quot;,
+                     &quot;data/models/joint_diagnostics_v1/sampling/summary.json&quot;,
+                     &quot;data/models/joint_diagnostics_v1/objective_audit.json&quot;,
+                     &quot;data/models/joint_diagnostics_v1/oracle_precision.json&quot;,
+                     &quot;data/models/joint_sources_12h_v1/training/history.json&quot;,
+                     &quot;data/models/joint_diagnostics_v1/full_lower_lr/history.json&quot;]:
+        sources.append(relative)
+    ledger = dict(schema=&quot;mapgen_all_in_research_compute_v1&quot;, research_status=&quot;closed_by_user&quot;,
+        date=&quot;2026-10-25&quot;, device=&quot;One local NVIDIA GeForce RTX 5080, 16303 MiB, Windows WDDM&quot;,
+        sessions=rows, session_seconds=sum(r[&quot;session_seconds&quot;] for r in rows),
+        map_presentations=sum(r[&quot;map_presentations&quot;] for r in rows),
+        supervisor_windows=pipelines, supervisor_seconds=sum(p[&quot;elapsed_seconds&quot;] for p in pipelines),
+        telemetry=telemetry,
+        telemetry_board_energy_estimate_kwh=sum(t[&quot;board_energy_estimate_kwh&quot;] for t in telemetry),
+        accounting_notes=[
+            &quot;Session elapsed clocks include validation, galleries and checkpointing; not GPU kernel timers.&quot;,
+            &quot;Resumed cumulative elapsed and map counts are not added twice: start steps are subtracted.&quot;,
+            &quot;Supervisor windows overlap session clocks and must not be added to them.&quot;,
+            &quot;Separate GPU capacity/sampling probes and preparation are not fully timed; totals are measured core windows, not exhaustive project effort.&quot;,
+            &quot;Energy is trapezoidal integration of sampled GPU board power, excluding gaps &gt;=120 seconds; not metered system electricity.&quot;,
+            &quot;No financial cost is inferred from local compute or power. No cloud training was purchased.&quot;,
+        ],
+        evidence=[dict(path=p, sha256=hashlib.sha256((ROOT/p).read_bytes()).hexdigest()) for p in sources])
+    (OUT/&quot;compute-ledger.json&quot;).write_text(json.dumps(ledger, indent=2)+&quot;\n&quot;, encoding=&quot;utf-8&quot;)
+
+    os.environ.setdefault(&quot;MPLCONFIGDIR&quot;, str(ROOT/&quot;.tmp/matplotlib-joint&quot;))
+    import matplotlib
+    matplotlib.use(&quot;Agg&quot;)
+    import matplotlib.pyplot as plt
+    old = read(&quot;data/models/joint_sources_12h_v1/training/history.json&quot;)
+    low = read(&quot;data/models/joint_diagnostics_v1/full_lower_lr/history.json&quot;)
+    original = {p[&quot;step&quot;]:p[&quot;validation_loss&quot;] for p in old if &quot;validation_loss&quot; in p}
+    lower = {p[&quot;step&quot;]:p[&quot;metrics&quot;][&quot;500&quot;][&quot;loss&quot;] for p in low}
+    fig, axes = plt.subplots(1,2,figsize=(13,4.8),layout=&quot;constrained&quot;)
+    for ax in axes:
+        ax.plot(list(original),list(original.values()),&quot;o-&quot;,color=&quot;#9a423b&quot;,ms=3,label=&quot;Original LR 2e-4&quot;)
+        ax.plot(list(lower),list(lower.values()),&quot;o-&quot;,color=&quot;#167366&quot;,ms=3,label=&quot;LR-only restart 5e-5&quot;)
+        ax.set_xlabel(&quot;Cumulative optimizer updates&quot;)
+        ax.set_ylabel(&quot;Held-out t=500 velocity loss (69 families)&quot;)
+        ax.grid(alpha=.22)
+    axes[0].set_yscale(&quot;log&quot;)
+    axes[0].set_title(&quot;Full saved history: collapse, plateau, recovery&quot;)
+    axes[0].legend(fontsize=9)
+    axes[1].set(xlim=(2000,5100),ylim=(.021,.055),title=&quot;Controlled restart through the failure point&quot;)
+    axes[1].axvline(4412,color=&quot;#999&quot;,ls=&quot;--&quot;,lw=1)
+    axes[1].text(4412,.052,&quot;Original collapse at 4,412&quot;,ha=&quot;right&quot;,fontsize=9)
+    fig.suptitle(&quot;Lower denoising loss did not yield usable fresh maps&quot;,fontsize=15)
+    fig.savefig(ASSETS/&quot;learning-history.png&quot;,dpi=160)
+    plt.close(fig)
+    print(json.dumps({&quot;session_seconds&quot;:ledger[&quot;session_seconds&quot;],&quot;session_hours&quot;:ledger[&quot;session_seconds&quot;]/3600,
+        &quot;presentations&quot;:ledger[&quot;map_presentations&quot;],&quot;supervisor_seconds&quot;:ledger[&quot;supervisor_seconds&quot;],
+        &quot;energy_estimate_kwh&quot;:ledger[&quot;telemetry_board_energy_estimate_kwh&quot;]}))
+
+
+if __name__ == &quot;__main__&quot;:
+    main()
+</pre><script src="../docs/model-atlas/public-links.js" data-public-links></script></body></html>

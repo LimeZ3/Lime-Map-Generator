@@ -1,0 +1,435 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>report.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="../../../docs/model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="cross-map-frontier-contact-validation">Cross-map frontier-contact validation</h1>
+<p>Local default 1v1 tests, slot 1 versus the verified mirrored counterpart. This isolates the accepted Morning Prayer method: no reclaim, unit changes, new movement thresholds or tuned stopping threshold. Every contact budget 1–8 is retained. A budget is contacts <strong>per side</strong>, not necessarily complete connected attack routes.</p>
+<p>Split at the perpendicular base bisector. Resource attraction uses only own-side eligible land mexes. Deployment terminates on the first real legal crossing; resource response comes from a selected contact or own base over the physical half-map graph. The equal terminal reward is never a physical teleport. Terrain territories have no fixed attention width. Exact symmetry is imposed on geometry and territories.</p>
+<p>For rotation the mirrored contact is usually elsewhere along the frontier: the two half-approaches are displayed separately, without inventing a connection. Resources exactly on neutral frontier cells, or disconnected from the base within its own half, are listed separately. These scope changes mean cross-map absolute seconds are not a map quality ranking. All contacts assume an army is present; army splitting cost and deployment time are not charged.</p>
+<table>
+<thead>
+<tr>
+<th>Map</th>
+<th align="right">Own mexes</th>
+<th>Symmetry</th>
+<th align="right">K1</th>
+<th align="right">K2</th>
+<th align="right">K3</th>
+<th align="right">K4</th>
+<th align="right">K5</th>
+<th align="right">K6</th>
+<th align="right">K7</th>
+<th align="right">K8</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><a href="8553_17709/K5_territories.png">Setons Clutch</a></td>
+<td align="right">3</td>
+<td>rotate180</td>
+<td align="right">26.32s</td>
+<td align="right">25.40s</td>
+<td align="right">25.40s</td>
+<td align="right">25.40s</td>
+<td align="right">25.40s</td>
+<td align="right">25.40s</td>
+<td align="right">25.40s</td>
+<td align="right">25.40s</td>
+</tr>
+<tr>
+<td><a href="83_4777/K5_territories.png">Tabula Rasa</a></td>
+<td align="right">30</td>
+<td>rotate180</td>
+<td align="right">56.63s</td>
+<td align="right">40.47s</td>
+<td align="right">31.03s</td>
+<td align="right">29.15s</td>
+<td align="right">27.41s</td>
+<td align="right">27.14s</td>
+<td align="right">26.91s</td>
+<td align="right">26.71s</td>
+</tr>
+<tr>
+<td><a href="9202_16923/K5_territories.png">Pandemonium Pass</a></td>
+<td align="right">22</td>
+<td>rotate180</td>
+<td align="right">46.21s</td>
+<td align="right">36.36s</td>
+<td align="right">31.48s</td>
+<td align="right">26.79s</td>
+<td align="right">24.46s</td>
+<td align="right">24.00s</td>
+<td align="right">23.67s</td>
+<td align="right">23.44s</td>
+</tr>
+<tr>
+<td><a href="8070_26498/K5_territories.png">Gap (DualGap Adaptive)</a></td>
+<td align="right">14</td>
+<td>mirror_x</td>
+<td align="right">26.00s</td>
+<td align="right">20.10s</td>
+<td align="right">19.88s</td>
+<td align="right">19.72s</td>
+<td align="right">19.67s</td>
+<td align="right">19.64s</td>
+<td align="right">19.60s</td>
+<td align="right">19.57s</td>
+</tr>
+<tr>
+<td><a href="4617_6826/K5_territories.png">Canis River</a></td>
+<td align="right">11</td>
+<td>rotate180</td>
+<td align="right">46.49s</td>
+<td align="right">33.40s</td>
+<td align="right">28.27s</td>
+<td align="right">27.29s</td>
+<td align="right">26.63s</td>
+<td align="right">26.38s</td>
+<td align="right">26.13s</td>
+<td align="right">26.04s</td>
+</tr>
+<tr>
+<td><a href="4619_6828/K5_territories.png">Diversity</a></td>
+<td align="right">13</td>
+<td>rotate180</td>
+<td align="right">31.22s</td>
+<td align="right">22.99s</td>
+<td align="right">21.70s</td>
+<td align="right">21.24s</td>
+<td align="right">20.65s</td>
+<td align="right">20.42s</td>
+<td align="right">20.27s</td>
+<td align="right">20.23s</td>
+</tr>
+<tr>
+<td><a href="4625_6834/K5_territories.png">Hrungdaks Canyon</a></td>
+<td align="right">17</td>
+<td>rotate180</td>
+<td align="right">49.37s</td>
+<td align="right">43.48s</td>
+<td align="right">40.27s</td>
+<td align="right">39.33s</td>
+<td align="right">38.52s</td>
+<td align="right">38.10s</td>
+<td align="right">37.91s</td>
+<td align="right">37.85s</td>
+</tr>
+<tr>
+<td><a href="2929_4144/K5_territories.png">Cobalt Valley</a></td>
+<td align="right">7</td>
+<td>rotate180</td>
+<td align="right">33.86s</td>
+<td align="right">26.34s</td>
+<td align="right">19.78s</td>
+<td align="right">18.62s</td>
+<td align="right">17.98s</td>
+<td align="right">17.52s</td>
+<td align="right">17.52s</td>
+<td align="right">17.52s</td>
+</tr>
+<tr>
+<td><a href="4779_7079/K5_territories.png">Abhor</a></td>
+<td align="right">11</td>
+<td>rotate180</td>
+<td align="right">39.76s</td>
+<td align="right">21.79s</td>
+<td align="right">17.25s</td>
+<td align="right">15.98s</td>
+<td align="right">15.13s</td>
+<td align="right">14.37s</td>
+<td align="right">13.98s</td>
+<td align="right">13.84s</td>
+</tr>
+<tr>
+<td><a href="5190_7911/K5_territories.png">Arcane</a></td>
+<td align="right">8</td>
+<td>rotate180</td>
+<td align="right">29.67s</td>
+<td align="right">19.05s</td>
+<td align="right">17.39s</td>
+<td align="right">16.44s</td>
+<td align="right">16.42s</td>
+<td align="right">16.42s</td>
+<td align="right">16.42s</td>
+<td align="right">16.42s</td>
+</tr>
+<tr>
+<td><a href="12526_25317/K5_territories.png">Desert Planet II</a></td>
+<td align="right">14</td>
+<td>rotate180</td>
+<td align="right">53.93s</td>
+<td align="right">43.11s</td>
+<td align="right">38.01s</td>
+<td align="right">37.36s</td>
+<td align="right">37.00s</td>
+<td align="right">36.81s</td>
+<td align="right">36.64s</td>
+<td align="right">36.53s</td>
+</tr>
+<tr>
+<td><a href="129_156/K5_territories.png">Twin Rivers</a></td>
+<td align="right">11</td>
+<td>rotate180</td>
+<td align="right">34.74s</td>
+<td align="right">30.39s</td>
+<td align="right">27.73s</td>
+<td align="right">26.83s</td>
+<td align="right">26.83s</td>
+<td align="right">26.83s</td>
+<td align="right">26.83s</td>
+<td align="right">26.83s</td>
+</tr>
+<tr>
+<td><a href="7745_13132/K5_territories.png">Zerg Canyon</a></td>
+<td align="right">30</td>
+<td>rotate180</td>
+<td align="right">49.69s</td>
+<td align="right">40.68s</td>
+<td align="right">35.27s</td>
+<td align="right">33.59s</td>
+<td align="right">32.14s</td>
+<td align="right">31.40s</td>
+<td align="right">31.34s</td>
+<td align="right">31.30s</td>
+</tr>
+<tr>
+<td><a href="12686_31776/K5_territories.png">Adaptive Project Dust</a></td>
+<td align="right">24</td>
+<td>mirror_x</td>
+<td align="right">35.34s</td>
+<td align="right">29.92s</td>
+<td align="right">26.04s</td>
+<td align="right">23.28s</td>
+<td align="right">22.12s</td>
+<td align="right">21.28s</td>
+<td align="right">20.80s</td>
+<td align="right">20.51s</td>
+</tr>
+<tr>
+<td><a href="6384_13974/K5_territories.png">Adaptive Mars – Mangala Fossa</a></td>
+<td align="right">15</td>
+<td>rotate180</td>
+<td align="right">49.51s</td>
+<td align="right">33.42s</td>
+<td align="right">28.69s</td>
+<td align="right">27.34s</td>
+<td align="right">26.67s</td>
+<td align="right">25.86s</td>
+<td align="right">25.35s</td>
+<td align="right">25.00s</td>
+</tr>
+<tr>
+<td><a href="4590_6721/K5_territories.png">Funeral Plains</a></td>
+<td align="right">23</td>
+<td>rotate180</td>
+<td align="right">53.56s</td>
+<td align="right">38.23s</td>
+<td align="right">33.36s</td>
+<td align="right">31.05s</td>
+<td align="right">29.87s</td>
+<td align="right">28.97s</td>
+<td align="right">28.37s</td>
+<td align="right">27.98s</td>
+</tr>
+<tr>
+<td><a href="5180_7912/K5_territories.png">Adaptive Morning Prayer</a></td>
+<td align="right">29</td>
+<td>mirror_z</td>
+<td align="right">45.17s</td>
+<td align="right">32.89s</td>
+<td align="right">20.86s</td>
+<td align="right">15.36s</td>
+<td align="right">12.55s</td>
+<td align="right">12.13s</td>
+<td align="right">11.97s</td>
+<td align="right">11.80s</td>
+</tr>
+<tr>
+<td><a href="7_8/K5_territories.png">Loki</a></td>
+<td align="right">12</td>
+<td>rotate180</td>
+<td align="right">57.43s</td>
+<td align="right">33.57s</td>
+<td align="right">31.69s</td>
+<td align="right">31.62s</td>
+<td align="right">31.61s</td>
+<td align="right">31.61s</td>
+<td align="right">31.61s</td>
+<td align="right">31.61s</td>
+</tr>
+<tr>
+<td><a href="10619_20371/K5_territories.png">Azog</a></td>
+<td align="right">13</td>
+<td>rotate180</td>
+<td align="right">45.85s</td>
+<td align="right">35.15s</td>
+<td align="right">31.10s</td>
+<td align="right">30.56s</td>
+<td align="right">30.27s</td>
+<td align="right">29.99s</td>
+<td align="right">29.94s</td>
+<td align="right">29.94s</td>
+</tr>
+<tr>
+<td><a href="9314_17207/K5_territories.png">Volcano Beach</a></td>
+<td align="right">22</td>
+<td>diagonal</td>
+<td align="right">43.12s</td>
+<td align="right">34.80s</td>
+<td align="right">32.44s</td>
+<td align="right">31.05s</td>
+<td align="right">30.54s</td>
+<td align="right">30.24s</td>
+<td align="right">30.01s</td>
+<td align="right">29.85s</td>
+</tr>
+<tr>
+<td><a href="3354_5193/K5_territories.png">Regor VI Highlands</a></td>
+<td align="right">13</td>
+<td>rotate180</td>
+<td align="right">43.52s</td>
+<td align="right">28.92s</td>
+<td align="right">20.82s</td>
+<td align="right">19.86s</td>
+<td align="right">18.73s</td>
+<td align="right">18.33s</td>
+<td align="right">18.11s</td>
+<td align="right">17.91s</td>
+</tr>
+<tr>
+<td><a href="4092_5733/K5_territories.png">Darkfall</a></td>
+<td align="right">9</td>
+<td>rotate180</td>
+<td align="right">27.94s</td>
+<td align="right">21.78s</td>
+<td align="right">20.80s</td>
+<td align="right">20.01s</td>
+<td align="right">19.84s</td>
+<td align="right">19.72s</td>
+<td align="right">19.69s</td>
+<td align="right">19.66s</td>
+</tr>
+<tr>
+<td><a href="4813_8047/K5_territories.png">Adaptive Monument Valley</a></td>
+<td align="right">16</td>
+<td>rotate180</td>
+<td align="right">44.48s</td>
+<td align="right">36.26s</td>
+<td align="right">31.46s</td>
+<td align="right">29.92s</td>
+<td align="right">28.99s</td>
+<td align="right">28.58s</td>
+<td align="right">28.51s</td>
+<td align="right">28.47s</td>
+</tr>
+<tr>
+<td><a href="5160_7986/K5_territories.png">Adaptive Pyramid</a></td>
+<td align="right">25</td>
+<td>rotate180</td>
+<td align="right">52.97s</td>
+<td align="right">37.10s</td>
+<td align="right">27.07s</td>
+<td align="right">24.58s</td>
+<td align="right">23.08s</td>
+<td align="right">22.11s</td>
+<td align="right">21.64s</td>
+<td align="right">21.22s</td>
+</tr>
+<tr>
+<td><a href="10023_19246/K5_territories.png">Desolate Dunes</a></td>
+<td align="right">21</td>
+<td>rotate180</td>
+<td align="right">43.56s</td>
+<td align="right">31.33s</td>
+<td align="right">26.02s</td>
+<td align="right">24.11s</td>
+<td align="right">23.09s</td>
+<td align="right">22.26s</td>
+<td align="right">21.34s</td>
+<td align="right">20.65s</td>
+</tr>
+<tr>
+<td><a href="9269_17188/K5_territories.png">Forbidden Pass v4</a></td>
+<td align="right">16</td>
+<td>rotate180</td>
+<td align="right">57.26s</td>
+<td align="right">39.93s</td>
+<td align="right">37.38s</td>
+<td align="right">36.90s</td>
+<td align="right">36.78s</td>
+<td align="right">36.78s</td>
+<td align="right">36.78s</td>
+<td align="right">36.78s</td>
+</tr>
+<tr>
+<td><a href="6321_10237/K5_territories.png">Huracan</a></td>
+<td align="right">32</td>
+<td>rotate180</td>
+<td align="right">48.25s</td>
+<td align="right">33.73s</td>
+<td align="right">28.53s</td>
+<td align="right">26.82s</td>
+<td align="right">25.62s</td>
+<td align="right">25.01s</td>
+<td align="right">24.82s</td>
+<td align="right">24.56s</td>
+</tr>
+<tr>
+<td><a href="4642_6845/K5_territories.png">Adaptive Syrtis Major</a></td>
+<td align="right">17</td>
+<td>rotate180</td>
+<td align="right">46.06s</td>
+<td align="right">33.71s</td>
+<td align="right">30.20s</td>
+<td align="right">28.13s</td>
+<td align="right">27.32s</td>
+<td align="right">27.05s</td>
+<td align="right">26.81s</td>
+<td align="right">26.65s</td>
+</tr>
+<tr>
+<td><a href="4633_6843/K5_territories.png">Wonder Open</a></td>
+<td align="right">25</td>
+<td>rotate180</td>
+<td align="right">47.18s</td>
+<td align="right">34.83s</td>
+<td align="right">29.75s</td>
+<td align="right">27.07s</td>
+<td align="right">25.74s</td>
+<td align="right">24.63s</td>
+<td align="right">23.61s</td>
+<td align="right">23.10s</td>
+</tr>
+<tr>
+<td>8 - Badlands_v4</td>
+<td align="right">—</td>
+<td>No terrain-compatible symmetry for the actual selected slots. Closest spawn reflection mirror_z differs in 22.01% of passability cells. Retain as asymmetric, unscored in this experiment.</td>
+<td align="right">—</td>
+<td align="right">—</td>
+<td align="right">—</td>
+<td align="right">—</td>
+<td align="right">—</td>
+<td align="right">—</td>
+<td align="right">—</td>
+<td align="right">—</td>
+</tr>
+</tbody></table>
+<h2 id="input-limitations-and-exclusions">Input limitations and exclusions</h2>
+<p>Sentina III and Adaptive Millennium remain omitted as requested. Badlands uses the requested <strong>8 - Badlands_v4</strong> (key 4_5), replacing the previously reviewed different map. Its substantial asymmetry is retained as an explicit scope exclusion, not repaired by altering terrain. Loki uses original v3, with scripted wall collision still omitted from the terrain grid. Forbidden Pass remains a land-only assessment; hover/amphibious fronts await a separate round. Near approaches within a few raster cells are recorded separately from actual vertex/diagonal intersections; shared-tree branches are not declared X crossings merely for passing nearby. No map downloads or historical collection output rewrites occurred.</p>
+<ul>
+<li>Loki: Terrain-only navigation omits scripted permanent wall collision; original Loki v3 also contains these walls. Treat its route count as provisional. 0 eligible mexes outside this half-model objective.</li>
+<li>Volcano Beach: Static terrain fronts omit scripted volcano damage and generated reclaim; saved mex/hydro markers are fixed. 0 eligible mexes outside this half-model objective.</li>
+<li>Adaptive Monument Valley:  2 eligible mexes outside this half-model objective.</li>
+<li>Forbidden Pass v4:  4 eligible mexes outside this half-model objective.</li>
+<li>Adaptive Syrtis Major:  1 eligible mexes outside this half-model objective.</li>
+<li>8 - Badlands_v4: No terrain-compatible symmetry for the actual selected slots. Closest spawn reflection mirror_z differs in 22.01% of passability cells. Retain as asymmetric, unscored in this experiment..</li>
+</ul>
+<h2 id="examples-to-inspect">Examples to inspect</h2>
+<p>The following are observed changes, not fitted route-count recommendations. K counts contacts per side. Small response improvements can still correspond to distinct terrain approaches; army-strength costs, resource amounts and preview geometry must be considered before collapsing them into a route count.</p>
+<ul>
+<li><strong>Gap (DualGap Adaptive)</strong>: K1 26.00s → K2 20.10s → K3 19.88s. The final addition reduces mean response by 0.22s.</li>
+<li><strong>Pandemonium Pass</strong>: K3 31.48s → K5 24.46s → K6 24.00s. The final addition reduces mean response by 0.46s.</li>
+<li><strong>Regor VI Highlands</strong>: K2 28.92s → K3 20.82s → K4 19.86s. The final addition reduces mean response by 0.96s.</li>
+<li><strong>Adaptive Pyramid</strong>: K2 37.10s → K3 27.07s → K4 24.58s. The final addition reduces mean response by 2.49s.</li>
+<li><strong>Loki</strong>: K2 33.57s → K3 31.69s → K4 31.62s. The final addition reduces mean response by 0.07s.</li>
+<li><strong>Adaptive Morning Prayer</strong>: K3 20.86s → K5 12.55s → K6 12.13s. The final addition reduces mean response by 0.42s.</li>
+</ul>
+<p>Setons has only three scored own-side off-base land mexes in this inherited pool (six across both sides), because protected starting economy, rear expansions and water mexes remain excluded. Its early saturation is about this narrow land-front task, not the whole map economy or air/naval impact. Wonder Open retains eight nearby-raster approach diagnostics across its eight budgets, but no actual vertex or diagonal X intersections; exact shared runs are gold trunks.</p>
+<p>Inspect the complete response curve and geometry together. Small marginal response reductions indicate saturation, not proof of a universal optimal route count; no threshold was fitted to the earlier expected counts. Reclaim integration is the next isolated change after this review.</p>
+<p><a href="index.html">Interactive viewer</a> · <a href="metrics.csv">All metrics</a> · <a href="attempts.json">Attempt log</a></p>
+<script src="../../../docs/model-atlas/public-links.js" data-public-links></script></body></html>

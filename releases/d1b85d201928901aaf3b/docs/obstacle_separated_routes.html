@@ -1,0 +1,68 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>obstacle_separated_routes.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="obstacle-separated-route-prototype">Obstacle-separated route prototype</h1>
+<p>Implemented 14 October 2026 after the drawn Archsimkats Valley example.
+Scope: that featured map, slots 1 to 2, land/amphibious/hover. No naval unit
+reach calculation or whole-library extraction is run by this tool.</p>
+<p>Follow-up: the user&#39;s iterative corridor-cut algorithm and shared-chokepoint
+nodes are implemented in <code>docs/corridor_cut_implementation.md</code>. The new preview
+is in <code>data/processed/navigation_corridors</code>; this sampler stays as a comparison.</p>
+<h2 id="definition">Definition</h2>
+<p>Alternative routes must pass on different sides of a substantial impassable
+terrain component. Merely displaced paths in the same open field are one family.
+Amphibious/hover passages through land-blocked areas are also retained as explicit
+new crossing choices. They are not claimed to be topologically distinct when the
+selected movement layer itself has no intervening barrier.</p>
+<ol>
+<li>Read cached raw passability and the two endpoint distance fields for each
+layer. Recover legal shortest-path predecessors in vectorized NumPy.</li>
+<li>Find eight-connected blocked components; choose an actual blocked cell as
+each barrier reference. Do not use a centroid that might sit in passable space.</li>
+<li>Sample a regular waypoint lattice and points beside barrier bounding boxes.
+Join cached paths start→waypoint→end and remove loops.</li>
+<li>Group candidates by signed ray-crossings around barrier references. Differences
+witness a blocked component between two paths. Open-ground variations merge.
+Keep the shortest <strong>sampled</strong> representative per signature, not a claim of the
+optimum over every path in that class.</li>
+<li>For non-land layers, additionally group by substantial land-blocked components
+crossed for at least six route cells. This exposes the two central water
+crossings. A component can contain both water and banks; this is a terrain
+passage annotation, not a water-body classification or a claim of navigability
+for every amphibious unit.</li>
+<li>Validate every resulting cell and adjacent step. Reject diagonal corner cuts.
+Export waypoints, lengths/detours, separating barrier IDs, new passage IDs and
+minimum/median centre clearance. SHA256 pins inputs and implementation.</li>
+</ol>
+<h2 id="preview-and-results">Preview and results</h2>
+<p><code>data/processed/navigation_alternatives/index.html</code>, served locally at
+<code>http://127.0.0.1:5177/navigation_alternatives/index.html</code>.</p>
+<p>The default land examples show the 399.8-unit shortest route, two inner detours
+of 496.8/499.9 units, and two outer detours of 609.8/613.3 units. Amphibious and
+hover examples show the baseline and two new crossing candidates of 402.7/403.3
+units. Both profiles happen to produce the same selected examples on this map.
+The viewer offers individual checkboxes, all candidates, barrier IDs and zoom.</p>
+<p>The search found 13 land and 17 candidates each for amphibious/hover, from 486/531
+sampled waypoints. These include branch combinations and local terrain detours;
+they are <strong>not 13 or 17 independent strategic attack corridors</strong>. Shared sections
+and chokepoints still need a corridor graph before producing training metrics.</p>
+<p>Defaults: lattice spacing 24 tiles, maximum length 2.5× baseline; obstacle area
+at least 128 cells, or at least 16 cells spanning 32 tiles. Boundary-attached
+components cannot form a loop and are excluded from the barrier signature.
+These thresholds are parameters, not game balance rules. Smaller features are
+still blocked for paths but do not create separate report families.</p>
+<p>The bounded sampler is not exhaustive: a pair of shortest-path trees and one
+waypoint can miss combinations of successive barrier choices. Ray counts also
+merge some complex multiply-winding classes. Do not convert the candidate count
+to a final route-diversity score. Later corridor-graph enumeration can recover
+missing combinations, consolidate branch choices and impose army-width criteria.</p>
+<p>Navigation remains terrain-only, without props, unit footprints or engine
+steering. Clearance is distance from cell centres to blocked-cell centres,
+not validated corridor width or proof that a complete army can pass together.</p>
+<h2 id="run-and-checks">Run and checks</h2>
+<pre><code class="language-powershell">$env:PYTHONPATH=&#39;src&#39;
+.venv-codex/Scripts/python.exe -m supmapai.tools.inspect_route_alternatives
+.venv-codex/Scripts/python.exe -m unittest discover -s tests -p &#39;test_strategic*.py&#39; -v
+</code></pre>
+<p>Fifteen tests pass across navigation and route extraction. Route fixtures cover
+one family on an open field, two sides of a blocked island, distinct barrier
+signatures, water crossings relative to land, unreachable targets and illegal
+diagonal corners. All displayed Archsimkats paths also pass cell-by-cell validation.</p>
+<script src="model-atlas/public-links.js" data-public-links></script></body></html>

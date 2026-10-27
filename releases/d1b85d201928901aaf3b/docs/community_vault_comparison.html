@@ -1,0 +1,212 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>community_vault_comparison.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="community-vault-comparison-and-proposed-mvp">Community vault comparison and proposed MVP</h1>
+<p>Research date: 14 October 2026. This is a proposal, not an implemented questionnaire
+or extraction change. No website release was made.</p>
+<h2 id="sources-and-verification">Sources and verification</h2>
+<p>Reviewed Garanas/scfa-cs-replay at commit
+<code>6cdd8137f633aa62e3ea9a50e9a8f82e1b513793</code>. The live vault footer identifies the
+same commit. A source snapshot is saved under <code>data/raw/community_research</code>.
+FAF navigation was also inspected at
+<code>0eb3d6150a6a4c6df377ab116e9dce1cd7ff5cd7</code>.</p>
+<p>The signed-in search showed <strong>9,294 maps</strong>. Its API query excludes parents whose
+latest version is hidden. This is searchable vault coverage, not evidence of a
+precomputed extraction dataset: opening a map visibly downloads and analyses
+files in the browser. <code>MapLoader</code> reads ZIP ranges for the scenario, save and
+scmap, computes navigation/distances locally, and retains three maps in memory.
+Our 14,748 export packages include 5,484 hidden latest versions and persist
+registered PNGs, hashes and metadata for annotation/training.</p>
+<ul>
+<li><a href="https://vault.jipwijnia.nl/maps/search">Live search</a></li>
+<li><a href="https://github.com/Garanas/scfa-cs-replay/blob/6cdd8137f633aa62e3ea9a50e9a8f82e1b513793/src/FAForever.Vault.Viewer/Services/Maps/MapLoader.cs">Pinned loader</a></li>
+<li><a href="https://github.com/Garanas/scfa-cs-replay/blob/6cdd8137f633aa62e3ea9a50e9a8f82e1b513793/src/FAForever.Vault.Viewer/Services/Api/FafApiClient.cs">Search API</a></li>
+<li><a href="https://github.com/Garanas/scfa-cs-replay/blob/6cdd8137f633aa62e3ea9a50e9a8f82e1b513793/LICENSE">MIT license</a></li>
+</ul>
+<p>The repository code is MIT licensed. Preserve its copyright/license notice when
+reusing it. This does not establish that all underlying game/map artwork is MIT.</p>
+<h2 id="what-to-reuse-and-what-to-retain">What to reuse and what to retain</h2>
+<table>
+<thead>
+<tr>
+<th>Area</th>
+<th>Community implementation</th>
+<th>Our implementation</th>
+<th>Proposed action</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Terrain decoding</td>
+<td>Structured scmap reader, terrain types, stored height scale, formats 53/56/60</td>
+<td>Repaired 52/53/56/60 readers; raw tensors and registered PNGs</td>
+<td>Use as cross-validation; keep our legacy 52 coverage</td>
+</tr>
+<tr>
+<td>Navigation</td>
+<td>Four-corner height checks, blocking terrain types, four movement layers, compression, regions and culling based on FAF AI navigation</td>
+<td>V2 cell-height gradients, land/amphibious masks, no terrain-type blocking</td>
+<td>Adopt their navigation as a new versioned layer/backend</td>
+</tr>
+<tr>
+<td>Route analysis</td>
+<td>Weighted eight-direction searches, two nearest origins, connected start layer</td>
+<td>Existing V1 downsampled path/choke/width features</td>
+<td>Improve the navigation beneath our metrics; retain useful width/reclaim features</td>
+</tr>
+<tr>
+<td>Resources</td>
+<td>Routed distances and safe/expandable/raidable/contestable categories</td>
+<td>Exact entities and resources; adapters for supported adaptive defaults/slots</td>
+<td>Combine distances with our selected configuration and adaptive resolution</td>
+</tr>
+<tr>
+<td>Reclaim</td>
+<td>Prop-count density, name/path categories, editor-declared totals, placed-unit list</td>
+<td>Blueprint values, mass/energy density, FAF wreck modifiers, map-local blueprints and variety metrics</td>
+<td>Keep our numerical reclaim pipeline</td>
+</tr>
+<tr>
+<td>Product/output</td>
+<td>Browser map/replay/blueprint inspector and interactive region/resource views</td>
+<td>Offline library assets/tensors, annotation workflow, saved review data</td>
+<td>Reuse analysis ideas and libraries; retain our dataset and questionnaire</td>
+</tr>
+</tbody></table>
+<p>The community navigation uses <strong>0.75</strong> as its corner height-difference threshold
+and <strong>25</strong> as maximum amphibious depth, consistent with our chosen numerical
+limits and current FAF navigation. The meaning of the slope test differs: our
+gradient is calculated after averaging vertices into cells. Their test checks
+all four edges, and uses strict <code>&lt; 0.75</code> as FAF does.</p>
+<p>A synthetic dry 64×64-cell map with a 0.75-high step demonstrates the difference:
+our current mask marks all 4,096 cells passable; the FAF corner rule blocks the
+64 cells along the cliff. The arithmetic check is saved in
+<code>data/raw/community_research/synthetic_pathing_check.json</code>. This checks the
+corner rule only; the complete C# runtime has not been benchmarked here.</p>
+<ul>
+<li><a href="https://github.com/Garanas/scfa-cs-replay/blob/6cdd8137f633aa62e3ea9a50e9a8f82e1b513793/src/FAForever.FileFormats.Map/NavGenerator.cs">Community navigation</a></li>
+<li><a href="https://github.com/FAForever/fa/blob/0eb3d6150a6a4c6df377ab116e9dce1cd7ff5cd7/lua/sim/NavGenerator.lua">FAF navigation</a></li>
+<li><a href="https://github.com/Garanas/scfa-cs-replay/blob/6cdd8137f633aa62e3ea9a50e9a8f82e1b513793/src/FAForever.FileFormats.Map/NavPaths.cs">Route searches</a></li>
+<li><a href="https://github.com/Garanas/scfa-cs-replay/blob/6cdd8137f633aa62e3ea9a50e9a8f82e1b513793/src/FAForever.Vault.Viewer/Features/Maps/MapReclaimPanel.razor">Reclaim viewer</a></li>
+</ul>
+<p>Live DualGap Adaptive v14 inspection confirmed the four pathing layers and 28
+land regions. Its reclaim panel reports editor totals as unknown, displays
+12,597 props and lists placed units. The overview measures nearest starts and
+reads the scenario as FFA with 12 armies; that is not a configured 6v6 match.
+The live Dragons Tooth Mountains view independently reports 0% water, agreeing
+with our repaired decoder. It reads FFA with six armies while the author&#39;s
+description explicitly says 3v3. This reinforces the need to record active
+teams rather than treating scenario army lists as the intended match setup.</p>
+<h2 id="limitations-that-still-need-work">Limitations that still need work</h2>
+<ol>
+<li><strong>AI navigation is not complete physical movement.</strong> The port documents
+deviations in label IDs, areas and some isolated labels. Its shortest routes
+run on grid cells, whereas FAF&#39;s NavUtils runs between quadtree leaves.
+Small resource-free regions are deliberately removed for AI purposes. Keep
+a physical terrain mask and AI navigation labels as separate data layers.
+Unit footprints, props, wrecks, dynamic obstructions and actual engine
+movement still need independent validation.</li>
+<li><strong>Resource roles are heuristics.</strong> Defaults are a 60-unit base radius, 15%
+distance margin for contestability, 25-unit grouping spacing and groups of
+three for expansions. They are useful continuous distances plus adjustable
+classifications, not authoritative safety labels. The algorithm compares
+starts, not enemy teams. Team setups need enemy/allied ownership, and spots
+with straight-line fallback must retain their <code>Routed=false</code> status.</li>
+<li><strong>Static files do not resolve runtime adaptation.</strong> The loader reads scenario,
+save and terrain, not the map&#39;s gameplay script. Our supported default/slot
+adapters remain useful. Broader adaptive option execution stays outside MVP.</li>
+<li><strong>Statistics need matching definitions.</strong> Their water share samples one vertex
+per cell over the full map; ours averages corners over playable bounds.
+Differences near shorelines/cropped margins need definitions before using
+one tool as an oracle. The stored enabled-water flag is handled explicitly.</li>
+<li><strong>Legacy coverage matters.</strong> Their parser supports 53/56/60. Our successfully
+processed library includes 26 format-52 maps. A wholesale parser replacement
+would lose that coverage unless extended.</li>
+</ol>
+<ul>
+<li><a href="https://github.com/Garanas/scfa-cs-replay/blob/6cdd8137f633aa62e3ea9a50e9a8f82e1b513793/src/FAForever.FileFormats.Map/ExtractorLayout.cs">Resource classification</a></li>
+<li><a href="https://github.com/Garanas/scfa-cs-replay/blob/6cdd8137f633aa62e3ea9a50e9a8f82e1b513793/src/FAForever.FileFormats.Map/ScmapParser.cs">Parser formats</a></li>
+</ul>
+<h2 id="annotation-feedback">Annotation feedback</h2>
+<p>Separate measurements, estimates and human judgements:</p>
+<table>
+<thead>
+<tr>
+<th>Topic</th>
+<th>Proposed treatment</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Gameplay quality/fun</td>
+<td>Do not use an unconditioned universal score as a generation target; preserve old feedback separately</td>
+</tr>
+<tr>
+<td>Visual appeal</td>
+<td>Keep human assessment; show representative visuals, and record the assessed game/setup context</td>
+</tr>
+<tr>
+<td>Terrain readability</td>
+<td>Keep human assessment: does appearance correctly communicate routes, depth and usable terrain?</td>
+</tr>
+<tr>
+<td>Spawn-imposed specialization</td>
+<td>Keep for team-map scope; on a symmetric 1v1 subset it has little variation and is usually irrelevant</td>
+</tr>
+<tr>
+<td>Land/navy access, openness, expansion, build space</td>
+<td>Calculate route/access/width/contiguous-area features; validate their interpretation on known maps</td>
+</tr>
+<tr>
+<td>Air importance, T1/T2/T3 importance, drops, eco safety</td>
+<td>Derive explainable proxies, but do not present them as deterministic outcomes of terrain alone</td>
+</tr>
+</tbody></table>
+<p>Examples: resource arrival times depend on route distance and unit speed;
+drop opportunity can include land-detour distance and reachable landing space;
+base space requires contiguous buildable footprints, not total flat percentage;
+naval usefulness requires water connections, launch space and useful coastlines;
+economic exposure requires enemy access and resource/reclaim placement.
+Faction, unit ranges/costs, tech timings, match settings and balance revision
+affect these estimates. All-air passability alone does not measure air importance.</p>
+<p>Beauty is also subjective, but it directly assesses intended appearance. A model
+that only generates height/resource tensors cannot learn every texture/lighting
+property from a beauty score. Initially use visual ratings for curation and
+evaluate the actual rendered outputs; texture/prop-style generation can follow.</p>
+<h2 id="proposed-first-target">Proposed first target</h2>
+<p>The following 10×10/1v1 suggestion has been superseded by the user&#39;s explicit
+featured-map scope. See <code>strategic_map_features_plan.md</code> and the frozen
+33-map manifest from 14 October 2026 for the current plan.</p>
+<p><strong>10×10 km, ordinary 1v1, fixed/default resource configuration, land-connected
+spawns</strong>, with ladder examples as a curated reference set. Keep water features
+where compatible; do not start with team-role, scripted-survival or all-naval
+generation. Two slots is an uncomplicated initial restriction; some valid 1v1
+ladder setups use maps with more available slots and can be added explicitly.</p>
+<p>Our <strong>8 October 2026 snapshot</strong> contains 299 visible, ranked 512×512 maps with
+exactly two available slots; 297 already have overlays. This is a candidate
+cohort, not a count of current ladder maps. Ranked means rating eligibility,
+not ladder membership or guaranteed design quality. Family deduplication,
+active-pair validation and land connectivity will narrow the set further.
+These counts do not prove that the cohort is large enough to train a strong
+diffusion model from scratch.</p>
+<p>Maintain the full archive, but concentrate annotation, correctness checks and
+the first generator evaluation on the subset. Split training/evaluation by map
+family so variants/rotations do not leak across splits. Broader self-supervised
+pretraining can use compatible unlabeled maps, with the first generator&#39;s output
+and evaluation scope still restricted.</p>
+<h2 id="suggested-next-milestone">Suggested next milestone</h2>
+<ol>
+<li>Pin and attribute the community code. Prefer a small C# command-line adapter
+around its existing map/navigation libraries emitting machine-readable
+results for local files; our Python pipeline can keep tensors and PNGs.</li>
+<li>Compare a small validation pack before any library-wide replacement: dry
+flat terrain, threshold cliffs, blocked terrain types, shoreline cases,
+steep underwater terrain, depth 25, cropped playable areas and narrow gaps.
+Include Dragons Tooth Mountains, Setons, DualGap, Canis and a few 1v1 ladder
+examples. Validate boundary disagreements in-game, not just visually.</li>
+<li>Export separate land/hover/amphibious/naval region labels and route-distance
+features. Keep existing images and versions until the new masks are accepted.</li>
+<li>Define a few human-readable 1v1 metrics (rush route, expansion access,
+reclaim access, usable base space, route alternatives); retain raw values and
+versioned thresholds. Keep human annotation focused on appearance/readability.</li>
+<li>Evaluate a narrow generator with constraints for valid spawns, reachable
+resources and build space, plus human inspection of appearance/readability.</li>
+</ol>
+<p>The comparison is saved locally. No questionnaire questions were removed,
+existing reviews changed, integration run or Netlify deployment performed.</p>
+<script src="model-atlas/public-links.js" data-public-links></script></body></html>

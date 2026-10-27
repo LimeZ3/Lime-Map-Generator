@@ -1,0 +1,164 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>compare_strategy_annotations.py | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="../docs/model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1>compare_strategy_annotations.py</h1><p class="meta">Saved public evidence snapshot: src/supmapai/tools/compare_strategy_annotations.py</p><pre>&quot;&quot;&quot;Compare frozen strategy estimates with an anonymized current review snapshot.
+
+No model fitting, score calibration, fuzzy map matching or participant weighting.
+&quot;&quot;&quot;
+import collections
+import hashlib
+import html
+import json
+import statistics
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[3]
+OUT = ROOT / 'data/processed/strategy_annotation_comparison'
+QUESTIONS = ('drops', 'air', 'open')
+EXPERIENCED = {'Played a few times', 'Know it well'}
+
+
+def numeric(v):
+    return type(v) in (int, float) and 1 &lt;= v &lt;= 5
+
+
+def aggregate(rows, question):
+    answered = [r for r in rows if numeric(r['answers'].get(question))]
+    values = [r['answers'][question] for r in answered]
+    return dict(n=len(values), mean=statistics.mean(values) if values else None,
+                median=statistics.median(values) if values else None,
+                distribution={str(i): values.count(i) for i in range(1, 6)},
+                experienced_n=sum(r.get('familiarity') in EXPERIENCED for r in answered),
+                suggestions_shown_n=sum(bool(r.get('suggestionsShown')) for r in answered),
+                range=[min(values), max(values)] if values else None)
+
+
+def signal(m, q):
+    if q == 'open':
+        f = m['front']['land']
+        return dict(value=f['best_bottleneck'], unit='map units', category=f['category'],
+                    band={'closed': 'low', 'mixed': 'middle', 'open': 'high'}.get(f['category']),
+                    route_count=f['route_count'], search_limits=f['search_limits'])
+    s = m['scores']['offensive_drop' if q == 'drops' else 'air_raid']
+    share = s['affected_share']
+    return dict(value=share, unit='mex share', band='low' if share &lt;= .1 else 'high' if share &gt;= .4 else 'middle',
+                affected=s['affected_mexes'], total=s['total_mexes'], destinations=s['destinations'])
+
+
+def comparison(a, p):
+    if not a['n']: return 'No numeric rating'
+    if p['band'] is None: return 'Not comparable: disconnected land'
+    h = 'low' if a['median'] &lt;= 2 else 'high' if a['median'] &gt;= 4 else 'middle'
+    if h == p['band']: return 'Directional agreement'
+    if {h, p['band']} == {'low', 'high'}: return 'Opposite signals'
+    return 'Adjacent signals'
+
+
+def main():
+    source = max((ROOT/'exports/review-backups').glob('*/netlify-full-dataset.json'), key=lambda p:p.stat().st_mtime)
+    raw = json.loads(source.read_text(encoding='utf-8'))
+    assert all(r.get('scaleVersion') == 5 for r in raw['reviews']), 'Review scale migration required'
+    strategy = json.loads((ROOT/'data/processed/strategy_collection_1v1/report.json').read_text(encoding='utf-8'))
+    maps = {m['key']:m for m in strategy['maps']}
+    parents = {m['key'].split('_')[0]:m for m in strategy['maps']}
+    catalog = {m['id']:m for m in raw['catalog']}
+    latest = {}
+    for r in raw['reviews']:
+        k = r['respondentId'], r['mapId']
+        if k not in latest or (r['createdAt'], r.get('receivedAt',''), r['id']) &gt; (latest[k]['createdAt'],latest[k].get('receivedAt',''),latest[k]['id']): latest[k] = r
+    matches = collections.defaultdict(list)
+    unmatched = collections.defaultdict(list)
+    for r in latest.values():
+        c = catalog.get(r['mapId'], {})
+        k = f&quot;{c.get('vaultMapId')}_{c.get('vaultVersionId')}&quot;
+        if k in maps and r.get('mapFolder','').casefold() == maps[k]['folder'].casefold():
+            matches[k].append(r)
+        else: unmatched[r['mapId']].append(r)
+    records = []
+    for k, rows in matches.items():
+        m = maps[k]
+        subsets = {'all_setups':rows,
+                   'one_v_one':[r for r in rows if r.get('configuration')=='1v1'],
+                   'experienced_one_v_one':[r for r in rows if r.get('configuration')=='1v1' and r.get('familiarity') in EXPERIENCED]}
+        subsets['one_v_one_no_hints']=[r for r in subsets['one_v_one'] if not r.get('suggestionsShown')]
+        record = dict(key=k,name=m['name'],folder=m['folder'],reviews=len(rows),configurations=dict(collections.Counter(r.get('configuration','Unknown') for r in rows)),
+                      familiarity=dict(collections.Counter(r.get('familiarity','Unknown') for r in rows)),
+                      setup_text_present=sum(r.get('setup','').strip() not in ('','Not specified') for r in rows),
+                      opponent_pair_verified=False, questions={})
+        for q in QUESTIONS:
+            p = signal(m,q)
+            groups = {}
+            for subset, rr in subsets.items():
+                a = aggregate(rr,q); a['comparison']=comparison(a,p);groups[subset]=a
+            record['questions'][q] = dict(pipeline=p,groups=groups)
+        records.append(record)
+    records.sort(key=lambda m:(-m['reviews'],m['name'].lower()))
+    missing=[]
+    for mid,rr in unmatched.items():
+        c=catalog.get(mid,{})
+        alt=parents.get(str(c.get('vaultMapId')))
+        missing.append(dict(name=rr[0]['mapName'],folder=rr[0].get('mapFolder'),reviews=len(rr),
+                            reason='Different version' if alt else 'No completed exact-version result in 630-map cohort',
+                            analyzed_folder=alt['folder'] if alt else None))
+    missing.sort(key=lambda m:(-m['reviews'],m['name']))
+    counts={}
+    correlations={}
+    from scipy.stats import spearmanr
+    for subset in ['all_setups','one_v_one','experienced_one_v_one','one_v_one_no_hints']:
+        counts[subset]={q:dict(collections.Counter(r['questions'][q]['groups'][subset]['comparison'] for r in records)) for q in QUESTIONS}
+        correlations[subset]={}
+        for q in QUESTIONS:
+            rr=[r['questions'][q] for r in records if r['questions'][q]['groups'][subset]['n'] and r['questions'][q]['pipeline']['value'] is not None]
+            result=spearmanr([r['groups'][subset]['mean'] for r in rr],[r['pipeline']['value'] for r in rr]) if len(rr)&gt;2 else None
+            correlations[subset][q]=dict(maps=len(rr),rho=float(result.statistic) if result else None)
+    data=dict(snapshot=raw['exportedAt'],source_file=str(source.relative_to(ROOT)),source_sha256=hashlib.sha256(source.read_bytes()).hexdigest(),
+              strategy_finalized_at=strategy['finalized_at'],raw_reviews=len(raw['reviews']),current_reviews=len(latest),
+              contributing_reviewers=len({r['respondentId'] for r in latest.values()}),reviewed_maps=len({r['mapId'] for r in latest.values()}),
+              exact_matched_maps=len(records),exact_matched_reviews=sum(r['reviews'] for r in records),
+              matched_one_v_one_reviews=sum(len([r for r in rr if r.get('configuration')=='1v1']) for rr in matches.values()),
+              classification_counts=counts,exploratory_rank_correlations=correlations,maps=records,unmatched=missing)
+    OUT.mkdir(parents=True,exist_ok=True)
+    (OUT/'comparison.json').write_text(json.dumps(data,indent=2,ensure_ascii=False),encoding='utf-8')
+    lines=['# Community ratings versus map-strategy estimates','',f&quot;Snapshot: {data['snapshot']} (UTC). {data['raw_reviews']} historical submissions reduce to {data['current_reviews']} current participant/map reviews across {data['reviewed_maps']} maps and {data['contributing_reviewers']} contributors. Latest review wins across phases; unknown/N/A are never zero. All stored numeric answers in this snapshot use the literal 1–5 scale.&quot;,'',
+           f&quot;Exact map/version matches: **{data['exact_matched_maps']} maps, {data['exact_matched_reviews']} reviews**, including {data['matched_one_v_one_reviews']} marked 1v1. Other versions are not silently merged.&quot;,'',
+           '## Interpretation','',
+           'This checks agreement between two sources, not whether community opinions are correct. Pipeline predictions are hypotheses. Offensive drops directly resemble the survey drops question; generic air-raid exposure is only one component of air importance. Front width is only one component of frontline openness. Expansion importance is not expansion-drop importance, so those labels are not equated. Gameplay quality, visual appeal, tech importance, economy safety and navy importance are not validated by these three outputs.','',
+           'Primary comparisons use ratings marked 1v1, with experienced and no-suggestion sensitivity views. Opponent slots and default adaptive settings are not verified by that label. One Setons reviewer explicitly assessed the middle slots, which can differ from slot 1 versus mirror. Most review setups are unspecified. All-setup results are context checks; team-game disagreement is not a direct model error.','',
+           'Directional screening uses human median 1–2 = low, 3 = middle, 4–5 = high. Model mex share ≤10% = low, ≥40% = high; between is middle. These are transparent descriptive bands, not calibrated rating conversions or newly tuned model thresholds. Front bands reuse existing closed/mixed/open categories. Disconnected land has no scalar openness comparison; it does not mean a closed map. At least three independent ratings per question are needed before calling a result a repeated pattern; fewer are explicitly tentative. Raw distributions are retained.','',
+           'No absolute prediction-versus-rating MAE is reported: the model 1–5 scale and collection percentile scale are not equivalent to the survey scale. No thresholds or algorithms were changed to fit annotations.','',
+           '## Matched 1v1 observations','', '| Map | Question | Community mean (n; experienced n; range) | Pipeline | Screening |','|---|---|---|---|---|']
+    def fmtp(p):
+        return f&quot;{p['value']:.1%} ({p['affected']}/{p['total']} mex; {p['destinations']} destinations)&quot; if p['unit']=='mex share' else (f&quot;{p['value']:.1f} units; {p['category']}&quot; if p['value'] is not None else 'Land disconnected; openness not comparable')
+    def fmta(a):
+        return f&quot;{a['mean']:.2f}/5 (n={a['n']}; experienced={a['experienced_n']}; {a['range'][0]}–{a['range'][1]})&quot; if a['n'] else 'No numeric answer'
+    for r in records:
+        for q in QUESTIONS:
+            item=r['questions'][q];a=item['groups']['one_v_one']
+            if a['n']:lines.append(f&quot;| {r['name']} | {q} | {fmta(a)} | {fmtp(item['pipeline'])} | {a['comparison']}; tentative |&quot;)
+    lines+=['','## All reviewed setups: context and repeated patterns','','**Team configurations are mixed here.** Use the distributions and configuration counts before interpreting agreement.','', '| Map | Reviewed configurations | Drops: community / pipeline | Air: community / pipeline | Openness: community / pipeline |','|---|---|---|---|---|']
+    for r in records:
+        cells=[]
+        for q in QUESTIONS:
+            item=r['questions'][q];a=item['groups']['all_setups'];cells.append(f&quot;{fmta(a)} / {fmtp(item['pipeline'])}; {a['comparison']}&quot;)
+        lines.append('| '+r['name']+' | '+', '.join(f'{k}: {v}' for k,v in r['configurations'].items())+' | '+' | '.join(cells)+' |')
+    lines+=['','## Exploratory rank agreement','','Map means receive equal weight; repeated reviews do not make one map dominate. These correlations are descriptive, with small and selected samples; no causal interpretation or fitted conversion. The 1v1 sample and experienced-only sample are particularly small.','', '| Scope | Dimension | Maps | Spearman rho |','|---|---|---:|---:|']
+    for scope,qs in correlations.items():
+        for q,v in qs.items():lines.append(f&quot;| {scope} | {q} | {v['maps']} | {v['rho']:.3f} |&quot; if v['rho'] is not None else f&quot;| {scope} | {q} | {v['maps']} | N/A |&quot;)
+    lines+=['','## Unmatched reviewed maps','','Astro Crater Battles has many ratings but is outside the completed 630-map cohort; its earlier calibration run is not silently substituted into this comparison. Adaptive Project Dust has an older reviewed version than the analysed version. Remaining maps need a future targeted strategy run if a broader comparison is wanted.','', '| Map | Reviews | Reason |','|---|---:|---|']
+    lines += [f&quot;| {m['name']} ({m['folder']}) | {m['reviews']} | {m['reason']} |&quot; for m in missing]
+    (OUT/'report.md').write_text('\n'.join(lines)+'\n',encoding='utf-8')
+    esc=html.escape
+    # Two separate tables retain configuration context and keep the full report portable.
+    tables=[]
+    for scope in ['one_v_one','all_setups']:
+        rows=[]
+        for r in records:
+            if scope=='one_v_one' and not any(r['questions'][q]['groups'][scope]['n'] for q in QUESTIONS):continue
+            rows.append('&lt;tr&gt;&lt;td&gt;'+esc(r['name'])+'&lt;br&gt;&lt;small&gt;'+esc(', '.join(f'{k}: {v}' for k,v in r['configurations'].items()))+'&lt;/small&gt;&lt;/td&gt;'+''.join('&lt;td&gt;'+esc(fmta(r['questions'][q]['groups'][scope]))+'&lt;br&gt;&lt;b&gt;'+esc(fmtp(r['questions'][q]['pipeline']))+'&lt;/b&gt;&lt;br&gt;'+esc(r['questions'][q]['groups'][scope]['comparison'])+'&lt;/td&gt;' for q in QUESTIONS)+'&lt;/tr&gt;')
+        tables.append('&lt;h2&gt;'+('1v1 ratings — small sample, spawn pair unverified' if scope=='one_v_one' else 'All setups — team-game context mismatch applies')+'&lt;/h2&gt;&lt;table&gt;&lt;thead&gt;&lt;tr&gt;&lt;th&gt;Map&lt;/th&gt;&lt;th&gt;Offensive drops&lt;/th&gt;&lt;th&gt;Air importance / raid exposure&lt;/th&gt;&lt;th&gt;Openness / land width&lt;/th&gt;&lt;/tr&gt;&lt;/thead&gt;&lt;tbody&gt;'+''.join(rows)+'&lt;/tbody&gt;&lt;/table&gt;')
+    page='&lt;!doctype html&gt;&lt;meta charset=&quot;utf-8&quot;&gt;&lt;title&gt;Community vs strategy comparison&lt;/title&gt;&lt;style&gt;body{font:15px system-ui;background:#101b29;color:#e6eef7;margin:30px;line-height:1.5}a{color:#8ed7ff}table{border-collapse:collapse;width:100%;margin-bottom:40px}td,th{text-align:left;padding:12px;border:1px solid #40536a;vertical-align:top}th{background:#253b55}small{color:#b6c7dd}h2{margin-top:40px}p{max-width:1100px}&lt;/style&gt;&lt;h1&gt;Community ratings versus strategy estimates&lt;/h1&gt;&lt;p&gt;'+esc(lines[2])+'&lt;/p&gt;&lt;p&gt;'+esc(lines[4])+'&lt;/p&gt;&lt;p&gt;These are agreement checks, not ground truth. Air importance includes more than raids; land width includes less than all flanking options. Unknown answers are excluded. Each cell shows community mean and evidence count, then the model measurement. Scores are not directly interchangeable.&lt;/p&gt;&lt;p&gt;&lt;a href=&quot;assessment.md&quot;&gt;Findings and priority disagreements&lt;/a&gt; · &lt;a href=&quot;report.md&quot;&gt;Full report and methodology&lt;/a&gt; · &lt;a href=&quot;comparison.json&quot;&gt;Aggregate data and rating distributions&lt;/a&gt; · &lt;a href=&quot;../strategy_collection_1v1/index.html&quot;&gt;Strategy viewer&lt;/a&gt;&lt;/p&gt;'+''.join(tables)
+    (OUT/'index.html').write_text(page,encoding='utf-8')
+    assert len(latest)==sum(r['reviews'] for r in records)+sum(m['reviews'] for m in missing)
+    assert all(r['questions'][q]['groups']['all_setups']['n']&lt;=r['reviews'] for r in records for q in QUESTIONS)
+    print(json.dumps({k:v for k,v in data.items() if k not in ('maps','unmatched')},indent=2))
+
+
+if __name__=='__main__':main()
+</pre><script src="../docs/model-atlas/public-links.js" data-public-links></script></body></html>
