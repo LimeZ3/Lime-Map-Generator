@@ -1,0 +1,91 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>terrain_control_relabeling.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="terrain-control-relabeling-of-the-latest-training-cohort">Terrain-control relabeling of the latest training cohort</h1>
+<p>The latest actual training run was <code>data/models/terrain_half_10km_1v1_v1</code>.
+It trained on <code>data/tensors/terrain_half_10km_1v1_v1</code>: 1,200 training maps and
+110 validation maps. Later full-map steering outputs were inference experiments,
+not newer training sessions. This run relabels that exact 1,310-map cohort.</p>
+<p>Output: <code>data/tensors/terrain_half_10km_1v1_controls_v2</code>.
+Original terrain archives, old manifests, normalization, family splits and model
+checkpoints remain unchanged. No test manifest is read. No training is launched.</p>
+<h2 id="completed-release-24-october-2026">Completed release — 24 October 2026</h2>
+<p>All <strong>1,310 maps / 5,240 rotated-half variants</strong> completed with zero extraction
+failures. Processing and publication took <strong>1 h 55 min 13 s</strong>. The final audit
+passed and the release is ready at the output path above. A separate post-run
+handoff check verified all eight release artifact hashes, every source and label
+archive through the real training loader, the unchanged 1,200/110 split, separation
+of 1,212 families, validity totals, and eight augmented CPU batches. It is recorded
+in <code>handoff_validation.json</code>. No model training was performed.</p>
+<p>Water, relief and connectivity are available for every variant. Width and
+bottleneck measurements are available for <strong>4,594 / 5,240 variants</strong>. Their masks
+are false for 606 disconnected pairs, 28 blocked-base pairs and 12 connected pairs
+with insufficient interior distance after the base buffer. These are retained
+maps with explicitly unavailable labels, not extraction failures or discarded
+training examples. Read these statuses as properties of reconstructed half-map
+targets, not claims about the original native maps.</p>
+<h2 id="measurements-and-target-representation">Measurements and target representation</h2>
+<p>See <a href="terrain_controls_v1.md">the measurement specification</a>. Ten scalar controls
+keep water coverage, robust relief, land connectivity, typical total traversable
+front width, largest uninterrupted width, fragmentation, sustained bottleneck
+total and largest width, relative contraction, and restriction duration separate.
+No economic openness, resources or route-witness/attack-lane count enters this
+conditioning profile. A broad front and several narrow spans remain distinct.</p>
+<p>Labels describe the actual 128×128 encoded terrain used by the half-map experiment,
+decoded and deterministically reconstructed on its 512-unit map. Four rotations
+select four different north halves; each is completed with its 180-degree copy.
+No join repair, learned refinement, smoothing or passage carving is applied.
+Horizontal flips reuse scalar labels; reflection was checked on six sampled
+source maps, with unchanged connectivity and only a small grid-level width
+difference (about 0.002 units in one sustained bottleneck). This is not proof of
+exact floating-point invariance on every map.</p>
+<p>Native source-resolution paths may differ from these model-visible paths. Hidden
+terrain-type blocking, props, scripted walls and movement modes other than land
+are not observable targets. Disconnected or blocked bases yield masked widths;
+they do not mean an arbitrarily narrow front. No bases are snapped onto land.
+Maps with unmeasurable geometry remain explicitly identified. These measurements
+are geometric estimates, not engine pathfinding or certified military lanes.</p>
+<h2 id="durable-execution">Durable execution</h2>
+<p>From the project directory in PowerShell:</p>
+<pre><code class="language-powershell">.\scripts\terrain-relabeling.ps1 -Action Prepare
+.\scripts\terrain-relabeling.ps1 -Action Resume
+.\scripts\terrain-relabeling.ps1 -Action Status
+.\scripts\terrain-relabeling.ps1 -Action Pause
+</code></pre>
+<p><code>Resume</code> launches a hidden persistent supervisor. Use it again after a deliberate
+pause; completed per-map results are reused. Two workers are used. Supervisor,
+controller and per-map OS leases prevent overlapping controllers and workers;
+the supervisor retries controller crashes at most three times and respects pause
+requests. It never retries a map marked failed. A pause drains active maps, then
+stops scheduling. The status contains a heartbeat, completed counts, active map
+keys, elapsed compute-session time and a provisional remaining-time estimate.
+Logs are under <code>.local-tools/terrain-relabeling</code>; controller/worker tracebacks
+remain inside the output directory. A restart does not change extraction settings.</p>
+<p>Pinned code and input signatures must match on resume. An intentional scientific
+change requires a fresh output version. All maps must complete before publication;
+failures set <code>needs_attention</code> and prevent a training-ready release. Do not use
+partial measurement files as training inputs.</p>
+<h2 id="published-artifacts-and-next-training">Published artifacts and next training</h2>
+<ul>
+<li><code>terrain_controls.csv</code>: physical measurements for all 5,240 rotation variants.</li>
+<li><code>measurements/&lt;key&gt;/variants.json.gz</code>: full measurement and cross-section evidence.</li>
+<li><code>controls/&lt;key&gt;.npz</code>: four raw-value arrays, validity masks and conditioning vectors.</li>
+<li><code>normalization.json</code>: scaling fitted only on training variants, never validation.</li>
+<li><code>train.jsonl</code>, <code>validation.jsonl</code>: the exact original cohort and family splits,
+referencing unchanged source targets plus new label archives.</li>
+<li><code>audit.json</code>, <code>release_manifest.json</code>: validation and checksums required by the
+new loader. The release exists only after a successful complete audit.</li>
+</ul>
+<p>The new profile has 21 entries: ten scaled geometry values, ten validity flags,
+then the water-enabled flag. Values without valid measurements are encoded zero
+with validity zero. This is conditioning validity, not an additional scalar loss.
+The existing diffusion terrain losses remain unchanged.</p>
+<p>Use <code>supmapai.ml.terrain_control_half.RelabeledHalfTerrainDataset</code>, which selects
+the profile matching the sampled rotation. Old 13-condition checkpoints cannot
+be resumed with the 21-condition architecture. The new training entry point is:</p>
+<pre><code class="language-powershell">$env:PYTHONPATH=&#39;src&#39;
+.venv/Scripts/python.exe -m supmapai.ml.terrain_control_half --dataset data/tensors/terrain_half_10km_1v1_controls_v2 --out data/models/terrain_half_10km_1v1_controls_v2
+</code></pre>
+<p>This is a handoff command, not a command executed during relabeling. Legacy
+economic-profile galleries are disabled in this versioned trainer because their
+profiles are incompatible. New control-conditioned generation comparisons are
+future work. The profile dimension and code hashes are recorded in a new run&#39;s
+configuration. Dataset checksums and audit are checked before it can be loaded.</p>
+<script src="model-atlas/public-links.js" data-public-links></script></body></html>

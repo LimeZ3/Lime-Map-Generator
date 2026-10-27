@@ -1,0 +1,26 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>annotation-collection-milestone.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="annotation-collection-milestone-completed-2026-10-14">Annotation collection milestone — completed 2026-10-14</h1>
+<p>Live questionnaire: <a href="https://lime-mapgen.netlify.app/">https://lime-mapgen.netlify.app/</a>
+Private owner dashboard and full JSON/CSV exports: /owner.</p>
+<p>The annotation collection tool is complete for community use:</p>
+<ul>
+<li>EN/RU questionnaire with fixed question order, 1–5 ratings, default Not sure, partial submissions, three calibration maps and player context.</li>
+<li>14,841 catalog entries; original selection provenance is preserved. All other maps contains 8,794 distinct vault parent maps outside the original selection.</li>
+<li>Popular-family and least-reviewed invitations, category browsing and pagination; lower-priority outside-selection access.</li>
+<li>14,734 entries with overlays, 111,041 verified PNGs in persistent Netlify Blobs; sticky layer settings and controls inside zoom.</li>
+<li>Map data correction reports, review history/corrections, distinct-participant map counts and private owner data export.</li>
+<li>Resource icons/colors and field/question icons. Two-slot maps exclude FFA; server validation enforces it.</li>
+<li>Community effort leaderboard below My reviews.</li>
+</ul>
+<p>Leaderboard score = distinct maps reviewed + average answered rating-question count.
+Only the latest review per participant/map is used, regardless of phase. Calibration reviews count. Numeric ratings and Not applicable count as answered; Not sure and optional text/biome/context fields do not. Scores sort descending; equal scores share ranks. Display names are from current profiles. Empty names receive stable anonymous labels. API exposes only names/anonymous labels, aggregate metrics, rank and own-row flag, never raw answers, notes, ratings/experience, participant UUIDs, tokens or timestamps of individual responses.</p>
+<p>Validation completed: questionnaire/i18n tests, real PostgreSQL tests including ranking formula, corrections, unknown/N/A, shared ranks, anonymous labels and public response privacy; production build; EN/RU/mobile browser checks.</p>
+<p>Collection may continue. Training and map generation remain later project stages. 107 entries currently lack ready exact-version overlays and retain their explicit unavailable state.</p>
+<p>Production completion verified:</p>
+<ul>
+<li>Deploy: 6acf7cb9dc41851bc5784873.</li>
+<li>Live community endpoint returned 8 contributors and 103 distinct participant/map contributions at verification.</li>
+<li>Score arithmetic, descending order, allowed public fields and service health passed HTTP checks.</li>
+<li>Browser confirmed the live eight-row leaderboard, English/Russian labels, mobile table containment and own-row highlighting. Proof: exports/community-effort-live.jpg.</li>
+<li>No production reviews or profiles were created/changed during verification.</li>
+</ul>
+<script src="model-atlas/public-links.js" data-public-links></script></body></html>

@@ -1,0 +1,217 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>wreck_heatmaps.py | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="../docs/model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1>wreck_heatmaps.py</h1><p class="meta">Saved public evidence snapshot: src/supmapai/ml/wreck_heatmaps.py</p><pre>&quot;&quot;&quot;Independent wreck allocation head, transferred from approved terrain features.&quot;&quot;&quot;
+
+import argparse
+import copy
+import math
+import shutil
+import time
+from collections import deque
+from pathlib import Path
+
+import numpy as np
+import torch
+from torch import nn
+
+from supmapai.ml.reclaim_heatmaps import ReclaimHeatmapUNet, heatmap_loss, predict
+from supmapai.strategy.pipeline_contract import lease
+from supmapai.tensors.reclaim_heatmaps import check_split
+from supmapai.tensors.strategy_dataset import file_hash, read_json, read_rows
+from supmapai.tensors.wreck_heatmaps import GRID, SCHEMA
+from supmapai.tools.windows_io import atomic_checkpoint, write_json
+
+
+class WreckHeatmapUNet(ReclaimHeatmapUNet):
+    def __init__(self, base=64):
+        super().__init__(base)
+        self.output[-1] = nn.Conv2d(base, 1, 3, padding=1)
+
+
+class WreckDataset:
+    def __init__(self, root, split):
+        root = Path(root)
+        release = read_json(root/'release_manifest.json')
+        if release['schema'] != SCHEMA or release['status'] != 'ready':
+            raise ValueError('Expected a ready wreck allocation dataset')
+        for name, sha in release['artifacts'].items():
+            if file_hash(root/name) != sha:
+                raise ValueError('Changed wreck dataset artifact')
+        check_split(read_rows(root/'train.jsonl')+read_rows(root/'validation.jsonl'))
+        self.rows, self.values = read_rows(root/(split+'.jsonl')), []
+        if not self.rows:
+            raise ValueError('No known positive wreck examples in '+split)
+        for row in self.rows:
+            path = root/row['archive']
+            if file_hash(path) != row['sha256']:
+                raise ValueError('Changed wreck training archive')
+            with np.load(path, allow_pickle=False) as archive:
+                target, spatial = archive['target'].copy(), archive['spatial'].copy()
+            if target.shape != (1, GRID, GRID) or spatial.shape != (9, GRID, GRID):
+                raise ValueError('Unexpected wreck tensor dimensions')
+            if (target &lt; 0).any() or not np.isfinite(target).all() or not np.isfinite(spatial).all():
+                raise ValueError('Invalid wreck tensors')
+            np.testing.assert_allclose(target.sum(dtype=float), 1., atol=1e-6)
+            self.values.append((target, spatial))
+
+    def batch(self, indices, device, rng=None):
+        targets, inputs = [], []
+        for i in indices:
+            target, spatial = self.values[int(i)]
+            if rng is not None:
+                turns, flip = int(rng.integers(4)), rng.random() &lt; .5
+                target, spatial = [np.rot90(a, turns, axes=(-2, -1)) for a in (target, spatial)]
+                if flip:
+                    target, spatial = target[..., ::-1], spatial[..., ::-1]
+                if rng.random() &lt; .5:
+                    spatial = spatial.copy()
+                    spatial[[5, 6]] = spatial[[6, 5]]
+            targets.append(target.copy())
+            inputs.append(spatial.astype(np.float32))
+        return torch.from_numpy(np.stack(targets)).to(device), torch.from_numpy(np.stack(inputs)).to(device)
+
+
+@torch.no_grad()
+def validate(model, data):
+    nll, hellinger, capture, support = [], [], [], []
+    device = next(model.parameters()).device
+    for start in range(0, len(data.rows), 8):
+        target, spatial = data.batch(range(start, min(start+8, len(data.rows))), device)
+        p = predict(model, spatial)
+        _, scores = heatmap_loss(p.clamp_min(1e-30).log(), target, torch.ones(len(target), 1, dtype=torch.bool, device=device))
+        nll.extend(scores['nll'].flatten().cpu().tolist())
+        hellinger.extend(scores['hellinger'].flatten().cpu().tolist())
+        top = p.flatten(2).topk(GRID*GRID//10, dim=-1).indices
+        capture.extend(target.flatten(2).gather(-1, top).sum(-1).flatten().cpu().tolist())
+        support.extend((p*(target &gt; 0)).sum((-1, -2)).flatten().cpu().tolist())
+    return dict(nll=float(np.mean(nll)), hellinger=float(np.mean(hellinger)),
+        top10_target_share=float(np.mean(capture)), target_support_share=float(np.mean(support)), maps=len(nll))
+
+
+def train(args):
+    if not torch.cuda.is_available() or torch.cuda.mem_get_info()[0] &lt; 4*1024**3:
+        raise RuntimeError('CUDA and 4 GB free GPU memory required')
+    torch.set_num_threads(2)
+    torch.manual_seed(args.seed)
+    torch.backends.cudnn.benchmark = False
+    torch.set_float32_matmul_precision('high')
+    torch.cuda.reset_peak_memory_stats()
+    state = torch.load(args.initialize, map_location='cpu', weights_only=False)
+    for path, sha in state['config']['code'].items():
+        if file_hash(path) != sha:
+            raise ValueError('Changed approved initialization code: '+path)
+    model = WreckHeatmapUNet(state['config']['base'])
+    transferred = {k:v for k, v in state['ema'].items() if not k.startswith('output.2.')}
+    missing, unexpected = model.load_state_dict(transferred, strict=False)
+    if set(missing) != {'output.2.weight', 'output.2.bias'} or unexpected:
+        raise ValueError('Unexpected transfer-learning parameter mismatch')
+    out, root = args.out.resolve(), Path(__file__).parents[3]
+    files = [Path(__file__), root/'src/supmapai/tensors/wreck_heatmaps.py',
+             root/'src/supmapai/ml/reclaim_heatmaps.py', root/'src/supmapai/ml/multiscale_terrain.py']
+    config = dict(schema=SCHEMA, base=state['config']['base'], dataset=str(args.dataset.resolve()),
+        release_sha256=file_hash(args.dataset/'release_manifest.json'), seconds=args.seconds, batch_size=args.batch_size,
+        seed=args.seed, initialization=str(args.initialize.resolve()), initialization_sha256=file_hash(args.initialize),
+        initialization_step=state['step'], base_lr=1e-5, output_lr=2e-4,
+        code={str(p):file_hash(p) for p in files}, fresh_output_head=True,
+        amount_conditioning=False, terrain_masking=False, model='Independent deterministic one-role wreck-mass allocation U-Net')
+    del transferred, state
+    out.mkdir(parents=True, exist_ok=True)
+    with lease(out/'training.lock'):
+        if (out/'config.json').exists():
+            raise ValueError('Choose a new training directory')
+        write_json(out/'config.json', config)
+        for path in files:
+            target = out/'code_snapshot'/path.relative_to(root)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(path, target)
+        write_json(out/'progress.json', dict(status='loading', budget_seconds=args.seconds))
+        data, validation = WreckDataset(args.dataset, 'train'), WreckDataset(args.dataset, 'validation')
+        model = model.cuda()
+        ema = copy.deepcopy(model).eval().requires_grad_(False)
+        head = list(model.output[-1].parameters())
+        backbone = [p for name, p in model.named_parameters() if not name.startswith('output.2.')]
+        optimizer = torch.optim.AdamW([dict(params=backbone, initial_lr=1e-5, lr=1e-5),
+                                      dict(params=head, initial_lr=2e-4, lr=2e-4)], weight_decay=.01)
+        started, step, next_eval, best = time.monotonic(), 0, 60., float('inf')
+        recent, history = deque(maxlen=100), []
+        initial = validate(ema, validation)
+        write_json(out/'initial_validation.json', initial)
+        print(f'parameters={sum(p.numel() for p in model.parameters()):,} train={len(data.rows)} validation={len(validation.rows)}', flush=True)
+
+        def progress(status, **extra):
+            value = dict(status=status, step=step, elapsed_seconds=time.monotonic()-started,
+                remaining_seconds=max(0., args.seconds-(time.monotonic()-started)), budget_seconds=args.seconds,
+                training_loss=float(np.mean(recent)) if recent else None,
+                peak_memory_mb=torch.cuda.max_memory_allocated()/1024**2, **extra)
+            write_json(out/'progress.json', value)
+            return value
+
+        def checkpoint(metrics):
+            nonlocal best
+            improved = metrics['nll'] &lt; best
+            best = min(best, metrics['nll'])
+            history.append(dict(step=step, seconds=time.monotonic()-started, **metrics))
+            common = dict(ema=ema.state_dict(), config=config, step=step, metrics=metrics)
+            atomic_checkpoint(out/'last.pt', dict(**common, model=model.state_dict(), optimizer=optimizer.state_dict(),
+                cpu_rng=torch.get_rng_state(), cuda_rng=torch.cuda.get_rng_state_all()))
+            if improved:
+                atomic_checkpoint(out/'best.pt', common)
+            write_json(out/'history.json', history)
+
+        reason = 'time_budget'
+        try:
+            while time.monotonic()-started &lt; args.seconds:
+                if (out/'pause.request').exists():
+                    reason = 'pause_request'
+                    break
+                step += 1
+                model.train()
+                rng = np.random.default_rng(np.random.SeedSequence([args.seed, step]))
+                target, spatial = data.batch(rng.integers(len(data.rows), size=args.batch_size), 'cuda', rng)
+                schedule = min(1., step/100)*(.2+.8*(1+math.cos(math.pi*min((time.monotonic()-started)/args.seconds, 1)))/2)
+                for group in optimizer.param_groups:
+                    group['lr'] = group['initial_lr']*schedule
+                optimizer.zero_grad(set_to_none=True)
+                with torch.autocast('cuda', dtype=torch.bfloat16):
+                    loss, _ = heatmap_loss(model(spatial), target, torch.ones(len(target), 1, dtype=torch.bool, device='cuda'))
+                if not torch.isfinite(loss):
+                    raise ValueError('Nonfinite wreck loss')
+                loss.backward()
+                if not torch.isfinite(nn.utils.clip_grad_norm_(model.parameters(), 1.)):
+                    raise ValueError('Nonfinite wreck gradient')
+                optimizer.step()
+                for a, b in zip(ema.parameters(), model.parameters(), strict=True):
+                    a.lerp_(b.detach(), 1-min(.999, (step+1)/(step+10)))
+                recent.append(float(loss.detach()))
+                if step % 50 == 0:
+                    progress('training')
+                if torch.cuda.max_memory_allocated() &gt; 5*1024**3:
+                    raise RuntimeError('GPU allocation exceeded 5 GB')
+                if time.monotonic()-started &gt;= next_eval:
+                    metrics = validate(ema, validation)
+                    checkpoint(metrics)
+                    print(dict(step=step, **metrics), flush=True)
+                    next_eval = time.monotonic()-started+60
+            metrics = validate(ema, validation)
+            checkpoint(metrics)
+            print(progress('paused' if reason == 'pause_request' else 'complete', reason=reason, **metrics), flush=True)
+        except Exception as error:
+            progress('failed', error=str(error))
+            raise
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--dataset', type=Path, required=True)
+    parser.add_argument('--initialize', type=Path, required=True)
+    parser.add_argument('--out', type=Path, required=True)
+    parser.add_argument('--seconds', type=int, default=300)
+    parser.add_argument('--batch-size', type=int, default=8)
+    parser.add_argument('--seed', type=int, default=20261027)
+    args = parser.parse_args()
+    if min(args.seconds, args.batch_size) &lt; 1 or args.seed &lt; 0:
+        parser.error('Invalid training budget or seed')
+    train(args)
+
+
+if __name__ == '__main__':
+    main()
+</pre><script src="../docs/model-atlas/public-links.js" data-public-links></script></body></html>

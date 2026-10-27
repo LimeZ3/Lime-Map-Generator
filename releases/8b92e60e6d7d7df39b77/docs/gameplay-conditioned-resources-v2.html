@@ -1,0 +1,153 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>gameplay-conditioned-resources-v2.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="gameplay-conditioned-resources-proposed-v2-experiment">Gameplay-conditioned resources: proposed V2 experiment</h1>
+<p>Status: design only. No new tensor release, checkpoint or training run exists.
+The selected terrain, marker and reclaim models remain unchanged.</p>
+<h2 id="why-this-is-worth-testing">Why this is worth testing</h2>
+<p>The current marker diffusion has terrain, bases and source mex/hydro counts, but
+no requested exposure, drop opportunity or economic-front style. Current reclaim
+allocation models have terrain/bases/markers, but no scalar gameplay profile.
+They can learn correlations implicit in those inputs; they cannot distinguish two
+explicit style requests with identical inputs. Missing conditioning is a plausible
+contributor to generic allocation, not a demonstrated sole cause. Dataset mixture,
+deterministic prediction, objectives and limited training are alternative factors.</p>
+<p>At fixed 10km and 1v1, mex count already determines mexes per player and overall
+area density. A second name or 1-5 score derived from that same count adds no new
+information. Exposure and spatial economic distribution are the useful additions.</p>
+<h2 id="three-kinds-of-map-information">Three kinds of map information</h2>
+<ol>
+<li>Physical layers: terrain/water, textures, marker coordinates, props and units.</li>
+<li>Derived observations: access, path distances, opportunities, economic fronts,
+raw supply/handling values, coarse ratings and confidence/validity flags.</li>
+<li>Desired controls: requested properties supplied to the generator. Derived
+observations can supervise their meaning, but are not automatically available
+as spatial input channels on a new, unfinished map.</li>
+</ol>
+<p>Derived properties are consequences of interacting physical layers, not additional
+independent pieces to serialize into SCMAP. The scientific scoring policy is 1v1;
+its land/air/naval shares overlap and do not sum to one. Energy is not scored.</p>
+<h2 id="proposed-data-contract">Proposed data contract</h2>
+<p>Keep the existing spatial conditions and clean targets, with new arrays for a
+small normalized <code>gameplay_profile</code> and a separate <code>gameplay_valid</code> mask. Retain raw
+values, rating values, confidence, source/version, selected slots and policy hash
+as metadata. Fit normalization and control presets on retained training families
+only; reuse the existing family-separated validation set. Missing is not zero.</p>
+<p>Initial candidate axes, subject to coverage and correlation audits:</p>
+<table>
+<thead>
+<tr>
+<th>Property</th>
+<th>Source measurement</th>
+<th>Initial treatment</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Mex/hydro supply</td>
+<td>Actual active counts</td>
+<td>Retain existing count conditions; show per-player and per-area interpretations</td>
+</tr>
+<tr>
+<td>Early economic access</td>
+<td><code>early_mass_per_player</code></td>
+<td>Candidate condition; depends on mex/reclaim and scheduling policy</td>
+</tr>
+<tr>
+<td>Air-raid exposure</td>
+<td><code>air_raid_share</code></td>
+<td>Candidate condition, not overall air importance</td>
+</tr>
+<tr>
+<td>Transport expansion</td>
+<td><code>expansion_drop_share</code></td>
+<td>Candidate condition; different from offensive drops</td>
+</tr>
+<tr>
+<td>Land attack access</td>
+<td><code>land_attack_share</code></td>
+<td>Candidate condition; audit imbalance</td>
+</tr>
+<tr>
+<td>Economic front openness</td>
+<td><code>front_width</code></td>
+<td>Candidate condition; not the terrain-only front width</td>
+</tr>
+<tr>
+<td>Economic front count</td>
+<td><code>economic_battlefront_count</code></td>
+<td>Candidate condition with censored-search flag; not independent passage count</td>
+</tr>
+<tr>
+<td>Reclaim style/abundance</td>
+<td><code>handling_adjusted_reclaim_per_player</code> plus stock and distribution metadata</td>
+<td>Audit whether it changes allocation; absolute composition budgets remain separate</td>
+</tr>
+<tr>
+<td>Naval opportunity</td>
+<td>Component profile shares / <code>naval_attack_share</code></td>
+<td>Defer as a strong control pending known false-positive review</td>
+</tr>
+<tr>
+<td>Economic safety</td>
+<td>Near-base/rear/access records, raid/response witnesses, human answers</td>
+<td>No invented automatic safety scalar; validate a definition first</td>
+</tr>
+</tbody></table>
+<p>Do not feed every correlated raw scalar and its binned rating as separate equally
+weighted features. Prefer continuous values for learning, with coarse ratings as
+an interpretable interface and audit. Do not silently treat ordinal human scores
+as equivalent to automated ratings; their definitions, configurations and coverage
+differ. A small profile with reliable variation may work better than all fields.</p>
+<h2 id="prevent-circular-or-unavailable-inputs">Prevent circular or unavailable inputs</h2>
+<p>Source-derived scalar scores <strong>can</strong> be legitimate training conditions: training
+uses the source&#39;s measured profile, generation uses a user-requested profile, and
+the completed output is measured again. This is not inherently target leakage.</p>
+<p>However, current economic fronts and air/drop opportunity masks depend on source
+resources, response assumptions and sometimes reclaim. Supplying those exact
+source-only spatial masks while training and having no equivalent at generation
+would create an invalid contract or reveal target layout. For each proposed field:</p>
+<ul>
+<li>If computable from generated terrain and planned bases alone, recompute it at
+generation time with the same algorithm and alignment.</li>
+<li>If computed from already generated markers, only use it downstream of markers.</li>
+<li>If dependent on resources currently being predicted or future layers, use it as
+a requested scalar/explicit user spatial plan, an auxiliary target, or an audit;
+do not pretend it is a free terrain feature.</li>
+</ul>
+<p>A desired profile does not guarantee feasibility: fixed terrain limits possible
+fronts, naval reach and access. Flag incompatible requests rather than promising
+that resource placement can manufacture a missing passage.</p>
+<h2 id="training-and-evaluation-sequence">Training and evaluation sequence</h2>
+<ol>
+<li>Join metadata by exact map/version and active two-slot configuration. Report
+coverage, unknown values, censored fronts, policy versions, duplicates and
+correlations on the current curated cohort, not the whole scored collection.</li>
+<li>Freeze a new dataset release, leaving existing tensors/checkpoints intact.
+Begin with scalar profile conditioning; add spatial derived features only when
+an inference-time recipe exists. Check spatial transforms/base swaps explicitly.</li>
+<li>Train matched-budget baseline vs gameplay-conditioned marker models with the
+same splits and seeds. Keep terrain fixed to isolate placement improvements.</li>
+<li>Add gameplay conditioning to natural reclaim in a separate experiment. Budgets
+still scale fixed allocation maps without resampling. If amount is tested as a
+neural condition, hold that profile fixed during composer-only amount sweeps.</li>
+<li>Compare low/medium/high requests on the same terrain, anchors and sampling seed.
+Measure actual marker counts, early access and raid/drop/front properties after
+composition. Some properties need the complete mex/reclaim layout to be valid.</li>
+<li>Compare source agreement, conditioning response, diversity and expert review.
+A sharp picture or a lower loss does not establish successful steering. Report
+unreachable requests and uncertainty. Do not optimize known heuristic errors.</li>
+</ol>
+<p>Reclaim abundance scores account for entity handling and mass, not tree energy.
+Composer budgets and asset/chunk choices can change the measured score even with
+an unchanged allocation field; raw mass is not interchangeable with this score.
+The initial experiment need not solve this entire coupled system at once.</p>
+<h2 id="architecture">Architecture</h2>
+<p>Suggested first implementation: encode the small scalar profile and inject it
+into the resource network&#39;s existing conditioning embedding; test feature-wise
+modulation for the deterministic allocation network. This is an experiment, not
+an established improvement for this dataset. Keep condition dropout/missingness
+explicit and evaluate whether the network ignores individual conditions.</p>
+<p>General conditioning mechanisms: <a href="https://arxiv.org/abs/1709.07871">FiLM</a> and
+<a href="https://arxiv.org/abs/2207.12598">classifier-free diffusion guidance</a>.
+Neither paper establishes that our particular heuristic ratings improve maps.</p>
+<p>Sources: <a href="map-rating-extraction/README.md">extraction methods</a>,
+<a href="map-rating-extraction/community-comparison-2026-10-23.md">community comparison</a>,
+<a href="model-atlas/index.html#training">current training receipts</a>.</p>
+<script src="model-atlas/public-links.js" data-public-links></script></body></html>

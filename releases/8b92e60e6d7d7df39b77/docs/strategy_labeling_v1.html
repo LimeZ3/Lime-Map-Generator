@@ -1,0 +1,390 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>strategy_labeling_v1.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="strategy-labels-v1-production-freeze">Strategy labels v1: production freeze</h1>
+<p>Frozen production policy, 22 October 2026. Pipeline <strong>1.2.0</strong> implements this
+bounded labeling adapter (1.2.1 patches playable-area input handling), with source/configuration/code fingerprints and
+independent per-map audits. Historical reports are preserved. The user authorized
+a <strong>100-map review batch first</strong>; the full-library plan remains unstarted.</p>
+<p>The <a href="starting_rear_economy.md">starting/rear spatial economy stage</a> is integrated.
+The production configuration is <a href="../configs/strategy_labels_v1.json">strategy_labels_v1.json</a>.
+Automatic front selection, width/control aggregation, the three UEF naval
+representatives, fixed share ratings and reusable relative calibration are now
+implemented. The research configuration still retains its sensitivity settings.</p>
+<p><strong>Pilot calibration scope:</strong> for the authorized 100-map milestone, relative
+boundaries use only successful training-family members of that trial that also
+belong to the frozen 630-map reference. The exact eligible IDs and quintile
+boundaries are saved in <code>calibration.json</code>. This is a smaller pilot reference,
+not a claim that all 630 maps have been recomputed. Future batches can explicitly
+reuse this saved file; they must not silently refit it. A later choice to expand
+the calibration reference requires a separate, named label release.</p>
+<h2 id="purpose">Purpose</h2>
+<p>Give each supported map version one reproducible gameplay profile for model
+training and filtering. Ratings describe opportunities and demands, not whether
+a map is enjoyable or well designed. A high drop score is desirable when the
+requested map should favor drops; a low score is desirable for the opposite
+request. Do not average the axes into a universal map-quality grade.</p>
+<p>The production export has raw measurements, independent integer ratings 1–5,
+scope, provenance and per-axis validity. Community judgments remain separate
+human observations. Automated ratings are heuristic/weak labels, not human
+ground truth.</p>
+<h2 id="one-operating-configuration">One operating configuration</h2>
+<p>Freeze the following for this release:</p>
+<ul>
+<li>1v1, slot 1 versus the meaningful mirrored slot, with supported adaptive
+defaults resolved for those two active slots. Record actual slots and version.
+Preserve existing exclusions instead of inventing a mirror or static resources
+for an unsupported script. Team-game interpretation is a later version.</li>
+<li>Preserve approved pathability, underwater checks, symmetric geometry,
+resource-attracted own-half fronts, endpoint behavior and merged trunks.</li>
+<li>Mass only. Reclaim acquisition is 1 second/entity plus <code>mass / 25</code>; retain
+exactly three map-relative tiers and absolute throughput metadata.</li>
+<li>One existing reference engineer, a 300-second shared-work budget, pinned UEF
+T1 mex cost/build time/production, and 36 mass working capital. Preserve the
+existing front-fit schedule; the new whole-side economic benchmark also charges
+engineer travel, as specified below. Deduct mex construction mass and never
+count the capital advance as income.</li>
+<li>Balanced reclaim/mex multiplier 1. Derive the layer contribution from scheduled
+net mass rather than assigning tier multipliers. The two historical alternative
+weights may remain research diagnostics; they do not produce alternate labels.</li>
+<li>Medium drop gates, existing automatic land-response strength and fixed base
+response strength 1. Retain economic allocation across contacts. No manual
+per-map choice of air strength, drop preset or base strength.</li>
+<li>Only the approved UEF frigate, destroyer and cruiser-missile naval profiles.
+No new all-faction or T3 search.</li>
+</ul>
+<p>Production needs balanced front budgets through K8 and opportunities at the
+selected budget only. Historical viewers and sensitivity runs may be retained;
+the dataset gets one primary answer rather than the whole settings grid.</p>
+<h2 id="automatic-battle-front-estimate">Automatic battle-front estimate</h2>
+<p>Use mean physical response time to eligible economic targets from contacts or
+base. At balanced weighting:</p>
+<pre><code>R(K) = (net_mex_mass * mex_mean_response(K)
+        + collected_reclaim_mass * reclaim_mean_response(K))
+       / (net_mex_mass + collected_reclaim_mass)
+
+gain(K -&gt; next) = (R(K) - R(next)) / R(K)
+</code></pre>
+<p>Use the one available layer if the other has no value. Compare distinct actual
+contact counts, not requests that produced identical counts. Starting at one,
+accept the next configuration only if gain is at least 5%; stop at the first
+smaller gain. Equality is accepted. If R is zero, further contacts are unnecessary.
+If no eligible economic pool exists, report front count as unavailable rather
+than fabricating one. A valid map with no connecting land front has land attack
+front count zero. Keep these cases distinct.</p>
+<p>At the K8 cap, mark the count <code>search_censored</code> if the last addition is still
+material. If every legal candidate is exhausted, record that instead. Preserve
+the whole curve and actual selected count. Do not silently write an exact eight
+when the answer may exceed the search budget.</p>
+<p>Name this <code>economic_battlefront_count</code>: it estimates separately worthwhile land
+response fronts. It is not a count of topologically independent full-map paths.
+One physical passage may contain several useful contacts. Conversely, a broad
+open front need not be split into many narrow paths. Preserve widths, explicit
+shared trunks and any physical corridor measurements as separate evidence.</p>
+<p>Application to the seven existing integrated examples gives:</p>
+<table>
+<thead>
+<tr>
+<th>Map</th>
+<th align="right">Selected contacts</th>
+<th align="right">Gain from the first rejected addition</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Astro Crater</td>
+<td align="right">1</td>
+<td align="right">0.16%</td>
+</tr>
+<tr>
+<td>Original Seton&#39;s Clutch</td>
+<td align="right">2</td>
+<td align="right">3.90%</td>
+</tr>
+<tr>
+<td>The Drunken Beetles Dance</td>
+<td align="right">2</td>
+<td align="right">0.02%</td>
+</tr>
+<tr>
+<td>Adaptive Morning Prayer</td>
+<td align="right">5</td>
+<td align="right">2.33%</td>
+</tr>
+<tr>
+<td>DualGap</td>
+<td align="right">2</td>
+<td align="right">1.10%</td>
+</tr>
+<tr>
+<td>Adaptive Pandemonium Pass</td>
+<td align="right">5</td>
+<td align="right">1.96%</td>
+</tr>
+<tr>
+<td>Adaptive Tabula Rasa</td>
+<td align="right">3</td>
+<td align="right">2.63%</td>
+</tr>
+</tbody></table>
+<p>These baseline counts came from saved balanced response curves. The production
+batch recomputes and audits its own current inputs. Seton&#39;s two contacts do not
+imply two independent central land corridors. This deliberately simple greedy
+stopping rule can miss a useful later addition after an early plateau; accept
+that limitation for v1 rather than resuming a search for perfect counts.</p>
+<h2 id="resource-inventory-and-early-economic-potential">Resource inventory and early economic potential</h2>
+<p>Do not use the current contested-front schedule as the whole-map economy label:
+it intentionally omits starting and rear economy and non-connecting land sites.</p>
+<p>Export the full playable, configured inventory: mex count, underwater mex count,
+known initial reclaim mass, entity count, three-tier stocks, and unknown-value
+counts. Preserve stock versus collectible return. Divide map totals by two for
+the 1v1 per-player average; also retain separate side inventories and asymmetry.</p>
+<p>For a reclaim abundance scalar, use the existing handling-adjusted priority:</p>
+<pre><code>q_i = mass_i / (mass_i / 25 + 1)
+handling_adjusted_stock = sum(mass_i * q_i / 25)
+</code></pre>
+<p>This scalar discounts small objects; it is not a claim about mass actually
+collected. Keep raw mass alongside it. Three relative tiers do not make a poor
+map&#39;s best trees equivalent to a rich map&#39;s best rocks.</p>
+<p>For <code>early_mass_potential</code>, extend the shared 300-second scheduling calculation
+to each player&#39;s <strong>full own-half hover-accessible pool</strong>, including starting/rear
+mexes, water mexes and accessible initial reclaim. Charge travel in this new
+whole-side benchmark as detailed below. Do not include inaccessible islands
+through virtual walking connections; list their resources separately as
+transport-dependent potential. Keep exactly central resources in a shared-neutral
+inventory; a per-player inventory average may split their stock fractionally,
+but the opening ledger must not construct fractional mexes or credit each side
+with the full same neutral stock. Apply the existing short-range reclaim access
+convention consistently and retain excluded stock.</p>
+<p>The same shared worker budget must serve construction and reclaim; it is not
+repeated independently per resource group or route. Average the two side totals
+for the map rating and retain each side&#39;s result. Reuse the existing front-scope
+economics for front placement; adding this separate whole-side ledger need not
+change the approved route algorithm.</p>
+<p>Produce three economy-related ratings:</p>
+<ul>
+<li><code>mex_supply_rating</code>: per-player configured mex count, with <code>2 * count</code> also
+shown as eventual all-T1 mass/s potential.</li>
+<li><code>reclaim_abundance_rating</code>: handling-adjusted known initial stock per player.</li>
+<li><code>early_economy_rating</code>: average net scheduled mass by 300 seconds.</li>
+</ul>
+<p>These distinguish sustained resource supply, one-time reclaim wealth and early
+mass return. Early economic potential assumes supplied power and omits additional
+worker production, upgrades and combat. It is not a predicted T2/T3 timing. The
+transport-dependent inventory explains exceptions rather than being silently
+credited to the walking engineer.</p>
+<h3 id="starting-and-rear-economy-implemented-addition">Starting and rear economy: implemented addition</h3>
+<p>The <a href="starting_rear_economy.md">implementation and results</a> close this gap without
+changing route discovery or adding new economic presets. The separate front-fit
+scheduler remains a no-travel valuation.</p>
+<p><strong>Location and access are separate.</strong> Assign each configured resource a half-map
+side under the current selected-pair partition, retaining shared-neutral and
+out-of-playable cases. Within each side, use three exclusive location tags:</p>
+<ol>
+<li><code>near_base</code>: an engineer can reach its feasible access point within 96 map
+units of hover-path distance from the spawn. This reuses the existing length
+scale but respects terrain; it is a near-base neighborhood, not a guarantee
+that every site is one of the usual starting mexes or already built.</li>
+<li><code>rear</code>: outside that neighborhood and behind the base, where
+<code>dot(resource - own_spawn, enemy_spawn - own_spawn) &lt; 0</code>.</li>
+<li><code>forward_or_flank</code>: the remaining own-side resources, including side expansions.</li>
+</ol>
+<p>Separately record land/water surface, engineer walking distance/time, and access:
+ordinary own-half hover access, access requiring crossing the frontier, transport
+required, or unresolved. A path that requires crossing the opponent&#39;s half is a
+contested access route, not proof that a transport is physically required. Hover
+walking includes water mexes. Reclaim uses the existing feasible nearby access
+projection, retains entity identity, and cannot jump through an unpassable cliff.</p>
+<p><strong>One spatial worker benchmark.</strong> Start the existing reference engineer at its
+spawn, with the existing capital advance and no free completed mexes. Use the
+ordinary own-half accessible targets in one deterministic greedy schedule. For
+each candidate action, compare attainable incremental net mass by the end of
+300 seconds per occupied engineer-second, now including movement from the
+engineer&#39;s current position, financing wait, and construction or reclaim work.
+Use the existing hover navigation and reference engineer speed; do not treat
+tank speed as engineer speed. Retain the current 1-second/entity acquisition and
+25 mass/s processing assumptions. Objects already within the same feasible
+reclaim reach need no extra journey back to the base.</p>
+<p>Movement advances the common clock, completed mexes continue producing during
+movement and other work, and financing wait is evaluated after crediting income
+earned during travel. Never charge spawn-to-target travel anew for every entity,
+give each area its own 300-second worker, or sum independently simulated area
+economies. Handle equal-return choices deterministically. Mirror the canonical
+side&#39;s attribution only when physical counterpart stock and access nodes are
+verified. Otherwise evaluate actual inventories independently and record that
+limitation, even if terrain geometry is normalized.</p>
+<p>Shared-neutral resources, resources requiring a frontier crossing, and
+transport-only resources remain in total inventory and the expansion/drop
+analysis. They are excluded from this ordinary own-side opening benchmark, with
+their totals explicitly listed. No transport cost/timing model is added here.</p>
+<p>Attribute each actual scheduled build and reclaim operation to its resource&#39;s
+location tag. A mex&#39;s production remains assigned there even after the engineer
+moves elsewhere. The three contribution totals must sum to the one overall
+ledger; category-only what-if runs are unnecessary. Export inventory, handling
+work, walking-time summaries, built mexes, collected mass and net scheduled mass
+for each location, plus side-level totals.</p>
+<p><strong>Rear is not a safety multiplier.</strong> Feed all relevant resources through existing
+land-response, drop, generic air-raid and naval exposure calculations, including
+near-base/rear sites. Preserve the resource-level exposure flags and base-versus-
+front response information where available. Behind-base water may be exposed to
+ships, a cliff may isolate a nearby expansion, and distant rear mexes may invite
+air raids. Location alone supplies no protection bonus or guaranteed income.</p>
+<p>The existing front optimizer retains its protected-start/rear exclusions. These
+resources affect the inventory and whole-side economy label and remain attack
+targets; they do not pull attack paths around the back of a main base. Keep the
+front-only valuation and whole-side benchmark named separately and never add
+their economic totals together.</p>
+<p>Validate this bounded addition on Astro, Seton&#39;s, DualGap and Drunken Beetles:
+conservation and no duplicated budgets, near-versus-far access, water hover
+access, exact accepted mirrors, and attack exposure retained in the rear. Freeze
+the rule after correctness checks; no new distance/strength parameter sweep.</p>
+<h2 id="drops-and-air">Drops and air</h2>
+<p>At the automatically selected contact budget, use the existing medium gates and
+save deduplicated affected mex counts, total active mex count, affected share,
+destination count and raw opportunity/rejection details.</p>
+<p>Expansion, offensive drops and air raids retain separate scores. Combined drop
+impact uses the union of expansion/offensive target IDs; do not add overlapping
+shares. For maps with no land front, preserve the existing disconnected-response
+opportunity handling rather than requiring a fictional contact.</p>
+<p>Use this explicit table for each opportunity share, replacing the old smooth
+score with its destination-count multiplier:</p>
+<table>
+<thead>
+<tr>
+<th>Share of configured map mexes affected, deduplicated across both directions</th>
+<th align="right">Rating</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>0 through 5%</td>
+<td align="right">1 — negligible</td>
+</tr>
+<tr>
+<td>More than 5%, through 20%</td>
+<td align="right">2 — limited</td>
+</tr>
+<tr>
+<td>More than 20%, through 40%</td>
+<td align="right">3 — meaningful</td>
+</tr>
+<tr>
+<td>More than 40%, through 65%</td>
+<td align="right">4 — strong</td>
+</tr>
+<tr>
+<td>More than 65%</td>
+<td align="right">5 — defining</td>
+</tr>
+</tbody></table>
+<p>Retain separate side numerators/denominators. A directional rate must use the
+stated target pool, not be described as a defender-economy percentage when its
+denominator is all map mexes. No active mexes makes these share ratings unavailable,
+not automatically 1. Ordinary drops or raids can be real even when scoring 1.</p>
+<p><code>air_mobility_relevance</code> uses the union of air-raid, offensive-drop and
+expansion-drop mex IDs with the same table. This is a fixed broad proxy for the
+value of aircraft/transport mobility and defending against it. <code>air_raid_rating</code>
+remains separate. Underwater air targets remain included as the generic raid
+class; this does not mean gunships themselves attack submerged mexes.</p>
+<p>For orientation, saved primary-medium air-raid shares at the selected budgets
+are 0% on Astro, 48.1% on Seton&#39;s, 69.0% on Beetles and 32.3% on Pandemonium.
+The frozen table maps those to 1, 4, 5 and 3. These are examples of the raid
+axis; broad air-mobility scores additionally union the drop targets.</p>
+<p>Initial reclaim affects economic fronts and defensive allocation. For v1, raid
+reward remains mex-based: do not invent future factories, upgrades or permanent
+reclaim income to refine the target-value model.</p>
+<h2 id="land-and-navy-relevance">Land and navy relevance</h2>
+<p>Keep these independent of air relevance; they need not sum to 100%.</p>
+<ul>
+<li><code>land_attack_relevance</code>: fraction of all active mexes in terrain land components
+connected to both selected bases, using the same 1–5 share table. Retain
+shortest walking time, front count and reclaim served by fronts as explanation.
+This is land offensive reach, not a claim that isolated islands need no land
+defenders.</li>
+<li>For navy, use the current launch-feasibility/basin and three UEF range-potential
+implementations with the <strong>current resolved two-slot resource set</strong>. Do not join
+stale all-slots naval exports into new labels. An eligible basin must have real
+candidate launch access and either resource access on both sides of the map or
+a firing witness against an opposing-side resource. Isolated decorative ponds
+therefore do not establish strategic sea access.</li>
+<li>For each naval profile, count the union of underwater mexes in those eligible
+basins and mexes within its weapon-range potential. Divide by all active map
+mexes. <code>naval_attack_relevance</code> is the arithmetic mean of the three profile
+shares, mapped through the same table. Keep all three component shares so a
+missile-only opportunity stays visible. This deliberately gives the three
+approved representatives equal weight.</li>
+</ul>
+<p>Naval scores describe access/range potential; terrain projectile obstruction and
+actual naval combat are outside v1. Air relevance does not attempt to price every
+fighter escort, scouting or anti-navy role. These are explicit bounded proxies
+for the unit-type labels, rather than another configurable combat simulator.</p>
+<h2 id="openness-and-frontline-control-demand">Openness and frontline control demand</h2>
+<p>Keep <code>economic_battlefront_count</code> as an integer. Add physical width measurements
+to the chosen own-half deployment lines using the existing perpendicular-ray
+width reader. Exclude the first 32 map units near the base, retain the frontier
+end, and use its eight-unit sustained minimum rather than a single-pixel dip.
+Retain both average width and sustained bottleneck; no maximum attention width
+is imposed on a route.</p>
+<p>For one fixed control-demand index:</p>
+<pre><code>p_i = front i&#39;s allocated economic mass / all front-allocated economic mass
+N_effective = exp(-sum(p_i * log(p_i)))
+W = sum(p_i * sustained_bottleneck_width_i)
+T = sum(p_i * p_j * walking_reposition_seconds_ij, i &lt; j)
+    / sum(p_i * p_j, i &lt; j)
+control_demand_index = N_effective * (1 + W / 64) * (1 + T / 60)
+</code></pre>
+<p>Set T=0 for one front. Zero-share fronts do not enter entropy. If no mass is
+front-allocated, use the existing explicit inverse-deployment-time fallback and
+flag it; if no land fronts exist, the land-front index is zero. Preserve shared
+trunk IDs; weights sum to one, and a shared trunk is not credited as several
+independent widths. The 64-map-unit and 60-second scales are fixed v1 heuristic
+constants, not empirically established skill thresholds.</p>
+<p><code>front_openness_rating</code> uses W; <code>army_control_demand_rating</code> uses the index.
+This allows a few broad fronts to demand more control than the same number of
+chokes, and distant separate fronts to cost more to reinforce. Name it estimated
+land-army control demand, not measured player APM or an overall skill requirement.
+Do not restart crossing/route-generation research for this aggregation step.</p>
+<h2 id="fixed-rating-calibration-and-freeze-contract">Fixed rating calibration and freeze contract</h2>
+<p>The five share bands above are absolute policy choices. For resource supply,
+reclaim abundance, early mass potential, openness and control demand, use
+quintile boundaries (20/40/60/80th percentiles) from the valid <strong>training-family
+members of the already frozen 630-map reference cohort</strong>. Create the family
+train/validation/test split before fitting boundaries. Fit each axis only where
+its inputs are valid, using NumPy&#39;s linear quantile convention. Equality stays
+in the lower bucket; equal raw values always receive equal ratings. Missing
+values are excluded from fitting. A known zero receives rating 1.</p>
+<p>Persist the exact eligible reference IDs, family split, numeric thresholds and
+hashes in the label-release manifest. A rating of 5 on these relative axes means
+upper reference range, not a universal physical definition of excellence. Fit
+once; do not refit per batch, map size, future download or desired ranking. Do not
+infer successful extraction from membership in the older 602-map completed run:
+the current model must actually produce the inputs used for calibration.</p>
+<p>Implementation/execution is a finite release task (the 100-map review milestone
+precedes any full-library execution):</p>
+<ol>
+<li>Add the label adapter, whole-side economic ledger, width aggregation and
+existing three-profile naval stage. Keep scientific intermediates versioned.</li>
+<li>Run one correctness pass on the seven existing examples: ID deduplication,
+mass/work conservation, valid geometry, monotonic rating boundaries, exact
+known mirrors and missing-data behavior. Fix implementation errors, without
+seeking new parameters to make individual rankings agree with expectations.</li>
+<li>Process the reference cohort once, fit/persist the automatic rating boundaries
+once, then process all available local versions with the same policy. Resume
+safely and list failures/exclusions; do not retry historical download failures.</li>
+<li>Publish per-version labels, metrics, provenance, confidence/reason codes and
+overlays. Preserve historical reports; create a new pipeline plan if code
+fingerprints have changed. Begin model training after this export.</li>
+</ol>
+<p>Confidence is per axis: high = supported resolved inputs and complete search;
+medium = flagged geometric approximation, known reclaim lower bound or capped
+contact search; unavailable = the necessary inputs cannot establish that axis.
+These are pipeline/data confidence flags, not probabilities of gameplay truth.
+Unknown values remain null and have a training loss mask. Missing reclaim values
+do not become known zero. Sufficient independent axes can still train on a map
+with another unavailable axis.</p>
+<p>Freeze extracted continuous targets as well as integer labels. Use continuous
+targets for prediction/evaluation and coarse ratings as generation conditions.
+Keep remakes, historical versions and close map-family duplicates in the same
+data split. Automated labels measure agreement with this teacher; separate human
+reviews remain a check on gameplay interpretation, not interchangeable targets.</p>
+<p>After release, change model assumptions or thresholds only in v2. Parser/input
+bugs can receive a documented patch release and affected-map recomputation.
+Energy, upgrades, team setups, comprehensive hover/amphibious front counts,
+scripted moving obstacles, actual combat and perfect subjective ratings are not
+prerequisites for starting model work.</p>
+<script src="model-atlas/public-links.js" data-public-links></script></body></html>
