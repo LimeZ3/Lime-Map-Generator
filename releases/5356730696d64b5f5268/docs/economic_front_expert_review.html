@@ -1,0 +1,55 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>economic_front_expert_review.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="economic-front-expert-review-15-october-2026">Economic-front expert review — 15 October 2026</h1>
+<p>This records the user&#39;s review, not independently measured gameplay truth. Eleven clear acceptances out of seventeen comparable maps give64.7% clean agreement. Six require geometry/counting changes. Exclude Sentina III and Adaptive Millennium as requested; exclude the unintended Badlands version from this agreement denominator. Its result was considered reasonable, but the intended next input is8 - Badlands_v4 (4_5), not Badlands (4673_6900).</p>
+<p>Accepted: Twin Rivers, Zerg Canyon, Adaptive Mars – Mangala Fossa, Funeral Plains, Volcano Beach, Darkfall, Adaptive Monument Valley, Desolate Dunes, Forbidden Pass (land only), Huracan, Adaptive Syrtis Major.</p>
+<h2 id="issues-and-evidence">Issues and evidence</h2>
+<table>
+<thead>
+<tr>
+<th>Map</th>
+<th>User&#39;s expectation</th>
+<th>Finding</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Adaptive Project Dust</td>
+<td>No crossing of paths1/2</td>
+<td>SelectedK3 retains two vertex crossings. This is a geometry defect independent of any value threshold.</td>
+</tr>
+<tr>
+<td>Morning Prayer</td>
+<td>Five paths</td>
+<td>SelectedK3; cleanedK4 weakest removal2.777%, triggering early stop. The unrefinedK5 candidate has five traces,96.01% access versus93.13% at rawK4, and a2.888% minimum. Later candidates need full cleanup before selecting; raw diagnostics are not equivalent to final results.</td>
+</tr>
+<tr>
+<td>Loki</td>
+<td>Three, including central reclaim</td>
+<td>Selected two; K3 still generates only two. Objective excludes reclaim, and no central self-symmetric candidate was selected. Existing static prop baseline records34,803.25 mass mapwide; its spatial distribution must be evaluated, not just its total. Scripted blocking walls also remain outside the grid. Missing reclaim is a plausible cause, not an established sole explanation.</td>
+</tr>
+<tr>
+<td>Azog</td>
+<td>Merge1+4; three corridors</td>
+<td>Explicit partition[2],[3],[1,4] gives joint removal13.4681%,13.4681%,12.8651%. All three corridor groups exceed even10%. This is a representation/counting issue; lowering a cutoff would not fix it. Review calculation stored in data/processed/economic_front_comparison/azog_grouping_feedback.json.</td>
+</tr>
+<tr>
+<td>Regor VI Highlands</td>
+<td>At least three, possibly five</td>
+<td>K3 remains two traces; K4 has four. Cleanup changes weakest removal3.044%→1.456% with exactly zero change in total access objective. This exposes sensitivity to how network segments are assembled into whole trace IDs, as well as restricted odd-count candidates. Reclaim remains unmodelled.</td>
+</tr>
+<tr>
+<td>Adaptive Pyramid</td>
+<td>At least three</td>
+<td>K3 remains two traces; K4 has four. Weakest removal3.515%→2.812% after cleanup, again with zero aggregate access change. Check branch grouping and missing self-symmetric central candidates before changing a global cutoff. Static prop baseline includes62,421.1 mass, but the selected two-slot/default reclaim configuration still requires verification.</td>
+</tr>
+</tbody></table>
+<h2 id="what-the-current-percentage-measures">What the current percentage measures</h2>
+<p>The denominator is weighted nearest-base walking distance: sum(resource income × base response distance). Removal value is the increase in that walking-access cost when a complete trace is removed and other traces are held fixed. It is not a share of map mass or a direct measure of strategic importance. Cleanup can preserve the aggregate objective while changing individual trace removal values. Therefore the percentage should remain an inspection metric, not a universal corridor-worth test.</p>
+<h2 id="proposed-order-of-improvements">Proposed order of improvements</h2>
+<ol>
+<li>Stabilize corridor identity before economic selection. Retain legal branch traces and shared trunks, group reviewed small-obstacle detours, and score joint corridor removal. A mirrored pair alone or a low individual score must not cause automatic grouping. Repair Project Dust crossings independently.</li>
+<li>Add numerical spatial reclaim to route attraction and evaluation, preserving entity mass and positions, including valid initial wrecks, and resolving the same active slots/default options. Keep live civilian units and unknown runtime entities separate. Do not recover values from PNG colours or treat unknown mass as zero. Cluster/pool the value-preserving grids for tractable route searches. Rear reclaim should remain behind-base economy; avoid restoring endpoint loops.</li>
+<li>Compare mex income and finite reclaim in common units: for a shared analysis horizonT, use mex income×T plus available collectible reclaim mass. Include travel/collection constraints and compare early versus sustained horizons. Reclaim is a finite stock, not recurring mex income; raw sums of mass and mass/second are invalid. Do not choose a different horizon per map to force the expected route count.</li>
+<li>Evaluate complete corridor configurations across budgets rather than permanently stopping on the first weak trace. Diagnose total service gain, distinct resource/reclaim groups, bypass/attack approaches and geometric independence. Expose core and secondary fronts, ranges and sensitivity where appropriate. Retain old cutoffs for comparison until the objective and grouping are validated. A failure atK4 is not a proof that a reorganizedK5 configuration is worthless.</li>
+<li>Recheck the accepted maps as regression controls and the six disagreement cases as diagnostics; then evaluate fresh maps before claiming better generalization. Use the requested Badlandsv4. Keep Sentina III/Millennium excluded. Extend Forbidden Pass to hover/amphibious as separate movement networks, preserving MaxSlope0.75 and amphibious maximum depth25; do not mix those counts into land fronts.</li>
+</ol>
+<p>No geometry, automatic thresholds, or collection scores were changed during this review. Historical map outputs remain available.</p>
+<script src="model-atlas/public-links.js" data-public-links></script></body></html>

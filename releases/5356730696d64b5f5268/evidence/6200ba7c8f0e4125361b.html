@@ -1,0 +1,138 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>inspect_symmetry_mismatch.py | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="../docs/model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1>inspect_symmetry_mismatch.py</h1><p class="meta">Saved public evidence snapshot: tools/inspect_symmetry_mismatch.py</p><pre>&quot;&quot;&quot;Measure one map's geometric and entity symmetry without relabeling it.&quot;&quot;&quot;
+import argparse,json,math
+from pathlib import Path
+import numpy as np
+from scipy import ndimage
+from scipy.optimize import linear_sum_assignment
+from scipy.spatial.distance import cdist
+from PIL import Image,ImageDraw,ImageFont
+from supmapai.extract.terrain_symmetry import rotation,reflection,Comparison
+from supmapai.strategy.pipeline_contract import dump,file_hash
+from supmapai.tools.dataset_review import load_cohort
+
+ROOT=Path(__file__).resolve().parents[1]
+READ=lambda p:json.loads(p.read_text(encoding='utf-8'))
+
+
+def warp(array,matrix,offset,order=1):
+    z,x=np.indices(array.shape,dtype=float);x+=offset;z+=offset
+    tx=matrix[0,0]*x+matrix[0,1]*z+matrix[0,2]
+    tz=matrix[1,0]*x+matrix[1,1]*z+matrix[1,2]
+    valid=(tx&gt;=offset-1e-8)&amp;(tx&lt;=array.shape[1]-1+offset+1e-8)&amp;(tz&gt;=offset-1e-8)&amp;(tz&lt;=array.shape[0]-1+offset+1e-8)
+    result=ndimage.map_coordinates(array.astype(float),[tz-offset,tx-offset],order=order,mode='nearest',prefilter=False)
+    return result,valid
+
+
+def differences(a,b,valid,scale=1):
+    delta=np.abs(a-b)[valid]
+    return dict(mae=float(delta.mean()),rmse=float(np.sqrt(np.mean(delta**2))),
+        normalized_rmse=float(np.sqrt(np.mean(delta**2))/scale),
+        quantiles=dict(zip(['p50','p90','p95','p99','max'],map(float,np.quantile(delta,[.5,.9,.95,.99,1])))),
+        fraction_exceeding={str(t):float((delta&gt;t).mean()) for t in [.25,.5,1,2,5,10]},samples=int(valid.sum()))
+
+
+def point_agreement(points,matrix):
+    if not points:return dict(count=0)
+    xy=np.array([[p['x'],p['z']] for p in points],float)
+    mapped=xy@matrix[:2,:2].T+matrix[:2,2]
+    a,b=linear_sum_assignment(cdist(mapped,xy));distances=np.linalg.norm(mapped[a]-xy[b],axis=1)
+    return dict(count=len(points),method='one-to-one minimum-total-distance assignment',
+        mean=float(distances.mean()),median=float(np.median(distances)),p95=float(np.quantile(distances,.95)),max=float(distances.max()),
+        within_world_units={str(t):int((distances&lt;=t+1e-8).sum()) for t in [0,.5,1,2,3,5]},
+        matches=[dict(source=points[i].get('name',str(i)),target=points[j].get('name',str(j)),distance=float(d)) for i,j,d in zip(a,b,distances)])
+
+
+def mask_agreement(mask,matrix):
+    mapped,valid=warp(mask,matrix,.5,0);mapped=mapped&gt;.5
+    xor=(mask!=mapped)&amp;valid;union=(mask|mapped)&amp;valid;intersection=(mask&amp;mapped)&amp;valid
+    boundary=mask ^ ndimage.binary_erosion(mask)
+    distance=ndimage.distance_transform_edt(~boundary)
+    return dict(disagreement=float(xor.sum()/valid.sum()),agreement=float(1-xor.sum()/valid.sum()),
+        intersection_over_union=float(intersection.sum()/max(union.sum(),1)),
+        differing_cells=int(xor.sum()),valid_cells=int(valid.sum()),
+        mismatch_near_original_boundary={str(t):float((distance[xor]&lt;=t).mean()) if xor.any() else 1 for t in [1,2,4]},
+        caveat='Saved static masks and raster overlap, not a proof of equal engine pathfinding or tactical balance'),xor
+
+
+def reach_agreement(mask,matrix,spawns,mexes):
+    mapped,valid=warp(mask,matrix,.5,0)
+    first,_=ndimage.label(mask);second,_=ndimage.label((mapped&gt;.5)&amp;valid)
+    def label_at(labels,p):return int(labels[int(math.floor(p['z'])),int(math.floor(p['x']))])
+    report=[]
+    for spawn in spawns:
+        a=label_at(first,spawn);b=label_at(second,spawn)
+        before=[a!=0 and label_at(first,p)==a for p in mexes]
+        after=[b!=0 and label_at(second,p)==b for p in mexes]
+        report.append(dict(spawn=spawn['name'],original_spawn_passable=a!=0,transformed_spawn_passable=b!=0,
+            mex_reachable_original=sum(before),mex_reachable_transformed=sum(after),
+            mex_reachability_changes=sum(x!=y for x,y in zip(before,after))))
+    return dict(method='Four-neighbor connected components of cached static land mask; source coordinate cells, no snapping',
+        per_spawn=report,caveat='Endpoint reachability only; route lengths, widths and engine behavior are not verified')
+
+
+def picture(out,height,land,results,matrices,spawns):
+    keys=['rotation_180','mirror_45'];font=lambda n:ImageFont.truetype('C:/Windows/Fonts/arial.ttf',n)
+    image=Image.new('RGB',(1536,1200),(20,27,35));draw=ImageDraw.Draw(image)
+    draw.text((10,6),'A_cinder_5v5_Adaptive v4: diagnostic only; detection labels unchanged',font=font(22),fill='white')
+    q=np.quantile(height,[.02,.98]);gray=np.uint8(np.clip((height-q[0])/(q[1]-q[0]),0,1)*210+20)
+    base=Image.fromarray(gray).convert('RGB').resize((512,512))
+    for row,key in enumerate(keys):
+        y=65+row*566;r=results[key];matrix=matrices[key]
+        original=base.copy();d=ImageDraw.Draw(original)
+        for p in spawns:
+            x,z=p['x'],p['z'];d.ellipse((x-4,z-4,x+4,z+4),fill=(120,255,130))
+        image.paste(original,(0,y))
+        mapped,valid=warp(height,matrix,0);delta=np.abs(height-mapped)
+        a=np.clip(delta/5,0,1);rgb=np.stack([255*a,220*np.minimum(a*2,1),45*a],axis=-1).astype(np.uint8)
+        rgb[~valid]=[95,30,120];image.paste(Image.fromarray(rgb).resize((512,512)),(512,y))
+        mapped,valid=warp(land,matrix,.5,0);rgb=np.zeros((512,512,3),np.uint8)
+        rgb[land&amp; (mapped&gt;.5)]=[55,75,65];rgb[(land!=(mapped&gt;.5))&amp;valid]=[255,85,90]
+        image.paste(Image.fromarray(rgb),(1024,y))
+        for col,title in enumerate([key+' | native terrain + all source starts',f&quot;Height difference: mean {r['height']['mae']:.2f}; yellow &gt;=5 units&quot;,f&quot;Land disagreement {100*r['land']['disagreement']:.2f}% (red)&quot;]):
+            draw.text((col*512+8,y-24),title,font=font(17),fill='white')
+    image.save(out/'comparison.png')
+
+
+def main():
+    parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--key',required=True);parser.add_argument('--out',type=Path,required=True)
+    args=parser.parse_args();out=args.out.resolve();out.mkdir(parents=True,exist_ok=True)
+    _,identity,rows=load_cohort(ROOT/'data/tensors/terrain_full256_controls_v3');row=next(r for r in rows if r['key']==args.key)
+    path=Path(row['native_source']);assert file_hash(path)==row['native_source_sha256']
+    meta=READ(path.with_suffix('.json'));markers=READ(Path(meta['job_path'])/'extraction'/args.key/'markers.json')
+    previous=READ(ROOT/'data/processed/terrain_symmetry_collection_v2/maps'/args.key/'result.json')
+    with np.load(path,allow_pickle=False) as a:
+        height=a['height_vertices'].astype(float);land=a['land_native'];hover=a['hover_native'];wet=a['depth_native']&gt;0
+    center=[(height.shape[1]-1)/2,(height.shape[0]-1)/2];relief=float(np.diff(np.quantile(height,[.05,.95]))[0])
+    candidates={f'rotation_{a}':rotation(center,a) for a in [90,180,270]}
+    candidates.update({f'mirror_{a}':reflection(center,a) for a in [0,45,90,135]})
+    for i,m in enumerate(previous['reflections']):candidates['terrain_fitted_mirror_'+str(i)]=np.asarray(m['matrix'])
+    for r in previous['rotations']:
+        if r['order']==2:candidates['terrain_fitted_rotation_180']=rotation(r['center'],180)
+    results={};smooth={sigma:ndimage.gaussian_filter(height,sigma) for sigma in [1,2,4,8,16]}
+    fine=Comparison(height,previous['bounds'],161,relief)
+    cells=(height[:-1,:-1]+height[1:,:-1]+height[:-1,1:]+height[1:,1:])/4
+    gz,gx=np.gradient(cells);slope=np.hypot(gx,gz)
+    for key,matrix in candidates.items():
+        counterpart,valid=warp(height,matrix,0)
+        r=dict(matrix=matrix.tolist(),height=differences(height,counterpart,valid,relief),frozen_detector_score=fine.score(matrix,True),
+            smoothed_height={str(s):differences(h,warp(h,matrix,0)[0],valid,relief) for s,h in smooth.items()})
+        r['land'],_=mask_agreement(land,matrix);r['hover'],_=mask_agreement(hover,matrix);r['wet'],_=mask_agreement(wet,matrix)
+        r['land_endpoint_reachability']=reach_agreement(land,matrix,markers['spawns'],meta['mexes'])
+        counterpart,valid_s=warp(slope,matrix,.5);r['slope']=differences(slope,counterpart,valid_s)
+        r['anchors']={name:point_agreement(points,matrix) for name,points in [('all_spawns',markers['spawns']),('all_source_mexes',markers['mexes']),('active_mexes',meta['mexes']),('all_source_hydros',markers['hydros']),('active_hydros',meta['hydros'])]}
+        results[key]=r
+    report=dict(schema='symmetry_mismatch_diagnostic_v1',key=args.key,map=previous['name'],source_release_sha256=identity,
+        native_sha256=row['native_source_sha256'],height_min=float(height.min()),height_max=float(height.max()),robust_relief=relief,
+        frozen_detector_settings=previous['settings'],prior_label=previous['classification'],source_configuration=previous['configuration'],
+        candidates=results,code_sha256=file_hash(Path(__file__)),role='One-map diagnostics, not a relabeling or global tolerance change',training_started=False)
+    dump(out/'report.json',report)
+    if args.key=='5869_9372':picture(out,height,land,results,candidates,markers['spawns'])
+    for key in ['mirror_45','mirror_135','rotation_180','terrain_fitted_mirror_0']:
+        if key in results:
+            r=results[key]
+            print(json.dumps(dict(transform=key,height=r['height'],detector=r['frozen_detector_score'],land=r['land'],hover=r['hover'],wet=r['wet'],
+                anchors={k:{a:v for a,v in t.items() if a!='matches'} for k,t in r['anchors'].items()})))
+
+
+if __name__=='__main__':main()
+</pre><script src="../docs/model-atlas/public-links.js" data-public-links></script></body></html>

@@ -1,0 +1,81 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>route_response.py | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="../docs/model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1>route_response.py</h1><p class="meta">Saved public evidence snapshot: src/supmapai/strategy/route_response.py</p><pre>&quot;&quot;&quot;Explicit alternative to assuming a full defending army on every route.
+
+Route-choice uncertainty is a scenario, not measured army placement.
+Keep the nearest-route bound alongside this experimental expectation.
+&quot;&quot;&quot;
+import math
+import numpy as np
+from .corridors import movement_graph
+from .opportunities import distance, number
+
+
+def resource_distance_prior(routes, allocated_resources, spawns, base_buffer=96, tank_speed=3.4, mex_income=2):
+    &quot;&quot;&quot;Fractionally allocated off-base income divided by route travel time.
+
+    Probabilities express a fixed land-force allocation budget, not absolute
+    combat strength. Shared resources contribute exactly once in total.
+    &quot;&quot;&quot;
+    if tank_speed&lt;=0 or mex_income&lt;=0 or base_buffer&lt;0:raise ValueError('Invalid resource-priority parameters')
+    unique={};canonical={}
+    for route in routes:
+        cells=tuple(sorted(set(tuple(p) for p in np.floor(route['points']).astype(int))))
+        representative=unique.setdefault(cells,route)
+        canonical[route['id']]=representative['id']
+    rows={r['id']:dict(route_id=r['id'],allocated_mexes=0.,all_allocated_mexes=0.,length=r['length'],
+                       travel_seconds=r['length']/tank_speed) for r in unique.values()}
+    assigned=unassigned=protected=0
+    for resource in allocated_resources:
+        if resource['kind']!='mex':continue
+        ids={canonical[i] for i in resource['route_ids'] if i in canonical}
+        if not ids:unassigned+=1;continue
+        offbase=all(math.hypot(resource['x']-s['x'],resource['z']-s['z'])&gt;=base_buffer for s in spawns)
+        if offbase:assigned+=1
+        else:protected+=1
+        for i in ids:
+            rows[i]['all_allocated_mexes']+=1/len(ids)
+            if offbase:rows[i]['allocated_mexes']+=1/len(ids)
+    for r in rows.values():
+        if not math.isfinite(r['travel_seconds']) or r['travel_seconds']&lt;=0:raise ValueError('Invalid route length')
+        r['priority']=r['allocated_mexes']*mex_income/r['travel_seconds']
+    total=sum(r['priority'] for r in rows.values())
+    fallback=total&lt;=0
+    if fallback:
+        for r in rows.values():r['priority']=1/r['travel_seconds']
+        total=sum(r['priority'] for r in rows.values())
+    for r in rows.values():r['weight']=r['priority']/total
+    assert abs(sum(r['allocated_mexes'] for r in rows.values())-assigned)&lt;1e-8
+    return dict(routes=list(rows.values()),assigned_offbase_mexes=assigned,protected_assigned_mexes=protected,
+        unassigned_mexes=unassigned,base_buffer=base_buffer,mex_income=mex_income,tank_speed=tank_speed,
+        fallback='inverse travel time; no allocated off-base mexes' if fallback else None,
+        effective_weighted_path_count=1/sum(r['weight']**2 for r in rows.values()) if rows else 0,
+        formula='priority_i = fractionally allocated off-base mex income / route travel time; weight_i = priority_i / sum(priority)',
+        scope='T1 mex income only; hydro and reclaim value not converted into mass income; path count is not independent-front count')
+
+
+def attach_route_options(data, land, model='uniform_route_choice', allocated_resources=None, base_buffer=96, tank_speed=3.4, mex_income=2):
+    routes=data['land_routes'];unique={}
+    for route in routes:
+        # Duplicate/reversed geometry must not change the occupancy prior.
+        cells=tuple(sorted(set(tuple(p) for p in np.floor(route['points']).astype(int))))
+        unique.setdefault(cells,route)
+    if not unique:return
+    prior=None
+    if model=='resource_distance_route_choice':
+        if allocated_resources is None:raise ValueError('Verified route-resource allocation required')
+        prior=resource_distance_prior(routes,allocated_resources,data['spawns'],base_buffer,tank_speed,mex_income)
+        weights={r['route_id']:r['weight'] for r in prior['routes']}
+    elif model=='uniform_route_choice':weights={r['id']:1/len(unique) for r in unique.values()}
+    else:raise ValueError('Unknown route response model')
+    graph=movement_graph(land);options=[[] for _ in data['regions']]
+    for route in unique.values():
+        field=distance(graph,land.shape,route['points'])
+        for i,area in enumerate(data['regions']):
+            xy=np.floor([[data['resources'][j]['x'],data['resources'][j]['z']] for j in area['resources']]).astype(int)
+            options[i].append(dict(route_id=route['id'],distance=number(np.min(field[xy[:,1],xy[:,0]])),weight=weights[route['id']]))
+    for side in data['sides'].values():
+        for row,values in zip(side['regions'],options):row['route_response_options']=values
+    data['route_response_assumption']=dict(model=model,unique_route_geometries=len(unique),resource_priority=prior,
+        interpretation=('Weights represent a hypothetical allocation of one fixed land-response budget from resource income and travel time; capped-window averaging remains a scenario, not simulated combat.' if model=='resource_distance_route_choice' else 'Expected response if the main force occupies one possible route; not a prediction of positions or independent fronts.')+' Shared sections remain close to every route that uses them.',
+        limitations=['Route-choice priors can be biased by route-search coverage and alternative combinations.',
+                     'Enemy base response remains unchanged; no AA/intel observations are available.'])
+</pre><script src="../docs/model-atlas/public-links.js" data-public-links></script></body></html>

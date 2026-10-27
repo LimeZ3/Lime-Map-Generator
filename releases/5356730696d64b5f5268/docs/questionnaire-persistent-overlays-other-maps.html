@@ -1,0 +1,27 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>questionnaire-persistent-overlays-other-maps.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="questionnaire-feedback-expanded-collection-and-persistent-overlays">Questionnaire feedback — expanded collection and persistent overlays</h1>
+<p>Changes:</p>
+<ul>
+<li>Overlay background, selected layers, opacity and disclosure state persist in this browser across map changes, skips, submissions and reloads.</li>
+<li>Zoom shows the same live controls beside the native-resolution preview (below it on mobile).</li>
+<li>Unsupported adaptive layers are suppressed without clearing the saved preference; maps without overlays use the vault preview with the correct label.</li>
+<li>All other maps appears after a separate divider below Unrated maps.</li>
+<li>Original manual selection is identified from the preserved 6,047-entry catalog and exact vault matching. Parents represented by any selected version are excluded from All other maps.</li>
+<li>The outside-selection collection contains 8,794 distinct parent maps; 130 were already present as popular-map additions. Existing IDs and reviews are retained. Total catalog entries: 14,841.</li>
+<li>No quality scores are inferred from being outside the original selection.</li>
+<li>New records are explicitly selected through All other maps. The existing 300-map popular pool is preserved, including its previously added representatives.</li>
+<li>The expanded overlay lookup contains 14,734 available entries. 107 exact-version entries lack ready assets and show unavailable. Three vault parents have no recorded version; stable parent IDs are used.</li>
+</ul>
+<p>Data generation: scripts/add-other-vault-maps.py uses the local 2026-10-08 snapshot, original selection, and audited overlay metadata. No vault downloads were started.
+Overlay publishing reuses immutable existing PNG paths and adds the verified new paths to the same release; unchanged hashes are asserted before expansion.</p>
+<p>Validation: questionnaire/i18n tests; new provenance, distinct-map and priority tests; PostgreSQL server tests; production build. Local browser checks covered zoom layer changes, submit/skip/reload persistence, available/unavailable maps, 8,794-map pagination, and mobile zoom width. Local test reviews stayed in the ?qa=1 browser storage.</p>
+<p>Published and verified on 2026-10-14:</p>
+<ul>
+<li>Production deploy: 6acf7441d28f37f2f20169ae, <a href="https://lime-mapgen.netlify.app/">https://lime-mapgen.netlify.app/</a></li>
+<li>Expanded Blob manifest: 111,041 PNGs, 7,250,915,790 bytes, 14,734 overlay-enabled catalog entries.</li>
+<li>All image upload/read-back checkpoints passed. Existing hashes were preserved.</li>
+<li>99 distributed live HTTP samples, caching, unknown paths and session API passed.</li>
+<li>Production browser verified 8,794-map pagination, zoom controls and loaded new-map images; background/layers/opacity/open state survived skip and reload.</li>
+<li>Proof: exports/sticky-overlays-zoom-live.jpg.</li>
+<li>No production review submissions were made. Local QA reviews were used to check submit transitions.</li>
+</ul>
+<script src="model-atlas/public-links.js" data-public-links></script></body></html>

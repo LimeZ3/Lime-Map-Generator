@@ -1,0 +1,38 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>netlify-overlay-library.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="complete-questionnaire-overlays-on-netlify">Complete questionnaire overlays on Netlify</h1>
+<p>Live at <a href="https://lime-mapgen.netlify.app/">https://lime-mapgen.netlify.app/</a>
+Deploy: 6acf6ceffa330d94fd57ad01
+Completed: 2026-10-14</p>
+<p>Release: library-2026-10-14
+Scope: the 6,130 exact map versions available in the current questionnaire lookup.
+Images: 45,794 PNGs (3,347,251,709 bytes).
+47 catalog entries have no exported exact-version package and retain the unavailable message.</p>
+<p>Persistent storage: Netlify Blobs, map-overlays store. Public reads are limited to
+files listed in the deployed release manifest. Pilot URLs remain supported so
+open browser sessions can continue using the earlier release.</p>
+<p>Upload from apps/crowd-labeler-netlify:</p>
+<pre><code>node scripts/upload-overlay-library.mjs
+node scripts/check-overlay-release.mjs
+</code></pre>
+<p>The uploader uses the existing authorized Netlify CLI account through Netlify&#39;s
+configuration helper. Credentials are only used in the local process and are
+never written to the release manifest, browser code, logs, or source archive.
+64 bounded workers validate local PNG hashes, upload, read back and hash-check,
+retry transient failures, and checkpoint each verified result in .private.
+The release gate checks every checkpoint against the exact deployed manifest.</p>
+<p>Before production deployment, the gate must pass. Then deploy the built app and
+run scripts/verify-overlay-library.mjs. This checks a distributed sample plus
+native/rectangular test maps, response caching and MIME, unavailable paths and
+the existing session API. Every file receives full upload read-back verification;
+HTTP testing uses a sample to avoid downloading the entire library again.</p>
+<p>The hosted build defaults to the blob URL and does not copy PNGs into dist.
+The viewer publishes a compact map lookup; the file hashes stay in the server
+manifest. Images load on demand when their layers are selected. Native-resolution
+images load in the enlarged view. Extracted terrain shares exact layer coordinates;
+custom vault artwork may not. Passability is an estimate; adaptive links represent
+exported default settings/all recorded slots rather than questionnaire choices.</p>
+<p>Release verification completed: all 45,794 checkpoints passed; 99 live HTTP samples passed; HEAD, ETag/304, POST rejection, old pilot URL and session API checks passed. Browser checks confirmed loaded, aligned layers on Adaptive Estuary Survival, which was outside the pilot. No review or profile submissions were made.</p>
+<p>Expanded later on 2026-10-14 with the outside-original-selection collection:
+14,841 catalog entries, 8,794 All other maps, 14,734 entries with overlays,
+111,041 PNGs (7,250,915,790 bytes). 107 catalog entries lack ready assets.
+Details and validation: questionnaire-persistent-overlays-other-maps.md.</p>
+<script src="model-atlas/public-links.js" data-public-links></script></body></html>

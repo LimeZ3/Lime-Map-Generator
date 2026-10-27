@@ -1,0 +1,62 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>water_metrics_refresh.md | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1 id="water-coverage-provenance-and-questionnaire-repair">Water coverage provenance and questionnaire repair</h1>
+<p>The questionnaire&#39;s <code>waterPercent</code> and <code>buildablePercent</code> originally came from
+<code>data/audit/v1_current/dataset_audit_maps.csv</code>. This was generated from the older
+<code>data/interim/batches/*/*_terrain.csv</code> files. Rebuilding PNG overlays did not
+refresh those numerical fields.</p>
+<p>Dragons Tooth Mountains (<code>13875_29369</code>) demonstrates the problem:</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Older extraction</th>
+<th>Current serialized decoder</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Water source</td>
+<td><code>height_histogram_fallback_uncertain</code></td>
+<td><code>serialized_water_disabled</code></td>
+</tr>
+<tr>
+<td>Water coverage</td>
+<td>76.8486%</td>
+<td>0%</td>
+</tr>
+<tr>
+<td>Buildable area</td>
+<td>1.9775%</td>
+<td>78.7281%</td>
+</tr>
+</tbody></table>
+<p>Its old fallback guessed sea level at the most common terrain height (16).
+Ground equal to this level counted as water, despite the old record reporting
+zero water depth throughout. The actual file has water disabled. An unused
+stored water elevation is not evidence of an enabled water surface.</p>
+<p>The repair reads height cells, playable bounds and serialized water settings
+using the current decoder, then calculates water/buildable masks with the
+shared terrain rules. Unknown/unsupported sources remain unavailable, not dry.
+It does not render images, evaluate scripts or request anything from FAF.</p>
+<p>Run from the repository root:</p>
+<pre><code class="language-powershell">$env:PYTHONPATH=&#39;src&#39;
+.venv-codex/Scripts/python.exe -m supmapai.tools.refresh_terrain_metrics
+.venv-codex/Scripts/python.exe -m supmapai.tools.refresh_terrain_metrics --apply
+</code></pre>
+<p>The first command audits source files from the overlay collection plus canonical
+local folders and writes <code>data/processed/terrain_metrics_current/metrics.json</code>
+and <code>report.json</code>. Metrics retain source SHA256 hashes, water provenance,
+playable bounds and a full-map water percentage for comparison with PNGs.
+The displayed coverage uses the playable area, as the full decoder does.</p>
+<p>The second command updates only water/buildable metrics and their provenance in
+the existing questionnaire catalog, preserving IDs, vault metadata and reviews.
+Catalog generators also apply this cache, using exact vault versions or exact
+canonical folders. Existing historical V1 batch/audit outputs are retained for
+comparison; they are not the corrected metric source for new training exports.
+Use this refreshed cache or rerun the current decoder for such exports.</p>
+<p>No PNG regeneration or publication is required. A hosted website needs its
+normal build and deployment before these corrected numbers appear there.</p>
+<p>Validation includes regression tests for disabled water above terrain,
+distinguishing unknown from dry, and exact version joins. Six real maps were
+compared against <code>decode_scmap</code> for water coverage, buildable area and water
+provenance: Dragons Tooth Mountains, Setons, Adaptive Diversity, Adaptive
+Archsimkats Valley, Lost Island 4 and Blackstar. All fields matched exactly.</p>
+<script src="model-atlas/public-links.js" data-public-links></script></body></html>

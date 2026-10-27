@@ -1,0 +1,322 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>build_atlas_datasets.py | MapGen atlas</title><style>body{font:16px/1.65 system-ui;margin:40px auto;padding:0 24px;max-width:1050px;color:#21372d}a{color:#11695b}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f4f2;padding:16px}table{border-collapse:collapse;display:block;overflow:auto}td,th{border:1px solid #ccd7d0;padding:8px}img{max-width:100%}.meta{font-size:13px;color:#63776b}</style></head><body><p><a href="../docs/model-atlas/index.html" data-atlas-home>← Project atlas</a> · <a href="https://github.com/LimeZ3/Lime-Map-Generator">GitHub</a></p><h1>build_atlas_datasets.py</h1><p class="meta">Saved public evidence snapshot: src/supmapai/tools/build_atlas_datasets.py</p><pre>&quot;&quot;&quot;Publish a read-only audit of the exact local review cohort; render saved data only.
+
+No extraction, training, split changes or curation writes. Web previews are 256px
+display derivatives; numeric statistics describe the original arrays.
+&quot;&quot;&quot;
+from __future__ import annotations
+import argparse, csv, gzip, hashlib, io, json, math, struct, threading
+from collections import Counter
+from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timezone
+from pathlib import Path
+import numpy as np
+from PIL import Image, ImageDraw
+from supmapai.tools.dataset_review import load_cohort
+from supmapai.tools.atlas_symmetry_layer import attach_symmetry
+from supmapai.tools.atlas_slope_layer import attach_slope
+
+ROOT=Path(__file__).resolve().parents[3]
+PAGE=ROOT/'docs/model-atlas'
+OUT=PAGE/'generated/datasets/1x1-10km'
+SOURCE=ROOT/'data/tensors/terrain_full256_controls_v3'
+REVIEW=ROOT/'data/processed/dataset_reviews/terrain_full256_controls_v3'
+RELEASES=['terrain_curated_20261024_v1','resources_curated_256_v1','reclaim_props_curated_256_v1','wreck_mass_heatmaps_128_v1','civilians_curated_256_v1','map_textures_curated_256_v2']
+SIZE=256;COLS=6;VERSION=1
+def read(p):
+    p=Path(p)
+    return json.loads(gzip.open(p,'rt',encoding='utf-8').read() if p.suffix=='.gz' else p.read_text(encoding='utf-8-sig'))
+def rel(p):
+    try:return Path(p).relative_to(ROOT).as_posix()
+    except ValueError:return Path(p).name
+def sha(p):return hashlib.sha256(Path(p).read_bytes()).hexdigest()
+def js(p,prefix,data):p.write_text(prefix+json.dumps(finite(data),ensure_ascii=False,allow_nan=False,separators=(',',':')).replace('&lt;','\\u003c')+';\n',encoding='utf-8')
+def finite(v):
+    if isinstance(v,str) and len(v)&gt;2 and v[1]==':' and v[2] in ('/','\\'):return rel(v)
+    if isinstance(v,dict):return {k:finite(x) for k,x in v.items()}
+    if isinstance(v,(list,tuple)):return [finite(x) for x in v]
+    if isinstance(v,(float,np.floating)):return float(v) if math.isfinite(v) else None
+    if isinstance(v,np.integer):return int(v)
+    return v
+
+# Definition IDs are stable and are also used by the comparison selector.
+DEFS=[]
+def define(id,label,group,meaning):DEFS.append(dict(id=id,label=label,group=group,meaning=meaning))
+for args in [
+ ('terrain','Terrain height','source','Native height vertices, map-relative contrast; physical min/max reported.'),
+ ('slope','Terrain slope','source','Physical rise/run from 256-grid height, including underwater terrain; invalid derivative neighborhoods masked. Supporting tensor; selected models unchanged.'),
+ ('water','Water depth','source','Saved native depth; dry cells transparent. Blue depth scale 0–30 world units.'),
+ ('symmetry','Symmetry','source','Calculated from native terrain. Gradient direction shows reflection or rotation; additional colors show mirror axes. Review flags remain per map.'),
+ ('starts','Starts','source','All recorded slots; selected pair blue/orange. Other slots grey.'),
+ ('markers','Mexes &amp; hydros','source','Recorded markers under the pinned analysis configuration; green mex, violet hydro.'),
+ ('natural_mass','Natural reclaim · mass','source','Active prop mass, summed into 2×2 world-unit display bins; log color scale.'),
+ ('natural_energy','Natural reclaim · energy','source','Active prop energy, separate from wrecks; summed display bins, log color scale.'),
+ ('wrecks','Wreck mass','source','Active wreck mass only; unresolved values remain questions, never inferred zero.'),
+ ('civilians','Civilians','source','Recorded living placed units; cyan points, not reclaim.'),
+ ('adaptive','Adaptive connections','source','Recorded spawn-to-resource connections only. Unresolved script effects remain questions.'),
+ ('appearance','Surface appearance','source','Saved unlit source albedo; invalid pixels transparent. Not engine lighting.'),
+ ('land','Land pathing','derived','Saved static land mask; not engine-verified navigation.'),
+ ('hover','Hover pathing','derived','Saved hover mask; not a navy route prediction.'),
+ ('water_path','Water pathing','derived','Saved water movement mask; not a naval battle-path model.'),
+ ('amphibious','Amphibious pathing','derived','Saved amphibious mask.'),
+ ('air_expansion','Air expansion drops','derived','Actual selected sides: blue/orange, violet overlap. Not neutral influence.'),
+ ('air_offensive','Air offensive drops','derived','Saved slot-relative offensive landing masks.'),
+ ('air_raids','Air raids','derived','Saved slot-relative raid masks; not simulated combat success.'),
+ ('access_a','Ordinary hover access · A','derived','Saved side-A ordinary hover access in its own half. Zero does not prove transport is required.'),
+ ('access_b','Ordinary hover access · B','derived','Saved opposing-side hover access in its own half. Zero does not prove transport is required.'),
+ ('roles_a','Main-base / rear / forward · A','derived','Saved zoning codes. Provisional definition; not a safety prediction.'),
+ ('roles_b','Main-base / rear / forward · B','derived','Saved opposing-side zoning, not a mirrored guess.'),
+ ('area_groups','Resource area grouping','derived','Saved resource area IDs, categorical colors. Not direct evidence of walking connectivity.'),
+ ('battle_paths','Main battle paths','derived','Saved front route geometry if present. Absence is missing output; no straight-line proxy.'),
+ ('target_height','Training target · height','training','Decoded actual Full256 V3 target, not a generated prediction.'),
+ ('target_water','Training target · water SDF','training','Actual signed-distance target: blue negative, orange positive; raw encoded range reported.'),
+ ('target_depth','Training target · depth','training','Decoded actual target depth; no new extraction.'),
+]:define(*args)
+for i,label in enumerate(['height relative','water coverage','water depth','land passable','hover passable','spawn A','spawn B','mex density','hydro density','reclaim mass','reclaim count','reclaim priority']):define('physical_'+str(i),'Native tensor · '+label,'training','Actual saved 128×128 physical channel. Display contrast is per channel; inspect numeric range.')
+for i in range(9):define('paint_'+str(i),'Paint weight · '+str(i),'source','Actual saved material blend weight, range 0–1. Palette assignment is map-specific.')
+define('paint_valid','Albedo validity','source','Saved RGB validity; white means supported pixel. Unknown pixels are excluded from appearance.')
+for id,label in [('landing','Land payload landing'),('engineer_landing','Engineer landing')]:define(id,label,'derived','Saved landing feasibility mask under the recorded payload movement rules.')
+for release,count in [('resources_curated_256_v1',2),('reclaim_props_curated_256_v1',12),('wreck_mass_heatmaps_128_v1',1),('civilians_curated_256_v1',1)]:
+    names={'resources_curated_256_v1':['Mex target','Hydro target'],'reclaim_props_curated_256_v1':[kind+' '+measure+' target' for kind in ['Trees','Rocks','Wrecks','Other props'] for measure in ['count','mass','energy']],'wreck_mass_heatmaps_128_v1':['Wreck mass target'],'civilians_curated_256_v1':['Civilian density target']}
+    for i in range(count):define(release+'_'+str(i),names[release][i],'training','Actual encoded supervised target channel, not generation input or model output. Contrast is per channel; numeric range and archive retained.')
+
+def build(limit=None,workers=4):
+    source,identity,rows=load_cohort(SOURCE)
+    cached=read(REVIEW/'catalog.json');assert cached['cohort']==identity
+    catalog={m['key']:m for m in cached['maps']};assert set(catalog)=={r['key'] for r in rows}
+    decisions=read(REVIEW/'decisions.json');assert decisions['cohort']==identity
+    norm=read(source/'normalization.json')
+    with (ROOT/'data/raw/faf_maps/latest_20261008/map_catalog.csv').open(encoding='utf-8-sig',newline='') as f:vault={r['map_id']+'_'+r['version_id']:r for r in csv.DictReader(f)}
+    memberships={}
+    for release in RELEASES:
+        folder=ROOT/'data/tensors'/release;members={}
+        for split in ['train','validation']:
+            p=folder/(split+'.jsonl')
+            if p.exists():
+                for line in p.read_text().splitlines():
+                    if line.strip():
+                        row=json.loads(line);row['_split']=split;members[row['key']]=row
+        memberships[release]=members
+    OUT.mkdir(parents=True,exist_ok=True)
+    def one(row):
+        key=row['key'];entry=catalog[key];folder=OUT/key;folder.mkdir(exist_ok=True)
+        meta=read(Path(row['native_source']).with_suffix('.json'));assert meta['key']==key
+        job=Path(meta['job_path']);ex=job/'extraction'/key
+        issues=[];views={};tiles=[];evidence={};stages={}
+        def issue(text):
+            if text not in issues:issues.append(text)
+        def state(stage,p):
+            exists=Path(p).exists();stages[stage]='recorded' if exists else 'missing'
+            if exists:evidence[stage]=rel(p)
+            else:issue(stage+': missing saved artifact')
+            return exists
+        def add(id,array,path,channel='',mode='heat',color=(78,188,148),note='',valid_mask=None):
+            array=np.asarray(array);numeric=np.isfinite(array);valid=numeric if valid_mask is None else numeric&amp;valid_mask
+            stats=dict(shape=list(array.shape),dtype=str(array.dtype),finite=bool(valid.all()),min=float(np.min(array[valid])) if valid.any() else None,max=float(np.max(array[valid])) if valid.any() else None)
+            stats['finite']=bool(numeric.all())
+            if not numeric.all():issue(id+': non-finite values')
+            if array.ndim==2:stats.update(nonzero=int(np.count_nonzero(array)),sum=float(np.where(valid,array,0).sum()))
+            image=raster(array,mode,color)
+            if valid_mask is not None:
+                stats['supervised_cells']=int(np.count_nonzero(valid_mask))
+                alpha=Image.fromarray(np.uint8(valid_mask)*255).resize((SIZE,SIZE),Image.Resampling.NEAREST);image.putalpha(alpha)
+            views[id]=dict(tile=len(tiles),source=rel(path),channel=channel,stats=stats,note=note);tiles.append(image)
+        def image_view(id,image,path,note=''):
+            views[id]=dict(tile=len(tiles),source=rel(path),channel='',stats=dict(shape=[image.height,image.width]),note=note);tiles.append(image.convert('RGBA').resize((SIZE,SIZE),Image.Resampling.NEAREST))
+        record=read(ex/'record.json') if state('Extraction record',ex/'record.json') else {}
+        if record and (str(record['map_id'])+'_'+str(record['version_id'])!=key):raise ValueError('Wrong extraction identity '+key)
+        validation=record.get('validation',{})
+        for warning in validation.get('warnings',[])+validation.get('props_warnings',[]):issue(str(warning))
+        if validation.get('reclaim_unresolved_in_bounds',0):issue('Unresolved reclaim values: '+str(validation['reclaim_unresolved_in_bounds']))
+        if meta.get('raw',{}).get('search_censored'):issue('Strategy search censored')
+        if meta.get('raw',{}).get('reclaim_lower_bound'):issue('Reclaim totals are lower bounds')
+        adaptive=read(ex/'adaptive_options.json') if (ex/'adaptive_options.json').exists() else {}
+        if adaptive.get('status') not in ('resolved','supported','not_adaptive'):issue('Adaptive settings: '+str(adaptive.get('status','missing'))+'; runtime scripts not evaluated')
+        for warning in adaptive.get('warnings',[]):issue('Adaptive: '+warning)
+        sourcefile=Path(meta['source_scmap']);original=None
+        try:
+            with sourcefile.open('rb') as f:
+                header=f.read(34);size=struct.unpack_from('&lt;i',header,30)[0]
+                if not 128&lt;=size&lt;=16000000:raise ValueError('Invalid preview size')
+                original=Image.open(io.BytesIO(f.read(size))).convert('RGB').resize((256,256));original.save(folder/'original.webp',quality=85)
+        except Exception as e:issue('Author preview unavailable: '+type(e).__name__)
+        if state('Native tensors',row['native_source']):
+            if sha(row['native_source'])!=row['native_source_sha256']:raise ValueError('Native checksum changed '+key)
+            with np.load(row['native_source'],allow_pickle=False) as a:
+                h=a['height_vertices'];add('terrain',h, row['native_source'],'height_vertices',mode='height')
+                add('water',a['depth_native'],row['native_source'],'depth_native',mode='depth')
+                for i,name in enumerate(meta['channels']):add('physical_'+str(i),a['physical'][i],row['native_source'],'physical['+str(i)+'] '+name,mode='height')
+        marker_path=ex/'markers.json';markers=read(marker_path) if state('Markers',marker_path) else {}
+        for id,groups in [('starts',[(markers.get('spawns',[]),(132,147,142))]),('markers',[(markers.get('mexes',[]),(85,228,113)),(markers.get('hydros',[]),(213,131,248))])]:
+            if markers:
+                image=Image.new('RGBA',(SIZE,SIZE));d=ImageDraw.Draw(image)
+                for points,color in groups:
+                    for p in points:point(d,p,color,2)
+                if id=='starts':
+                    for i,p in enumerate(row['spawns']):point(d,p,[(75,160,255),(255,160,69)][i],4,p['name'])
+                image_view(id,image,marker_path,str(sum(len(g[0]) for g in groups))+' recorded points')
+        entities=[];entitypath=ex/'entities.json.gz'
+        if state('Entities',entitypath):
+            entities=read(entitypath);entities=entities.get('entities',[]) if isinstance(entities,dict) else entities
+            for id,quantity,kind in [('natural_mass','mass','prop'),('natural_energy','energy','prop'),('wrecks','mass','wreckage')]:
+                grid=np.zeros((256,256),np.float64);unknown=0;count=0
+                for e in entities:
+                    selected=e.get('source_type')=='prop' and e.get('kind')!='wreckage' if kind=='prop' else e.get('kind')=='wreckage'
+                    if not selected or e.get('active_in_configuration') is False:continue
+                    value=e.get(quantity)
+                    if value is None:unknown+=1;continue
+                    x,z=e.get('x',-1),e.get('z',-1)
+                    if 0&lt;=x&lt;512 and 0&lt;=z&lt;512:grid[int(z/2),int(x/2)]+=value;count+=1
+                add(id,grid,entitypath,quantity,mode='heat',note=f'{count} valued active entities; {unknown} unknown; sum per 2×2 world-unit display tile')
+                if unknown:issue(id+': '+str(unknown)+' unknown values')
+            image=Image.new('RGBA',(SIZE,SIZE));d=ImageDraw.Draw(image);civ=0
+            for e in entities:
+                if e.get('source_type')!='prop' and e.get('kind')!='wreckage' and e.get('active_in_configuration') is not False:point(d,e,(80,235,240),2);civ+=1
+            image_view('civilians',image,entitypath,f'{civ} active living placed entities')
+        if adaptive:
+            image=Image.new('RGBA',(SIZE,SIZE));d=ImageDraw.Draw(image);links=adaptive.get('resource_connections',[])
+            # Connections are only drawn when explicit endpoints are recorded.
+            for link in links:
+                if isinstance(link,dict) and all(k in link for k in ['spawn_x','spawn_z','x','z']):d.line([(link['spawn_x']/2,link['spawn_z']/2),(link['x']/2,link['z']/2)],fill=(245,185,90),width=1)
+                drawn=sum(isinstance(link,dict) and all(k in link for k in ['spawn_x','spawn_z','x','z']) for link in links)
+                if drawn:image_view('adaptive',image,ex/'adaptive_options.json',f'{drawn} rendered endpoint connections; {len(links)} recorded entries; inspect settings receipt')
+                elif links:issue('Adaptive connections exist but endpoint schema needs a dedicated renderer')
+        npz=job/'navigation/masks.npz'
+        if state('Pathing',npz):
+            with np.load(npz,allow_pickle=False) as a:
+                for id,name in [('land','land'),('hover','hover'),('water_path','water'),('amphibious','amphibious')]:
+                    if name in a:add(id,a[name],npz,name,mode='mask')
+        npz=job/'opportunities/layers.npz'
+        if state('Air &amp; areas',npz):
+            with np.load(npz,allow_pickle=False) as a:
+                for id,suffix in [('air_expansion','expansion'),('air_offensive','offensive'),('air_raids','air')]:
+                    names=[p['name']+'_'+suffix for p in row['spawns']]
+                    if all(n in a for n in names):add(id,a[names[0]].astype(np.uint8)+a[names[1]].astype(np.uint8)*2,npz,' + '.join(names),mode='sides')
+                    else:issue(id+': selected spawn pair missing')
+                if 'areas' in a:add('area_groups',a['areas'],npz,'areas',mode='categorical',note='Resource area IDs; walking connectivity must be inspected separately')
+                for name in ['landing','engineer_landing']:
+                    if name in a:add(name,a[name],npz,name,mode='mask')
+        npz=job/'whole_economy/layers.npz'
+        if state('Resource zoning',npz):
+            with np.load(npz,allow_pickle=False) as a:
+                for i,p in enumerate(row['spawns']):
+                    for prefix,suffix in [('roles','roles'),('access','access')]:
+                        name=p['name']+'_'+suffix
+                        if name in a:add(prefix+'_'+('a' if i==0 else 'b'),a[name],npz,name,mode='categorical')
+            issue('Main-base/rear/forward zoning and contestability definitions need review (EXTRACT-03/04)')
+        frontpath=job/'fronts/fronts.json.gz'
+        if state('Battle fronts',frontpath):
+            front=read(frontpath)
+            # Do not invent path predictions from front scalar scores.
+            paths=find_paths(front)
+            if paths:
+                image=Image.new('RGBA',(SIZE,SIZE));d=ImageDraw.Draw(image)
+                for points in paths:d.line([(p[0]/2,p[1]/2) for p in points],fill=(245,188,80),width=2)
+                image_view('battle_paths',image,frontpath,f'{len(paths)} saved route polylines; not hover/navy battle paths')
+            else:issue('Main battle-path preview: front metrics exist but no supported saved route geometry')
+        auditpath=job/'audit.json';audit=read(auditpath) if state('Pipeline audit',auditpath) else {}
+        if audit.get('status')!='passed':issue('Pipeline audit not passed')
+        if audit.get('independent_reader_parity')!='passed':issue('Independent reader parity: '+str(audit.get('independent_reader_parity','not available')))
+        targetpath=source/row['archive']
+        if state('Training target',targetpath):
+            if sha(targetpath)!=row['sha256']:raise ValueError('Training target checksum changed '+key)
+            with np.load(targetpath,allow_pickle=False) as a:
+                t=a['target'];assert t.shape==(3,256,256) and np.isfinite(t).all()
+                add('target_height',np.sinh(t[0]*norm['height_scale'])*norm['height_unit'],targetpath,'decoded target[0]',mode='height')
+                add('target_water',t[1],targetpath,'target[1]',mode='signed')
+                add('target_depth',np.expm1((t[2]+1)*.5*norm['depth_scale'])*norm['depth_unit'],targetpath,'decoded target[2]',mode='depth')
+        processed=[]
+        for release in RELEASES:
+            member=memberships[release].get(key)
+            item=dict(release=release,status='not_in_release',split=None)
+            if member:
+                archive=Path(member['archive']);archive=archive if archive.is_absolute() else ROOT/'data/tensors'/release/archive
+                item.update(status='recorded' if archive.exists() else 'missing_archive',split=member['_split'],source=rel(archive))
+                if not archive.exists():issue(release+': recorded member but archive missing')
+                if release not in ('terrain_curated_20261024_v1','map_textures_curated_256_v2') and archive.exists():
+                    with np.load(archive,allow_pickle=False) as a:
+                        item['arrays']={k:dict(shape=list(a[k].shape),dtype=str(a[k].dtype)) for k in a.files}
+                        if 'target' in a:
+                            for i,channel in enumerate(a['target']):
+                                add(release+'_'+str(i),channel,archive,'target['+str(i)+']',mode='height',note='Loss-mask excluded pixels omitted from statistics and transparent' if 'loss_mask' in a else '',valid_mask=a['loss_mask'][i] if 'loss_mask' in a else None)
+                if release=='map_textures_curated_256_v2' and archive.exists():
+                    with np.load(archive,allow_pickle=False) as a:
+                        if 'albedo_rgb' in a:
+                            rgb=a['albedo_rgb'];rgb=np.moveaxis(rgb,0,-1) if rgb.shape[0]==3 else rgb
+                            rgba=np.concatenate([np.uint8(np.clip(rgb,0,1)*255),np.full((*rgb.shape[:2],1),255,np.uint8)],axis=-1)
+                            if 'albedo_validity' in a:rgba[...,3]=np.uint8(np.squeeze(a['albedo_validity'])*255)
+                            add('appearance',rgba,archive,'albedo_rgb + albedo_validity',mode='rgba',note=f'valid RGB fraction {member.get(&quot;rgb_valid_fraction&quot;)}')
+                            if 'albedo_validity' in a:add('paint_valid',np.squeeze(a['albedo_validity']),archive,'albedo_validity',mode='mask',color=(240,240,240))
+                            if 'paint_weights' in a:
+                                for i,channel in enumerate(a['paint_weights']):add('paint_'+str(i),channel,archive,'paint_weights['+str(i)+']',mode='weight')
+                        else:issue('Surface appearance: archive lacks supported albedo_rgb field')
+                if release=='map_textures_curated_256_v2' and member.get('rgb_valid_fraction',1)&lt;1:issue('Surface appearance has unresolved pixels')
+            processed.append(item)
+        applicable=[d for d in DEFS if not any(d['id'].startswith(release+'_') and key not in memberships[release] for release in RELEASES)]
+        for definition in applicable:
+            if definition['id'] not in views:issue(definition['label']+': no supported preview in pinned sources')
+        height=math.ceil(len(tiles)/COLS);sheet=Image.new('RGBA',(COLS*SIZE,height*SIZE))
+        for i,tile in enumerate(tiles):sheet.paste(tile,((i%COLS)*SIZE,(i//COLS)*SIZE))
+        sheet.save(folder/'layers.webp',lossless=True,method=2)
+        local_decision=decisions['decisions'].get(key,{})
+        v=vault.get(key,{})
+        summary=dict(key=key,name=entry['name'],folder=entry['folder'],family=entry['family'],split=row['split'],water=entry['water_percent'],relief=entry['relief'],mexes=entry['mexes'],hydros=entry['hydros'],decision=('exclude' if local_decision.get('status')=='exclude' else 'keep'),reason=local_decision.get('reason',''),views=list(views),tiles={id:v['tile'] for id,v in views.items()},sheetRows=height,missing=sum(d['id'] not in views for d in applicable),questions=len(issues),current=key in memberships[RELEASES[0]],vault=v.get('thumbnail_large',''),rating=v.get('map_rating_averageScore') or None,plays=v.get('all_time_plays') or None,original=original is not None)
+        detail=dict(**summary,viewData=views,sheetRows=height,issues=issues,stages=stages,evidence=evidence,processed=processed,spawns=row['spawns'],metrics=row['targets'],ratings=meta.get('ratings',{}),confidence=meta.get('confidence',{}),ratingMask=meta.get('loss_mask',{}),rawMetrics=meta.get('raw',{}),pipeline=meta.get('pipeline_version'),inputSignature=meta.get('input_signature'),audit=audit,adaptive=dict(status=adaptive.get('status'),active_slots=adaptive.get('active_slots'),selected_options=adaptive.get('selected_options'),option_catalog=adaptive.get('option_catalog'),warnings=adaptive.get('warnings'),resource_connections=adaptive.get('resource_connections')),sourceHash=meta.get('source_sha256'),targetHash=row['sha256'],vaultRatings={k:v.get(k) for k in ['map_rating_averageScore','map_rating_reviews','version_rating_averageScore','version_rating_reviews','ranked','recommended','max_players']},reclaim=validation)
+        attach_symmetry(detail,identity)
+        attach_slope(detail,identity)
+        detail['missing']=sum(d['id'] not in detail['views'] for d in applicable)
+        detail['questions']=len(detail['issues'])
+        summary.update({k:detail[k] for k in ['views','missing','questions','symmetry']})
+        js(folder/'detail.js','window.MAPGEN_DATASET_MAPS=window.MAPGEN_DATASET_MAPS||{};window.MAPGEN_DATASET_MAPS['+json.dumps(key)+']=',finite(detail))
+        return summary
+    chosen=rows[:limit] if limit else rows
+    summaries=[]
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        for i,result in enumerate(pool.map(one,chosen)):
+            summaries.append(result)
+            if (i+1)%50==0:print(f'Atlas dataset {i+1}/{len(chosen)}',flush=True)
+    data=dict(schema='mapgen_dataset_atlas_v1',id='1x1-10km',title='1x1, 10km',recordedAt=datetime.now(timezone.utc).isoformat(),cohort=identity,source=rel(source),reviewSource=rel(REVIEW),reviewRevision=decisions['revision'],count=len(rows),publishedCount=len(summaries),splits=dict(Counter(r['split'] for r in rows)),definitions=DEFS,releases=RELEASES,maps=summaries)
+    js(PAGE/'generated/dataset-data.js','window.MAPGEN_DATASETS=',data)
+    (OUT/'inventory.json').write_text(json.dumps(data,indent=2),encoding='utf-8')
+    print(json.dumps(dict(maps=len(summaries),views=sum(len(m['views']) for m in summaries),bytes=sum(p.stat().st_size for p in OUT.rglob('*') if p.is_file()),source_cohort=identity)),flush=True)
+
+def point(d,p,color,r=2,label=None):
+    x,z=p.get('x',-1)/2,p.get('z',-1)/2
+    if not (0&lt;=x&lt;256 and 0&lt;=z&lt;256):return
+    d.ellipse((x-r,z-r,x+r,z+r),fill=(*color,255))
+    if label:d.text((min(220,x+5),min(242,z+2)),label,fill=(*color,255),stroke_width=1,stroke_fill='black')
+def raster(array,mode,color):
+    a=np.nan_to_num(array.astype(float));shape=a.shape[:2]
+    if mode=='rgba':return Image.fromarray(array.astype(np.uint8)).resize((SIZE,SIZE),Image.Resampling.NEAREST)
+    rgba=np.zeros((*shape,4),np.uint8)
+    if mode=='height':
+        lo,hi=np.quantile(a,[.01,.99]);v=np.clip((a-lo)/max(hi-lo,.01),0,1);rgba[...,:3]=np.uint8((40+200*v)[...,None]);rgba[...,3]=255
+    elif mode=='depth':
+        t=np.clip(a/30,0,1);rgba[...,:3]=np.stack([35+20*t,160-80*t,235-50*t],axis=-1).astype(np.uint8);rgba[...,3]=np.uint8(a&gt;0)*255
+    elif mode=='mask':rgba[...,:3]=color;rgba[...,3]=np.uint8(a&gt;0)*255
+    elif mode=='sides':
+        for v,c in [(1,(69,153,245)),(2,(251,157,62)),(3,(183,96,223))]:rgba[a==v]=[*c,255]
+    elif mode=='signed':rgba[a&lt;0]=[59,154,238,255];rgba[a&gt;=0]=[233,160,80,255]
+    elif mode=='weight':rgba[...,:3]=[100,200,240];rgba[...,3]=np.uint8(np.clip(a,0,1)*255)
+    elif mode=='categorical':
+        for v in np.unique(a):
+            if v&lt;=0:continue
+            k=int(v);rgba[a==v]=[60+(k*83)%190,60+(k*137)%190,60+(k*47)%190,255]
+    else:
+        v=np.log1p(np.maximum(a,0));top=max(float(np.quantile(v[v&gt;0],.98)) if np.any(v&gt;0) else 1,1e-6);t=np.clip(v/top,0,1)
+        rgba[...,:3]=np.stack([50+200*t,220-140*t,95-60*t],axis=-1).astype(np.uint8);rgba[...,3]=np.uint8(a&gt;0)*255
+    return Image.fromarray(rgba).resize((SIZE,SIZE),Image.Resampling.NEAREST)
+def find_paths(value):
+    # Only explicit named point polylines. Never reinterpret scalar arrays as paths.
+    found=[]
+    if isinstance(value,dict):
+        for k,v in value.items():
+            if k in ('path','polyline','route_points') and isinstance(v,list) and len(v)&gt;1:
+                if all(isinstance(p,dict) and 'x' in p and 'z' in p for p in v):found.append([(p['x'],p['z']) for p in v])
+            elif isinstance(v,(dict,list)):found.extend(find_paths(v))
+    elif isinstance(value,list):
+        for item in value:
+            if isinstance(item,(dict,list)):found.extend(find_paths(item))
+    return found
+if __name__=='__main__':
+    p=argparse.ArgumentParser(description=__doc__);p.add_argument('--limit',type=int);p.add_argument('--workers',type=int,default=4);a=p.parse_args();build(a.limit,a.workers)
+</pre><script src="../docs/model-atlas/public-links.js" data-public-links></script></body></html>
